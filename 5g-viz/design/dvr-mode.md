@@ -123,7 +123,7 @@ nwdaf_ground_truth_ul_bytes{session="20260413T063000123", sub_id="imsi-001", tar
 效果：
 
 - 不同 session 的 metrics 天然隔離，**不再需要 `clear_metrics()`**。
-- 舊 session 資料留在 Prometheus TSDB（預設 retention 15 天），可隨時查閱。
+- 舊 session 資料留在 Prometheus TSDB，查閱期限取決於 Prometheus retention 設定；若未特別調整，通常沿用 Prometheus 的預設 retention。
 - Grafana dashboard 加 `session` template variable，使用者透過下拉選單切換 session。
 
 ### Grafana Dashboard 變更
@@ -413,7 +413,7 @@ DVR 模式下，event log 面板的行為：
 |------|-------------|
 | 拖曳 slider 中 | 不更新（避免頻繁 iframe reload） |
 | 拖曳結束 / Play 暫停 | 更新 iframe `from`/`to` 為以 scrub 時間為中心的窗口（半寬 = `_grafanaWindowMin` / 2），`var-session=<orig_id>` |
-| Replay Play 開始 | 切換到 pseudo-live 模式：`var-session=_live_<orig_id>`，`from=now-{N}m&to=now&refresh=5s`（N = `_grafanaWindowMin`）。iframe reload 一次，之後不再更新（見 §15） |
+| Replay Play 開始 | 呼叫 `/api/replay/play` 取得本次播放專用的 `pseudo_session`，再切換到 pseudo-live 模式：`var-session=<pseudo_session>`，`from=now-{N}m&to=now&refresh=5s`（N = `_grafanaWindowMin`）。iframe reload 一次，之後不再更新（見 §15） |
 | Replay Play 進行中 | 不更新 iframe——Grafana auto-refresh 自行追蹤（等同 live 體感） |
 | Replay Play 暫停 | 切回 backfill 資料：`var-session=<orig_id>`，centered from/to 在暫停位置。iframe reload 一次 |
 | Go Live（live 模式） | 恢復 `from=now-Nm&to=now&refresh=5s`，`var-session=<orig_id>` |
@@ -432,9 +432,9 @@ DVR 模式下，event log 面板的行為：
 | GET | `/api/sessions` | 列出所有可用 session（每個 session 的 meta.json 內容） |
 | GET | `/api/events?session=<id>&from=<ts>&to=<ts>` | 取得指定 session 和時間範圍的 events |
 | GET | `/api/state` | 回傳 server 端最新的完整狀態 snapshot（用於 Go Live 重建） |
-| POST | `/api/replay/play` | 啟動 pseudo-live（pre-seed + emit loop）。Body：`{ from_time, speed, window }`（見 §15.5） |
-| POST | `/api/replay/pause` | 停止 pseudo-live emit loop（見 §15.5） |
-| POST | `/api/replay/speed` | 變速。Body：`{ speed, current_time }`（見 §15.5） |
+| POST | `/api/replay/play` | 啟動 pseudo-live（pre-seed + emit loop），並回傳本次播放專用的 `pseudo_session`。Body：`{ from_time, speed, window }`（見 §15.5） |
+| POST | `/api/replay/pause` | 停止指定 `pseudo_session` 的 pseudo-live emit loop。Body：`{ pseudo_session }`（見 §15.5） |
+| POST | `/api/replay/speed` | 變速。Body：`{ pseudo_session, speed, current_time }`（見 §15.5） |
 
 以上三個 `/api/replay/*` endpoint 僅在 replay 模式下可用，live 模式呼叫回傳 404。
 
@@ -776,7 +776,7 @@ Live DVR 模式下，前端在 pause 期間持續收 WebSocket events 存入 buf
 8. [x] **前端 Grafana 同步**：scrub/paused 位置對齊視窗、play 期間節流同步、Go Live 回到即時視窗。
 9. [x] **Replay 模式**：`start.sh --replay`、後端 replay 載入、前端 replay 入口與 Prometheus remote write 回填已完成（支援 `--force-backfill`）。
 10. [ ] **導出打包**（含 topology.yaml）。
-11. [ ] **Pseudo-live pipeline — 後端 MetricPlayer**：獨立 Gauge 實例（`_live_<id>` session label）、pre-seed remote write、async emit loop。
+11. [ ] **Pseudo-live pipeline — 後端 MetricPlayer**：重用既有 metric family、每次 Play 產生唯一 `pseudo_session`、pre-seed remote write、async emit loop。
 12. [ ] **Pseudo-live pipeline — Playback 控制 API**：`/api/replay/play`、`/api/replay/pause`、`/api/replay/speed`。
 13. [ ] **Pseudo-live pipeline — 前端整合**：Play / Pause 時切換 Grafana 模式（backfill ↔ pseudo-live）、Chart 時間窗口 spinner、↻ Reset Chart 按鈕。
 
@@ -806,8 +806,8 @@ Prometheus TSDB 中會存在兩組不衝突的資料：
 ① backfill:     session="20260413T063000123"        timestamp = 原始時間
                  └─ 用途：PAUSED / SCRUBBING 時 Grafana 顯示
 
-② pseudo-live:  session="_live_20260413T063000123"   timestamp = 播放當下的 now
-                 └─ 用途：PLAYING 時 Grafana now-Nm ~ now 顯示
+② pseudo-live:  session="_live_20260413T063000123__20260414T101530456Z"   timestamp = 播放當下的 now
+                 └─ 用途：PLAYING 時 Grafana now-Nm ~ now 顯示（每次 Play 皆為新的 pseudo_session）
 ```
 
 ### 15.3 後端 MetricPlayer
@@ -822,10 +822,22 @@ Prometheus TSDB 中會存在兩組不衝突的資料：
 
 **Gauge 管理**：
 
-- Pseudo-live 使用獨立的 `prometheus_client` Gauge 實例，session label = `_live_<original_session_id>`，避免與 live 模式的 Gauge 互相干擾。
-- `nwdaf_retrain_total` 在 live 模式是 Counter（無法 `.set()`），pseudo-live 改用 Gauge 模擬。Grafana annotation 的 `idelta(...[15s]) > 0` 對 Gauge 遞增值一樣能偵測到變化。
+- **重用現有的 Gauge / Counter family**（`rules/nwdaf.py` 中已註冊的 `_ground_truth_ul` 等）。`prometheus_client` 不允許同名 metric 重複註冊，所以不能建新的 Gauge 實例。Pseudo-live 只是對同一個 Gauge family 使用不同的 session label 值（`pseudo_session = "_live_<session_id>__<play_token>"`），這在 `prometheus_client` 中完全合法——同一個 Gauge family 可以有任意多組 label 值，每組都是獨立的 series。
+- **`nwdaf_retrain_total`（Counter）**：同樣重用現有的 Counter family。Counter 對新 label set（`session="<pseudo_session>"`）從 0 開始。初始化時呼叫 `.inc()` N 次即可設到正確的累積值。播放期間遇到 `retrain_trigger` event 再 `.inc()`。不需要改成 Gauge，也不需要另建 metric name。
+- **每次 Play 都產生新的 `pseudo_session`**：不要重用固定 `_live_<session_id>`。`.remove()` 只能阻止之後的 scrape，不會刪掉 Prometheus TSDB 中已經 pre-seed 的資料；因此要靠唯一 `pseudo_session` 把每次播放的資料隔離開來，避免多次 Play / Pause 互相污染。
 
-**初始化**：play 從任意 scrub 位置開始時，先遍歷該時間前所有 metric events 算出累積狀態（各 gauge 的值、retrain counter 的累積值），一次 set 到 gauge 上。這確保 Prometheus 下一次 scrape 就能拿到正確值。
+**初始化**：play 從任意 scrub 位置開始時，先遍歷該時間前所有 metric events 算出累積狀態（各 gauge 的值、retrain counter 的累積次數），一次 set / inc 到對應的 label set 上：
+
+```python
+# Gauge：直接 .set()
+_ground_truth_ul.labels(session="_live_abc__20260414T101530456Z", sub_id="imsi-001", target="group=1").set(1234.0)
+
+# Counter：新 label set 從 0 開始，.inc() N 次
+for _ in range(retrain_count_at_scrub_position):
+    _retrain_total.labels(session="_live_abc__20260414T101530456Z").inc()
+```
+
+這確保 Prometheus 下一次 scrape 就能拿到正確值。
 
 **Async emit loop**：
 
@@ -844,8 +856,8 @@ async def _emit_loop(self):
 **生命週期**：
 
 - Replay 模式啟動時建立 MetricPlayer 實例（持有所有 metric events，尚不開始播放）。
-- 收到 play 請求 → 執行 pre-seed + 啟動 async loop。
-- 收到 pause 請求或 event 播放完畢 → 停止 loop。
+- 收到 play 請求 → 產生新的 `play_token` / `pseudo_session`，執行 pre-seed + 啟動 async loop。
+- 收到 pause 請求或 event 播放完畢 → 停止 loop，並清除該 `pseudo_session` 對應的 exporter label set。
 - 5g-viz 結束時清理。
 
 ### 15.4 Pre-seed（播放前預填）
@@ -872,7 +884,7 @@ timestamp 映射：mapped_ts = now − (T_scrub − event_time) / S
   event at T_scrub         →  remote write at now
 ```
 
-所有 pre-seed sample 使用 pseudo-live session label（`_live_<id>`）。
+所有 pre-seed sample 使用本次播放專用的 `pseudo_session`。
 
 #### 資料量
 
@@ -888,6 +900,23 @@ timestamp 映射：mapped_ts = now − (T_scrub − event_time) / S
 
 高速播放時涵蓋更多 session 時間，但 sample 數量仍可控（event 頻率固定，只是映射到更密的真實時間間隔）。
 
+#### Retrain counter 的 pre-seed 策略
+
+Grafana 的 retrain annotation query 使用 `idelta(nwdaf_retrain_total{...}[15s]) > 0`，需要 15s 視窗內有**至少 2 個資料點**且值有變化才會觸發。若 pre-seed 只在 `retrain_trigger` event 發生的時間點寫入 counter 值，兩次 retrain 之間可能超過 15s 沒有資料點，`idelta` 無法偵測到變化。
+
+解法：pre-seed 時在**每個 timestamp**（不只是 retrain event）都寫入 retrain counter 的當前累積值。這樣 `idelta` 在沒有 retrain 的區間看到連續相同值（delta = 0，不觸發 annotation），在 retrain 發生的時間點看到值跳變（delta > 0，觸發 annotation）。
+
+```
+timestamp    retrain_total    idelta    annotation
+mapped -60s       2              0        —
+mapped -55s       2              0        —
+mapped -50s       3              1        ✓ retrain
+mapped -45s       3              0        —
+mapped -40s       3              0        —
+```
+
+資料量影響可控：retrain counter 只有 1 個 label set（`session`），每個 timestamp 多 1 筆 sample。
+
 #### Pre-seed 與 Prometheus scrape 的銜接
 
 Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著 set gauge，Prometheus 下一次 scrape 在 0~5s 後記錄新值。兩者之間最多 5 秒間隙，在 Grafana 的分鐘級視窗中不可察覺。
@@ -898,9 +927,9 @@ Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著 set gauge，Promet
 
 | Method | Path | Body | 說明 |
 |--------|------|------|------|
-| POST | `/api/replay/play` | `{ from_time, speed, window }` | 執行 pre-seed + 啟動 emit loop |
-| POST | `/api/replay/pause` | — | 停止 emit loop |
-| POST | `/api/replay/speed` | `{ speed, current_time }` | 變速 |
+| POST | `/api/replay/play` | `{ from_time, speed, window }` | 產生新的 `pseudo_session`，執行 pre-seed + 啟動 emit loop |
+| POST | `/api/replay/pause` | `{ pseudo_session }` | 停止指定 `pseudo_session` 的 emit loop，並清除對應 label set |
+| POST | `/api/replay/speed` | `{ pseudo_session, speed, current_time }` | 變速 |
 
 #### `/api/replay/play`
 
@@ -912,17 +941,43 @@ Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著 set gauge，Promet
 | `speed` | float | 播放速度（0.25 / 0.5 / 1 / 2 / 4） |
 | `window` | int | Grafana 視窗寬度（分鐘），用於決定 pre-seed 範圍 |
 
+**回傳**：
+
+```json
+{ "pseudo_session": "_live_20260413T063000123__20260414T101530456Z" }
+```
+
 **行為**：
 
+1. 產生新的 `play_token`，組出本次播放專用的 `pseudo_session = "_live_<session_id>__<play_token>"`。
 1. 從 `from_time` 定位到 metric events 中對應的 index。
 2. 初始化 gauge 到 `from_time` 時的累積狀態。
 3. 執行 pre-seed remote write（見 §15.4）。
 4. 啟動 async emit loop。
-5. 回傳 200。前端收到後再切換 Grafana iframe，確保 Grafana reload 時 Prometheus 裡已有資料。
+5. 回傳 `pseudo_session`。前端收到後再切換 Grafana iframe，確保 Grafana reload 時 Prometheus 裡已有資料。
 
 #### `/api/replay/pause`
 
-取消 emit loop 的 `asyncio.sleep`，停止 gauge 發射。
+**參數**：
+
+| 參數 | 類型 | 說明 |
+|------|------|------|
+| `pseudo_session` | string | 本次播放專用的 pseudo-live session token |
+
+**行為**：
+
+1. 僅當 `pseudo_session` 等於目前 active 的 pseudo-live stream 時才處理；若收到舊 token，直接忽略或回傳 204，避免 race condition。
+2. 取消 emit loop 的 `asyncio.sleep`，停止 gauge 發射。
+3. **清除 pseudo-live label set**：對所有曾 set 過的 Gauge 呼叫 `.remove()`，從 `/metrics` 輸出中移除 `session="<pseudo_session>"` 的 label set。
+
+```python
+_ground_truth_ul.remove("_live_abc__20260414T101530456Z", "imsi-001", "group=1")
+_ground_truth_dl.remove("_live_abc__20260414T101530456Z", "imsi-001", "group=1")
+# … 對所有使用中的 (sub_id, target) 組合重複
+_retrain_total.remove("_live_abc__20260414T101530456Z")
+```
+
+**為什麼需要 `.remove()`**：暫停後 Prometheus 仍持續每 5s scrape `/metrics`。若不清除，Prometheus 會以暫停瞬間的 gauge 值持續記錄 → 圖表上出現**水平直線**。呼叫 `.remove()` 後，Prometheus 在暫停期間 scrape 不到該 label set，TSDB 中不會產生新資料點。注意：`.remove()` **不會刪掉** TSDB 中已經 pre-seed 的舊資料，這也是每次 Play 都必須產生新 `pseudo_session` 的原因。
 
 #### `/api/replay/speed`
 
@@ -930,17 +985,19 @@ Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著 set gauge，Promet
 
 | 參數 | 類型 | 說明 |
 |------|------|------|
+| `pseudo_session` | string | 本次播放專用的 pseudo-live session token |
 | `speed` | float | 新的播放速度 |
 | `current_time` | ISO 8601 | 前端當前播放位置（用於定位 event index） |
 
 **行為**：
 
-1. 更新 `self._speed`。
-2. Cancel 目前正在 await 的 `asyncio.sleep`。
-3. 從 `current_time` 定位到對應的 event index。
-4. 計算到下一筆 event 的剩餘 session 時間差 `dt_remain`。
-5. 新的等待時間 = `dt_remain / new_speed`。
-6. 繼續 async loop。
+1. 僅當 `pseudo_session` 等於目前 active 的 pseudo-live stream 時才處理；若收到舊 token，直接忽略或回傳 204，避免上一輪 play 的延遲請求影響當前播放。
+2. 更新 `self._speed`。
+3. Cancel 目前正在 await 的 `asyncio.sleep`。
+4. 從 `current_time` 定位到對應的 event index。
+5. 計算到下一筆 event 的剩餘 session 時間差 `dt_remain`。
+6. 新的等待時間 = `dt_remain / new_speed`。
+7. 繼續 async loop。
 
 前端呼叫時不等 response（fire-and-forget）——前端和後端獨立推進，微小 drift 不影響體感。不需要重做 pre-seed：已寫入 Prometheus 的資料是固定的真實時間 timestamp，速度改變只影響後續 emit 節奏。
 
@@ -981,8 +1038,8 @@ Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著 set gauge，Promet
 #### Play
 
 1. 呼叫 `POST /api/replay/play { from_time, speed, window }`。
-2. 等待 200 response（後端 pre-seed 完成）。
-3. 切換 Grafana iframe：`var-session=_live_<orig_id>`，`from=now-{N}m&to=now&refresh=5s`。iframe reload 一次。
+2. 等待 response，取得本次播放專用的 `pseudo_session`（後端也已完成 pre-seed）。
+3. 切換 Grafana iframe：`var-session=<pseudo_session>`，`from=now-{N}m&to=now&refresh=5s`。iframe reload 一次。
 4. 狀態 → PLAYING，啟動 `_tickPlayback()`。
 
 播放期間 Grafana 完全不需要更新——auto-refresh 自行追蹤最新資料。
@@ -990,14 +1047,14 @@ Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著 set gauge，Promet
 #### Pause
 
 1. 取消 `_tickPlayback()` timer，記錄暫停位置。
-2. `POST /api/replay/pause`（fire-and-forget）。
+2. `POST /api/replay/pause { pseudo_session }`（fire-and-forget）。後端停止該 pseudo-live stream 的 emit loop，並呼叫 `.remove()` 清除對應 label set（見 §15.5）。
 3. 切換 Grafana iframe 回 backfill：`var-session=<orig_id>`，centered from/to 在暫停位置。iframe reload 一次。
 4. 狀態 → PAUSED。
 
 #### 變速（PLAYING 中）
 
 1. 前端更新 `_playSpeed`，取消並重啟 `_tickPlayback()`，更新 `Topology.setPlaybackSpeed()`。
-2. `POST /api/replay/speed { speed, current_time }`（fire-and-forget）。
+2. `POST /api/replay/speed { pseudo_session, speed, current_time }`（fire-and-forget）。
 3. 後端 MetricPlayer cancel 當前 sleep，用新速度繼續。
 4. 不重做 pre-seed，不更新 Grafana iframe。
 
@@ -1005,7 +1062,7 @@ Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著 set gauge，Promet
 
 1. 後端 MetricPlayer emit 完最後一筆 → 停止。
 2. 前端 `_tickPlayback()` 的 `_playCursor >= _events.length` → 狀態 → PAUSED。
-3. `POST /api/replay/pause` → Grafana 切回 backfill。
+3. `POST /api/replay/pause { pseudo_session }` → Grafana 切回 backfill。
 
 ### 15.8 DVR 控制列新增元件
 
@@ -1029,7 +1086,29 @@ Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著 set gauge，Promet
 
 #### 多次 Play / Pause 循環
 
-每次 play 都會產生新的 pre-seed + emit 資料（都在 `_live_<id>` session label 下，但在不同的真實時間範圍）。Grafana `now-Nm ~ now` 只看最新的真實時間，舊的 play 嘗試自然淡出視窗。Prometheus TSDB 中會留下這些歷史資料，但不影響顯示，retention 到期後自動清除。
+每次 pause 時後端呼叫 `.remove()` 清除目前 active `pseudo_session` 的 exporter label set（見 §15.5），確保暫停期間 Prometheus 不會 scrape 到 stale gauge 值。下次 play 時重新產生新的 `pseudo_session`、重新初始化 gauge（`.set()` / `.inc()`）、重新 pre-seed、啟動新的 emit loop，Grafana 切到 `now-Nm ~ now` 後看到的是乾淨的新曲線。
+
+關鍵點是：`.remove()` 只能阻止**之後**的 scrape，不會刪掉 Prometheus TSDB 中已經 pre-seed / scrape 的舊資料。因此每次 play 都必須使用新的 `pseudo_session`，把不同播放嘗試的資料隔離開來。Grafana `now-Nm ~ now` 只查當前 `pseudo_session`，舊的播放資料即使仍留在 TSDB 中，也完全不會混入目前畫面；retention 到期後自動清除即可。
+
+#### Prometheus 空間回收
+
+Pseudo-live 每次 Play 都會產生新的 `pseudo_session`，因此 Prometheus TSDB 中的 series / samples 會隨播放次數累積。這不會影響查詢正確性，因為 Grafana 只查當前 `pseudo_session`；但若使用者頻繁 play / pause / scrub，磁碟佔用會逐步增加。
+
+**目前的回收機制**：
+
+- Exporter 層：`pause` / `play end` 時呼叫 `.remove()`，只負責把當前 `pseudo_session` 從 `/metrics` 輸出中移除，避免後續 scrape 持續寫入假水平線。
+- TSDB 層：已經寫入的 pseudo-live 資料仍會保留，依 Prometheus retention 自動過期。現有系統對一般 session 也採同樣策略（舊 session 留在 TSDB，預設 retention 15 天；見 §4）。
+
+**建議的加強方案**：
+
+1. **明確設定 TSDB retention**：在 `start.sh` 加 `--storage.tsdb.retention.time=<duration>`，避免 pseudo-live 累積太久。若系統仍需要保留較久的一般 replay/live session，應保守設定（例如 `3d`、`7d`），或優先搭配第 2 項只刪 pseudo-live series，而不要直接把全域 retention 壓到過短。
+2. **主動刪除 pseudo-live series**：在 `pause` / `play end` 後，透過 Prometheus admin API 呼叫 `delete_series` 刪除 `session="<pseudo_session>"` 的所有 `nwdaf_*` series，之後再視需要呼叫 `clean_tombstones`。這能讓 pseudo-live 歷史資料更快從查詢結果中消失，但實際磁碟空間回收仍取決於 Prometheus compaction / tombstone 清理節奏，不是立即釋放。
+
+**本 phase 建議**：
+
+- 先實作唯一 `pseudo_session` + `.remove()`，確保正確性。
+- 同步把 retention 明確設成可接受的值；若仍需要保留一般 session 查詢能力，優先不要用過短的全域 retention。
+- `delete_series` / `clean_tombstones` 可列為進一步優化；若實測 pseudo-live 使用量不高，也可以先不做。
 
 #### 播放速度對 Grafana 曲線密度的影響
 
@@ -1042,6 +1121,16 @@ Prometheus 每 5s scrape 一次，不受播放速度影響。
 | 4x | 20s | 多筆 event 壓在同一個 scrape 點，gauge 取最後一個值 |
 
 高速播放時部分中間值會被「吞掉」（gauge 在兩次 scrape 之間被 set 多次，只有最後一次被記錄）。這與 live 模式下 event burst 的行為一致，是 Prometheus pull model 的固有特性，不影響趨勢判讀。
+
+#### 播放中切換速度不需要重做 pre-seed
+
+速度切換只影響 MetricPlayer emit loop 的 `asyncio.sleep` 間隔（見 §15.5 `/api/replay/speed`），不影響已寫入 Prometheus 的資料。原因：
+
+1. **Pre-seed 資料的 timestamp 已固定**：pre-seed 寫入時 timestamp 已映射為真實時間（`now - offset`），與播放速度無關。速度改變後，這些資料點仍在 TSDB 中，Grafana `now-Nm ~ now` 視窗仍正常顯示。
+2. **新速度的 emit 資料自然接續**：MetricPlayer 以新速度繼續 set gauge → Prometheus 以 5s 間隔 scrape → 新資料點自然接在已有資料後面。
+3. **舊速度的資料自然淡出**：假設視窗寬度 3 分鐘，切速後最多 3 分鐘內舊速度產生的資料就會滾出視窗左邊界。這段過渡期曲線密度逐漸從舊速度切換到新速度，視覺上不會有跳變或閃爍。
+
+因此速度切換的處理非常輕量：前端 fire-and-forget 呼叫 `/api/replay/speed`，後端更新 sleep 間隔，雙方繼續推進。不需要 reset chart、不需要 reload iframe、不需要重做 pre-seed。
 
 #### Pre-seed remote write 失敗
 
