@@ -9,7 +9,7 @@
 - [x] 前端 DVR 控制列與狀態機（Pause/Play/Scrub/Go Live）：已完成基礎狀態機與 live timeline 互動（含 replay 基礎入口）。
 - [x] 前端 Grafana 同步：scrub/paused 對齊時間窗、play 期間節流更新、Go Live 還原即時視窗。
 - [x] Replay 的 Prometheus remote write backfill：已補齊 replay 啟動前 backfill、重複 session 檢查與 `--force-backfill`。
-- [ ] Replay 模式 Grafana「近似 live」渲染體驗：pseudo-live pipeline（見 §15）。
+- [ ] Replay 模式 Grafana「近似 live」渲染體驗：pseudo-live pipeline（見 §14）。
 - [ ] 匯出/匯入流程與 E2E 驗收清單尚未實作。
 
 ## 1. 目標
@@ -413,7 +413,7 @@ DVR 模式下，event log 面板的行為：
 |------|-------------|
 | 拖曳 slider 中 | 不更新（避免頻繁 iframe reload） |
 | 拖曳結束 / Play 暫停 | 更新 iframe `from`/`to` 為以 scrub 時間為中心的窗口（半寬 = `_grafanaWindowMin` / 2），`var-session=<orig_id>` |
-| Replay Play 開始 | 呼叫 `/api/replay/play` 取得本次播放專用的 `pseudo_session`，再切換到 pseudo-live 模式：`var-session=<pseudo_session>`，`from=now-{N}m&to=now&refresh=5s`（N = `_grafanaWindowMin`）。iframe reload 一次，之後不再更新（見 §15） |
+| Replay Play 開始 | 呼叫 `/api/replay/play` 取得本次播放專用的 `pseudo_session`，再切換到 pseudo-live 模式：`var-session=<pseudo_session>`，`from=now-{N}m&to=now&refresh=5s`（N = `_grafanaWindowMin`）。iframe reload 一次，之後不再更新（見 §14） |
 | Replay Play 進行中 | 不更新 iframe——Grafana auto-refresh 自行追蹤（等同 live 體感） |
 | Replay Play 暫停 | 切回 backfill 資料：`var-session=<orig_id>`，centered from/to 在暫停位置。iframe reload 一次 |
 | Go Live（live 模式） | 恢復 `from=now-Nm&to=now&refresh=5s`，`var-session=<orig_id>` |
@@ -432,9 +432,9 @@ DVR 模式下，event log 面板的行為：
 | GET | `/api/sessions` | 列出所有可用 session（每個 session 的 meta.json 內容） |
 | GET | `/api/events?session=<id>&from=<ts>&to=<ts>` | 取得指定 session 和時間範圍的 events |
 | GET | `/api/state` | 回傳 server 端最新的完整狀態 snapshot（用於 Go Live 重建） |
-| POST | `/api/replay/play` | 啟動 pseudo-live（pre-seed + emit loop），並回傳本次播放專用的 `pseudo_session`。Body：`{ from_time, speed, window }`（見 §15.5） |
-| POST | `/api/replay/pause` | 停止指定 `pseudo_session` 的 pseudo-live emit loop。Body：`{ pseudo_session }`（見 §15.5） |
-| POST | `/api/replay/speed` | 變速。Body：`{ pseudo_session, speed, current_time }`（見 §15.5） |
+| POST | `/api/replay/play` | 啟動 pseudo-live（pre-seed + emit loop），並回傳本次播放專用的 `pseudo_session`。Body：`{ from_time, speed, window }`（見 §14.5） |
+| POST | `/api/replay/pause` | 停止指定 `pseudo_session` 的 pseudo-live emit loop。Body：`{ pseudo_session }`（見 §14.5） |
+| POST | `/api/replay/speed` | 變速。Body：`{ pseudo_session, speed, current_time }`（見 §14.5） |
 
 以上三個 `/api/replay/*` endpoint 僅在 replay 模式下可用，live 模式呼叫回傳 404。
 
@@ -679,7 +679,7 @@ Replay 模式一次載入整個 JSONL 到記憶體。一筆 event 約 200~500 by
 
 在目前「嵌入 Grafana iframe，透過更新 from/to 追時間」架構下，**無法完全重現 live 模式的連續渲染體感**。原因是只要變更時間範圍，Grafana 就必須重新 query/重繪；若透過重設 `iframe.src`，還會觸發整頁 reload。
 
-解決方案：**Pseudo-Live Pipeline**（§15）。Replay 播放期間，後端按播放速度重新 set Prometheus gauge 值，Prometheus 以 scrape 時間（= now）記錄，Grafana 用 `now-Nm ~ now` + `refresh=5s` 運作，與 live 模式體感一致。PAUSED / SCRUBBING 時維持現行的 backfill 資料 + 固定 from/to。Play ↔ Pause 切換時各有一次 iframe reload（時間模式從固定切到 now-relative），但播放期間完全不動 iframe。
+解決方案：**Pseudo-Live Pipeline**（§14）。Replay 播放期間，後端按播放速度重新 set Prometheus gauge 值，Prometheus 以 scrape 時間（= now）記錄，Grafana 用 `now-Nm ~ now` + `refresh=5s` 運作，與 live 模式體感一致。PAUSED / SCRUBBING 時維持現行的 backfill 資料 + 固定 from/to。Play ↔ Pause 切換時各有一次 iframe reload（時間模式從固定切到 now-relative），但播放期間完全不動 iframe。
 
 ### 12.7 `state_snapshot` 在 DVR 模式下的行為
 
@@ -762,35 +762,15 @@ Live DVR 模式下，前端在 pause 期間持續收 WebSocket events 存入 buf
 3. 確認 `meta.json` 缺少 `end_time`（非正常關閉）。
 4. `./start.sh --replay sessions/<id>` → 確認 replay 正常運作（end_time 從 JSONL 最後一筆推斷）。
 
----
+## 14. Pseudo-Live Pipeline（Replay Grafana 近似 Live 體驗）
 
-## 14. 實作順序建議
-
-1. [x] **Session recording + JSONL 寫入**：最基礎的改動，不影響現有功能。
-2. [x] **Prometheus session label**：改 metrics 宣告、Grafana dashboard query。移除 `clear_metrics()`。
-3. [x] **後端 API**（`/api/events`、`/api/sessions`）+ 記憶體 buffer。
-4. [x] **前端 DVR 控制列 UI**：HTML/CSS layout。
-5. [x] **前端 pause + buffer 邏輯**。
-6. [x] **前端 scrub（靜態快照重建）**。
-7. [x] **前端 play + 變速播放邏輯**。
-8. [x] **前端 Grafana 同步**：scrub/paused 位置對齊視窗、play 期間節流同步、Go Live 回到即時視窗。
-9. [x] **Replay 模式**：`start.sh --replay`、後端 replay 載入、前端 replay 入口與 Prometheus remote write 回填已完成（支援 `--force-backfill`）。
-10. [ ] **導出打包**（含 topology.yaml）。
-11. [ ] **Pseudo-live pipeline — 後端 MetricPlayer**：重用既有 metric family、每次 Play 產生唯一 `pseudo_session`、pre-seed remote write、async emit loop。
-12. [ ] **Pseudo-live pipeline — Playback 控制 API**：`/api/replay/play`、`/api/replay/pause`、`/api/replay/speed`。
-13. [ ] **Pseudo-live pipeline — 前端整合**：Play / Pause 時切換 Grafana 模式（backfill ↔ pseudo-live）、Chart 時間窗口 spinner、↻ Reset Chart 按鈕。
-
----
-
-## 15. Pseudo-Live Pipeline（Replay Grafana 近似 Live 體驗）
-
-### 15.1 問題與目標
+### 14.1 問題與目標
 
 Replay PLAYING 期間若透過更新 Grafana iframe 的 `from`/`to` 來追蹤播放位置，每次更新都觸發 iframe reload（1~3 秒），造成閃爍（見 §12.6）。目標是讓 replay 播放中的 Grafana 曲線體感等同 live——平滑、不閃爍、持續向右延伸。
 
 PAUSED / SCRUBBING 則維持現行邏輯（backfill 資料 + 固定 from/to）。
 
-### 15.2 核心機制
+### 14.2 核心機制
 
 Live 模式下 Grafana 之所以順暢，是因為：
 
@@ -810,15 +790,15 @@ Prometheus TSDB 中會存在兩組不衝突的資料：
                  └─ 用途：PLAYING 時 Grafana now-Nm ~ now 顯示（每次 Play 皆為新的 pseudo_session）
 ```
 
-### 15.3 後端 MetricPlayer
+### 14.3 後端 MetricPlayer
 
 新增 `MetricPlayer` class（建議放在獨立的 `metric_player.py`），管理 replay 播放期間的 metric 發射。
 
 **職責**：
 
-1. **Pre-seed**：play 開始時，從 scrub 位置往前取一段 metric events，透過 remote write 寫入 Prometheus，timestamp 映射到 now 的過去，確保 Grafana 切換到 `now-Nm ~ now` 時立刻看到完整曲線（見 §15.4）。
+1. **Pre-seed**：play 開始時，從 scrub 位置往前取一段 metric events，透過 remote write 寫入 Prometheus，timestamp 映射到 now 的過去，確保 Grafana 切換到 `now-Nm ~ now` 時立刻看到完整曲線（見 §14.4）。
 2. **Async emit loop**：play 開始後，從 scrub 位置依序 set gauge 值，等待時間 = event 間隔 / speed。
-3. **暫停 / 變速**：回應前端的 playback 控制 API（見 §15.5）。
+3. **暫停 / 變速**：回應前端的 playback 控制 API（見 §14.5）。
 
 **Gauge 管理**：
 
@@ -860,7 +840,7 @@ async def _emit_loop(self):
 - 收到 pause 請求或 event 播放完畢 → 停止 loop，並清除該 `pseudo_session` 對應的 exporter label set。
 - 5g-viz 結束時清理。
 
-### 15.4 Pre-seed（播放前預填）
+### 14.4 Pre-seed（播放前預填）
 
 #### 目的
 
@@ -921,7 +901,7 @@ mapped -40s       3              0        —
 
 Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著 set gauge，Prometheus 下一次 scrape 在 0~5s 後記錄新值。兩者之間最多 5 秒間隙，在 Grafana 的分鐘級視窗中不可察覺。
 
-### 15.5 Playback 控制 API
+### 14.5 Playback 控制 API
 
 前端透過 REST API 通知後端播放狀態變更。這些 endpoint 僅在 replay 模式下可用，live 模式呼叫回傳 404。
 
@@ -952,7 +932,7 @@ Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著 set gauge，Promet
 1. 產生新的 `play_token`，組出本次播放專用的 `pseudo_session = "_live_<session_id>__<play_token>"`。
 1. 從 `from_time` 定位到 metric events 中對應的 index。
 2. 初始化 gauge 到 `from_time` 時的累積狀態。
-3. 執行 pre-seed remote write（見 §15.4）。
+3. 執行 pre-seed remote write（見 §14.4）。
 4. 啟動 async emit loop。
 5. 回傳 `pseudo_session`。前端收到後再切換 Grafana iframe，確保 Grafana reload 時 Prometheus 裡已有資料。
 
@@ -1001,7 +981,7 @@ _retrain_total.remove("_live_abc__20260414T101530456Z")
 
 前端呼叫時不等 response（fire-and-forget）——前端和後端獨立推進，微小 drift 不影響體感。不需要重做 pre-seed：已寫入 Prometheus 的資料是固定的真實時間 timestamp，速度改變只影響後續 emit 節奏。
 
-### 15.6 前端與後端的同步模型
+### 14.6 前端與後端的同步模型
 
 前端驅動 topology / log（`_tickPlayback()`），後端驅動 Prometheus metric（MetricPlayer），兩者從同一起點以同一速度**獨立推進**，不需要嚴格同步。
 
@@ -1033,7 +1013,7 @@ _retrain_total.remove("_live_abc__20260414T101530456Z")
                                           (不需 reload)
 ```
 
-### 15.7 前端 Play / Pause / Speed 流程
+### 14.7 前端 Play / Pause / Speed 流程
 
 #### Play
 
@@ -1047,7 +1027,7 @@ _retrain_total.remove("_live_abc__20260414T101530456Z")
 #### Pause
 
 1. 取消 `_tickPlayback()` timer，記錄暫停位置。
-2. `POST /api/replay/pause { pseudo_session }`（fire-and-forget）。後端停止該 pseudo-live stream 的 emit loop，並呼叫 `.remove()` 清除對應 label set（見 §15.5）。
+2. `POST /api/replay/pause { pseudo_session }`（fire-and-forget）。後端停止該 pseudo-live stream 的 emit loop，並呼叫 `.remove()` 清除對應 label set（見 §14.5）。
 3. 切換 Grafana iframe 回 backfill：`var-session=<orig_id>`，centered from/to 在暫停位置。iframe reload 一次。
 4. 狀態 → PAUSED。
 
@@ -1064,7 +1044,7 @@ _retrain_total.remove("_live_abc__20260414T101530456Z")
 2. 前端 `_tickPlayback()` 的 `_playCursor >= _events.length` → 狀態 → PAUSED。
 3. `POST /api/replay/pause { pseudo_session }` → Grafana 切回 backfill。
 
-### 15.8 DVR 控制列新增元件
+### 14.8 DVR 控制列新增元件
 
 在 §8.1 的 DVR 控制列右側新增兩個元件：
 
@@ -1082,11 +1062,11 @@ _retrain_total.remove("_live_abc__20260414T101530456Z")
 - PAUSED 期間按下：重設 iframe src 為 centered from/to。
 - 用途：使用者在 Grafana 圖表上手動放大觀察某段後，按此回歸正常追蹤視角。
 
-### 15.9 注意事項
+### 14.9 注意事項
 
 #### 多次 Play / Pause 循環
 
-每次 pause 時後端呼叫 `.remove()` 清除目前 active `pseudo_session` 的 exporter label set（見 §15.5），確保暫停期間 Prometheus 不會 scrape 到 stale gauge 值。下次 play 時重新產生新的 `pseudo_session`、重新初始化 gauge（`.set()` / `.inc()`）、重新 pre-seed、啟動新的 emit loop，Grafana 切到 `now-Nm ~ now` 後看到的是乾淨的新曲線。
+每次 pause 時後端呼叫 `.remove()` 清除目前 active `pseudo_session` 的 exporter label set（見 §14.5），確保暫停期間 Prometheus 不會 scrape 到 stale gauge 值。下次 play 時重新產生新的 `pseudo_session`、重新初始化 gauge（`.set()` / `.inc()`）、重新 pre-seed、啟動新的 emit loop，Grafana 切到 `now-Nm ~ now` 後看到的是乾淨的新曲線。
 
 關鍵點是：`.remove()` 只能阻止**之後**的 scrape，不會刪掉 Prometheus TSDB 中已經 pre-seed / scrape 的舊資料。因此每次 play 都必須使用新的 `pseudo_session`，把不同播放嘗試的資料隔離開來。Grafana `now-Nm ~ now` 只查當前 `pseudo_session`，舊的播放資料即使仍留在 TSDB 中，也完全不會混入目前畫面；retention 到期後自動清除即可。
 
@@ -1124,7 +1104,7 @@ Prometheus 每 5s scrape 一次，不受播放速度影響。
 
 #### 播放中切換速度不需要重做 pre-seed
 
-速度切換只影響 MetricPlayer emit loop 的 `asyncio.sleep` 間隔（見 §15.5 `/api/replay/speed`），不影響已寫入 Prometheus 的資料。原因：
+速度切換只影響 MetricPlayer emit loop 的 `asyncio.sleep` 間隔（見 §14.5 `/api/replay/speed`），不影響已寫入 Prometheus 的資料。原因：
 
 1. **Pre-seed 資料的 timestamp 已固定**：pre-seed 寫入時 timestamp 已映射為真實時間（`now - offset`），與播放速度無關。速度改變後，這些資料點仍在 TSDB 中，Grafana `now-Nm ~ now` 視窗仍正常顯示。
 2. **新速度的 emit 資料自然接續**：MetricPlayer 以新速度繼續 set gauge → Prometheus 以 5s 間隔 scrape → 新資料點自然接在已有資料後面。
@@ -1135,3 +1115,21 @@ Prometheus 每 5s scrape 一次，不受播放速度影響。
 #### Pre-seed remote write 失敗
 
 若 remote write 失敗，log warning 後仍然啟動 MetricPlayer emit loop 並回傳 200。Grafana 會顯示空白圖表，但隨著 Prometheus scrape 累積新資料，曲線會逐漸出現。體感類似 live 模式剛啟動時的「曲線逐漸長出」——不理想但可用。使用者可按 Pause 再重新 Play 重試 pre-seed。
+
+---
+
+## 15. 實作順序建議
+
+1. [x] **Session recording + JSONL 寫入**：最基礎的改動，不影響現有功能。
+2. [x] **Prometheus session label**：改 metrics 宣告、Grafana dashboard query。移除 `clear_metrics()`。
+3. [x] **後端 API**（`/api/events`、`/api/sessions`）+ 記憶體 buffer。
+4. [x] **前端 DVR 控制列 UI**：HTML/CSS layout。
+5. [x] **前端 pause + buffer 邏輯**。
+6. [x] **前端 scrub（靜態快照重建）**。
+7. [x] **前端 play + 變速播放邏輯**。
+8. [x] **前端 Grafana 同步**：scrub/paused 位置對齊視窗、play 期間節流同步、Go Live 回到即時視窗。
+9. [x] **Replay 模式**：`start.sh --replay`、後端 replay 載入、前端 replay 入口與 Prometheus remote write 回填已完成（支援 `--force-backfill`）。
+10. [ ] **導出打包**（含 topology.yaml）。
+11. [ ] **Pseudo-live pipeline — 後端 MetricPlayer**：重用既有 metric family、每次 Play 產生唯一 `pseudo_session`、pre-seed remote write、async emit loop。
+12. [ ] **Pseudo-live pipeline — Playback 控制 API**：`/api/replay/play`、`/api/replay/pause`、`/api/replay/speed`。
+13. [ ] **Pseudo-live pipeline — 前端整合**：Play / Pause 時切換 Grafana 模式（backfill ↔ pseudo-live）、Chart 時間窗口 spinner、↻ Reset Chart 按鈕。
