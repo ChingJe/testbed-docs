@@ -9,7 +9,7 @@
 - [x] 前端 DVR 控制列與狀態機（Pause/Play/Scrub/Go Live）：已完成基礎狀態機與 live timeline 互動（含 replay 基礎入口）。
 - [x] 前端 Grafana 同步：scrub/paused 對齊時間窗、play 期間節流更新、Go Live 還原即時視窗。
 - [x] Replay 的 Prometheus remote write backfill：已補齊 replay 啟動前 backfill、重複 session 檢查與 `--force-backfill`。
-- [ ] Replay 模式 Grafana「近似 live」渲染體驗（播放中不依賴頻繁 iframe reload）延後至下一 phase。
+- [ ] Replay 模式 Grafana「近似 live」渲染體驗：pseudo-live pipeline（見 §15）。
 - [ ] 匯出/匯入流程與 E2E 驗收清單尚未實作。
 
 ## 1. 目標
@@ -323,8 +323,8 @@ Live 模式下播放追上 live 位置    PLAYING → LIVE
 位於 header 下方，新增一列 UI：
 
 ```
-[⏸ Pause] [▶ Play] [⏭ Live]    ◀■■■■■■■■■■■■■■■□──────────▶    14:32:05 / 14:45:12    [0.25x ▾]
-                                  ↑ scrub slider                   ↑ 目前 / 結束時間       ↑ 速度選單
+[⏸ Pause] [▶ Play] [⏭ Live]    ◀■■■■■■■■■■■■■■■□──────────▶    14:32:05 / 14:45:12    [0.25x ▾]    Chart: [▼ 3 ▲] min  [↻]
+                                  ↑ scrub slider                   ↑ 目前 / 結束時間       ↑ 速度選單   ↑ 時間窗口 spinner  ↑ 重設
 ```
 
 元件：
@@ -337,6 +337,8 @@ Live 模式下播放追上 live 位置    PLAYING → LIVE
 | Timeline slider | 拖曳定位到任意時間點 |
 | 時間顯示 | 左邊 = scrub 目前位置，右邊 = session 結束時間（live 模式為「now」） |
 | 速度選單 | 0.25x / 0.5x / 1x / 2x / 4x |
+| Chart 時間窗口 | `<input type="number">` spinner，設定 Grafana 顯示的時間窗口寬度（分鐘）。預設 3，最小 1，最大 30。可直接輸入或用上下按鈕 ±1 調整 |
+| ↻ Reset Chart | 重設 Grafana iframe 回到追蹤播放的視角。使用者在 Grafana 內手動放大觀察某段後，按此回歸 |
 
 ### 與現有 `↺ Live` 按鈕的關係
 
@@ -405,12 +407,18 @@ DVR 模式下，event log 面板的行為：
 
 ### 8.5 Grafana 同步
 
+前端維護 `_grafanaWindowMin` 變數（預設 3，最小 1，最大 30），由 DVR 控制列的 Chart 時間窗口 spinner 控制。Grafana iframe 維持 `&kiosk`（full kiosk），所有時間控制由 5g-viz DVR 控制列統一管理。
+
 | 動作 | Grafana 行為 |
 |------|-------------|
 | 拖曳 slider 中 | 不更新（避免頻繁 iframe reload） |
-| 拖曳結束 / Play 暫停 | 更新 iframe `from`/`to` 為以 scrub 時間為中心的窗口（例如 ±1.5 分鐘） |
-| Play 進行中 | 定期更新（例如每 5 秒真實時間更新一次），以 play 位置為中心 |
-| Go Live | 恢復 `from=now-Nm&to=now&refresh=5s` |
+| 拖曳結束 / Play 暫停 | 更新 iframe `from`/`to` 為以 scrub 時間為中心的窗口（半寬 = `_grafanaWindowMin` / 2），`var-session=<orig_id>` |
+| Replay Play 開始 | 切換到 pseudo-live 模式：`var-session=_live_<orig_id>`，`from=now-{N}m&to=now&refresh=5s`（N = `_grafanaWindowMin`）。iframe reload 一次，之後不再更新（見 §15） |
+| Replay Play 進行中 | 不更新 iframe——Grafana auto-refresh 自行追蹤（等同 live 體感） |
+| Replay Play 暫停 | 切回 backfill 資料：`var-session=<orig_id>`，centered from/to 在暫停位置。iframe reload 一次 |
+| Go Live（live 模式） | 恢復 `from=now-Nm&to=now&refresh=5s`，`var-session=<orig_id>` |
+| Chart 時間窗口變更 | PLAYING 中：更新 iframe `from=now-{N}m`（reload 一次）。PAUSED / SCRUBBING 中：更新 centered 半寬 |
+| ↻ Reset Chart | 重設 iframe src 為當前模式對應的 URL（使用者在 iframe 內手動放大後恢復） |
 
 ---
 
@@ -424,6 +432,11 @@ DVR 模式下，event log 面板的行為：
 | GET | `/api/sessions` | 列出所有可用 session（每個 session 的 meta.json 內容） |
 | GET | `/api/events?session=<id>&from=<ts>&to=<ts>` | 取得指定 session 和時間範圍的 events |
 | GET | `/api/state` | 回傳 server 端最新的完整狀態 snapshot（用於 Go Live 重建） |
+| POST | `/api/replay/play` | 啟動 pseudo-live（pre-seed + emit loop）。Body：`{ from_time, speed, window }`（見 §15.5） |
+| POST | `/api/replay/pause` | 停止 pseudo-live emit loop（見 §15.5） |
+| POST | `/api/replay/speed` | 變速。Body：`{ speed, current_time }`（見 §15.5） |
+
+以上三個 `/api/replay/*` endpoint 僅在 replay 模式下可用，live 模式呼叫回傳 404。
 
 ### `/api/events` 說明
 
@@ -662,23 +675,11 @@ Replay 模式一次載入整個 JSONL 到記憶體。一筆 event 約 200~500 by
 - Play 期間限制 Grafana 更新頻率（例如每 5 秒真實時間最多更新一次）。
 - 考慮使用 Grafana 的 `postMessage` API 來更新時間範圍（而非替換 `src`），避免 full reload。需確認在 anonymous/kiosk 模式下是否可用。
 
-#### 12.6.1 當前結論（2026-04-13）
+#### 12.6.1 當前結論（2026-04-14 更新）
 
-在目前「嵌入 Grafana iframe，透過更新 from/to 追時間」架構下，**無法完全重現 live 模式的連續渲染體感**。  
-原因是只要變更時間範圍，Grafana 就必須重新 query/重繪；若透過重設 `iframe.src`，還會觸發整頁 reload。
+在目前「嵌入 Grafana iframe，透過更新 from/to 追時間」架構下，**無法完全重現 live 模式的連續渲染體感**。原因是只要變更時間範圍，Grafana 就必須重新 query/重繪；若透過重設 `iframe.src`，還會觸發整頁 reload。
 
-本階段決策：
-
-- 保留目前可用的 DVR 行為（Pause/Scrub/Play/Go Live 與時間窗對齊）。
-- 不再追求在本階段內把 replay play 的 Grafana 體感做到等同 live。
-- 將「播放中近似 live 的平滑體驗」列為下一 phase 專項。
-
-下一 phase 規劃方向：
-
-- **方向 A（建議）**：Replay metrics 走 pseudo-live 管線（以 replay offset 重映射到現在時間），Grafana 固定 `now-N ~ now` + refresh，避免反覆改 from/to。
-- **方向 B（過渡）**：Grafana 視窗低頻平移 + 前端 playhead overlay，減少 iframe reload 次數與感知閃爍。
-
-備註：方向 A 可達到最接近 live 的體感，但需要後端與 Prometheus 資料流調整，工作量明顯高於前端節流優化。
+解決方案：**Pseudo-Live Pipeline**（§15）。Replay 播放期間，後端按播放速度重新 set Prometheus gauge 值，Prometheus 以 scrape 時間（= now）記錄，Grafana 用 `now-Nm ~ now` + `refresh=5s` 運作，與 live 模式體感一致。PAUSED / SCRUBBING 時維持現行的 backfill 資料 + 固定 from/to。Play ↔ Pause 切換時各有一次 iframe reload（時間模式從固定切到 now-relative），但播放期間完全不動 iframe。
 
 ### 12.7 `state_snapshot` 在 DVR 模式下的行為
 
@@ -737,6 +738,17 @@ Live DVR 模式下，前端在 pause 期間持續收 WebSocket events 存入 buf
 4. Scrub 到任意時間點 → 確認靜態快照正確。
 5. Go Live 按鈕 disabled / hidden。
 
+**Replay Pseudo-Live 流程**：
+
+1. `./start.sh --replay sessions/<id>`，等 backfill 完成。
+2. Scrub 到 session 中間某位置，按 Play。
+3. 確認 Grafana 立刻顯示完整曲線（pre-seed 成功），且曲線持續向右延伸（auto-refresh，無 iframe reload）。
+4. 播放 30 秒後改速度（例如 1x → 4x）→ 確認 topology 和 Grafana 曲線都加速，無中斷。
+5. 按 Pause → 確認 Grafana 切回 backfill 視角（原始時間軸，centered 在暫停位置）。
+6. 再次按 Play → 確認 Grafana 再次以 pseudo-live 模式啟動，曲線平滑。
+7. 調整 Chart 時間窗口（例如 3 → 1 分鐘）→ 確認 Grafana 視窗寬度變更。
+8. 在 Grafana 圖表上手動放大某段 → 按 ↻ Reset Chart → 確認恢復追蹤播放視角。
+
 **導出 / 匯入流程**：
 
 1. 打包 session：`tar czf` session 目錄。
@@ -764,4 +776,273 @@ Live DVR 模式下，前端在 pause 期間持續收 WebSocket events 存入 buf
 8. [x] **前端 Grafana 同步**：scrub/paused 位置對齊視窗、play 期間節流同步、Go Live 回到即時視窗。
 9. [x] **Replay 模式**：`start.sh --replay`、後端 replay 載入、前端 replay 入口與 Prometheus remote write 回填已完成（支援 `--force-backfill`）。
 10. [ ] **導出打包**（含 topology.yaml）。
-11. [ ] **Replay Grafana 近似 live 體驗**：播放中避免頻繁 iframe reload（優先評估 pseudo-live pipeline）。
+11. [ ] **Pseudo-live pipeline — 後端 MetricPlayer**：獨立 Gauge 實例（`_live_<id>` session label）、pre-seed remote write、async emit loop。
+12. [ ] **Pseudo-live pipeline — Playback 控制 API**：`/api/replay/play`、`/api/replay/pause`、`/api/replay/speed`。
+13. [ ] **Pseudo-live pipeline — 前端整合**：Play / Pause 時切換 Grafana 模式（backfill ↔ pseudo-live）、Chart 時間窗口 spinner、↻ Reset Chart 按鈕。
+
+---
+
+## 15. Pseudo-Live Pipeline（Replay Grafana 近似 Live 體驗）
+
+### 15.1 問題與目標
+
+Replay PLAYING 期間若透過更新 Grafana iframe 的 `from`/`to` 來追蹤播放位置，每次更新都觸發 iframe reload（1~3 秒），造成閃爍（見 §12.6）。目標是讓 replay 播放中的 Grafana 曲線體感等同 live——平滑、不閃爍、持續向右延伸。
+
+PAUSED / SCRUBBING 則維持現行邏輯（backfill 資料 + 固定 from/to）。
+
+### 15.2 核心機制
+
+Live 模式下 Grafana 之所以順暢，是因為：
+
+1. 後端即時 set Prometheus gauge 值。
+2. Prometheus 每 5s scrape `/metrics`，以 scrape 當下的時間（= now）記錄。
+3. Grafana 用 `now-Nm ~ now` + `refresh=5s` 自動追蹤，不需要改 iframe src。
+
+Pseudo-live 將同樣的機制複製到 replay：播放時後端按播放速度 set gauge 值，Prometheus scrape 記錄為 now，Grafana 用相同的 `now-Nm ~ now` + `refresh=5s` 運作。
+
+Prometheus TSDB 中會存在兩組不衝突的資料：
+
+```
+① backfill:     session="20260413T063000123"        timestamp = 原始時間
+                 └─ 用途：PAUSED / SCRUBBING 時 Grafana 顯示
+
+② pseudo-live:  session="_live_20260413T063000123"   timestamp = 播放當下的 now
+                 └─ 用途：PLAYING 時 Grafana now-Nm ~ now 顯示
+```
+
+### 15.3 後端 MetricPlayer
+
+新增 `MetricPlayer` class（建議放在獨立的 `metric_player.py`），管理 replay 播放期間的 metric 發射。
+
+**職責**：
+
+1. **Pre-seed**：play 開始時，從 scrub 位置往前取一段 metric events，透過 remote write 寫入 Prometheus，timestamp 映射到 now 的過去，確保 Grafana 切換到 `now-Nm ~ now` 時立刻看到完整曲線（見 §15.4）。
+2. **Async emit loop**：play 開始後，從 scrub 位置依序 set gauge 值，等待時間 = event 間隔 / speed。
+3. **暫停 / 變速**：回應前端的 playback 控制 API（見 §15.5）。
+
+**Gauge 管理**：
+
+- Pseudo-live 使用獨立的 `prometheus_client` Gauge 實例，session label = `_live_<original_session_id>`，避免與 live 模式的 Gauge 互相干擾。
+- `nwdaf_retrain_total` 在 live 模式是 Counter（無法 `.set()`），pseudo-live 改用 Gauge 模擬。Grafana annotation 的 `idelta(...[15s]) > 0` 對 Gauge 遞增值一樣能偵測到變化。
+
+**初始化**：play 從任意 scrub 位置開始時，先遍歷該時間前所有 metric events 算出累積狀態（各 gauge 的值、retrain counter 的累積值），一次 set 到 gauge 上。這確保 Prometheus 下一次 scrape 就能拿到正確值。
+
+**Async emit loop**：
+
+```python
+async def _emit_loop(self):
+    while self._playing and self._cursor < len(self._metric_events):
+        event = self._metric_events[self._cursor]
+        dt = event_time - prev_event_time
+        await asyncio.sleep(dt / self._speed)
+        self._set_gauge(event)          # set prometheus_client Gauge
+        self._cursor += 1
+    # 播放到結尾 → 停止
+    self._playing = False
+```
+
+**生命週期**：
+
+- Replay 模式啟動時建立 MetricPlayer 實例（持有所有 metric events，尚不開始播放）。
+- 收到 play 請求 → 執行 pre-seed + 啟動 async loop。
+- 收到 pause 請求或 event 播放完畢 → 停止 loop。
+- 5g-viz 結束時清理。
+
+### 15.4 Pre-seed（播放前預填）
+
+#### 目的
+
+Grafana 切換到 `now-Nm ~ now` 時，若 Prometheus 裡無資料，圖表會一片空白，要等數分鐘才填滿。Pre-seed 在 play 開始前一次性補入歷史資料，確保 Grafana 立刻顯示完整曲線。
+
+#### 機制
+
+Play 開始時，後端從 scrub 位置往前取 `W × S` 的 session 時間範圍內的 metric events（W = Grafana 視窗寬度，S = 播放速度），將 timestamp 映射到真實時間的過去，透過 remote write 寫入 Prometheus：
+
+```
+scrub 位置 = T_scrub
+Grafana 視窗 = W（分鐘，由前端 Chart 時間窗口 spinner 控制）
+播放速度 = S
+
+pre-seed 範圍（session 時間）：T_scrub − W×S  ~  T_scrub
+timestamp 映射：mapped_ts = now − (T_scrub − event_time) / S
+
+例（W=3min, S=1x）：
+  event at T_scrub − 2min  →  remote write at now − 2min
+  event at T_scrub − 1min  →  remote write at now − 1min
+  event at T_scrub         →  remote write at now
+```
+
+所有 pre-seed sample 使用 pseudo-live session label（`_live_<id>`）。
+
+#### 資料量
+
+以每 5 秒一筆 metric event、3 分鐘視窗為例：約 36 × metric 種類 ≈ 幾百筆 sample。可重用 §5 的 remote write 編碼邏輯（`_encode_remote_write` / `_iter_series_batches`），應在 1 秒內完成。
+
+#### 播放速度對 pre-seed 範圍的影響
+
+| 速度 | 視窗 3min | pre-seed 的 session 時間範圍 |
+|------|-----------|------------------------------|
+| 0.25x | 3min | 45 秒 |
+| 1x | 3min | 3 分鐘 |
+| 4x | 3min | 12 分鐘 |
+
+高速播放時涵蓋更多 session 時間，但 sample 數量仍可控（event 頻率固定，只是映射到更密的真實時間間隔）。
+
+#### Pre-seed 與 Prometheus scrape 的銜接
+
+Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著 set gauge，Prometheus 下一次 scrape 在 0~5s 後記錄新值。兩者之間最多 5 秒間隙，在 Grafana 的分鐘級視窗中不可察覺。
+
+### 15.5 Playback 控制 API
+
+前端透過 REST API 通知後端播放狀態變更。這些 endpoint 僅在 replay 模式下可用，live 模式呼叫回傳 404。
+
+| Method | Path | Body | 說明 |
+|--------|------|------|------|
+| POST | `/api/replay/play` | `{ from_time, speed, window }` | 執行 pre-seed + 啟動 emit loop |
+| POST | `/api/replay/pause` | — | 停止 emit loop |
+| POST | `/api/replay/speed` | `{ speed, current_time }` | 變速 |
+
+#### `/api/replay/play`
+
+**參數**：
+
+| 參數 | 類型 | 說明 |
+|------|------|------|
+| `from_time` | ISO 8601 | 播放起點（= 前端 scrub 位置） |
+| `speed` | float | 播放速度（0.25 / 0.5 / 1 / 2 / 4） |
+| `window` | int | Grafana 視窗寬度（分鐘），用於決定 pre-seed 範圍 |
+
+**行為**：
+
+1. 從 `from_time` 定位到 metric events 中對應的 index。
+2. 初始化 gauge 到 `from_time` 時的累積狀態。
+3. 執行 pre-seed remote write（見 §15.4）。
+4. 啟動 async emit loop。
+5. 回傳 200。前端收到後再切換 Grafana iframe，確保 Grafana reload 時 Prometheus 裡已有資料。
+
+#### `/api/replay/pause`
+
+取消 emit loop 的 `asyncio.sleep`，停止 gauge 發射。
+
+#### `/api/replay/speed`
+
+**參數**：
+
+| 參數 | 類型 | 說明 |
+|------|------|------|
+| `speed` | float | 新的播放速度 |
+| `current_time` | ISO 8601 | 前端當前播放位置（用於定位 event index） |
+
+**行為**：
+
+1. 更新 `self._speed`。
+2. Cancel 目前正在 await 的 `asyncio.sleep`。
+3. 從 `current_time` 定位到對應的 event index。
+4. 計算到下一筆 event 的剩餘 session 時間差 `dt_remain`。
+5. 新的等待時間 = `dt_remain / new_speed`。
+6. 繼續 async loop。
+
+前端呼叫時不等 response（fire-and-forget）——前端和後端獨立推進，微小 drift 不影響體感。不需要重做 pre-seed：已寫入 Prometheus 的資料是固定的真實時間 timestamp，速度改變只影響後續 emit 節奏。
+
+### 15.6 前端與後端的同步模型
+
+前端驅動 topology / log（`_tickPlayback()`），後端驅動 Prometheus metric（MetricPlayer），兩者從同一起點以同一速度**獨立推進**，不需要嚴格同步。
+
+理由：
+
+- Topology 動畫和 Grafana 曲線本來就是不同的渲染管道。
+- Grafana 有 5s refresh 週期 + 分鐘級視窗，秒級的 drift 不影響體感。
+- 避免前端和後端之間建立雙向即時通訊的複雜度。
+
+```
+┌──────────┐     POST /replay/play      ┌──────────────┐
+│  Frontend │ ───────────────────────▶  │ MetricPlayer  │
+│           │     POST /replay/pause    │  (async loop) │
+│ topology  │ ───────────────────────▶  │               │
+│ + log     │     POST /replay/speed    │  set gauge()  │
+│ (JS timer)│ ───────────────────────▶  │       │       │
+└──────────┘                            └───────┼───────┘
+      │                                         │
+      │ dispatch events                         ▼
+      ▼                                  /metrics endpoint
+  Cytoscape                                     │
+  + event log                            Prometheus scrape
+                                          (every 5s, ts=now)
+                                                │
+                                                ▼
+                                          Grafana iframe
+                                          now-Nm ~ now
+                                          refresh=5s
+                                          (不需 reload)
+```
+
+### 15.7 前端 Play / Pause / Speed 流程
+
+#### Play
+
+1. 呼叫 `POST /api/replay/play { from_time, speed, window }`。
+2. 等待 200 response（後端 pre-seed 完成）。
+3. 切換 Grafana iframe：`var-session=_live_<orig_id>`，`from=now-{N}m&to=now&refresh=5s`。iframe reload 一次。
+4. 狀態 → PLAYING，啟動 `_tickPlayback()`。
+
+播放期間 Grafana 完全不需要更新——auto-refresh 自行追蹤最新資料。
+
+#### Pause
+
+1. 取消 `_tickPlayback()` timer，記錄暫停位置。
+2. `POST /api/replay/pause`（fire-and-forget）。
+3. 切換 Grafana iframe 回 backfill：`var-session=<orig_id>`，centered from/to 在暫停位置。iframe reload 一次。
+4. 狀態 → PAUSED。
+
+#### 變速（PLAYING 中）
+
+1. 前端更新 `_playSpeed`，取消並重啟 `_tickPlayback()`，更新 `Topology.setPlaybackSpeed()`。
+2. `POST /api/replay/speed { speed, current_time }`（fire-and-forget）。
+3. 後端 MetricPlayer cancel 當前 sleep，用新速度繼續。
+4. 不重做 pre-seed，不更新 Grafana iframe。
+
+#### 播放到 event 結尾
+
+1. 後端 MetricPlayer emit 完最後一筆 → 停止。
+2. 前端 `_tickPlayback()` 的 `_playCursor >= _events.length` → 狀態 → PAUSED。
+3. `POST /api/replay/pause` → Grafana 切回 backfill。
+
+### 15.8 DVR 控制列新增元件
+
+在 §8.1 的 DVR 控制列右側新增兩個元件：
+
+**Chart 時間窗口 spinner**：`<input type="number">`，設定 Grafana 顯示的時間窗口寬度（分鐘）。預設 3，最小 1，最大 30。可直接輸入數值或用上下按鈕 ±1 調整。
+
+前端維護 `_grafanaWindowMin` 變數。變更時：
+
+- PLAYING 期間：更新 iframe src 的 `from=now-{N}m`（reload 一次），後續繼續 auto-refresh。
+- PAUSED / SCRUBBING 期間：更新 centered window 半寬（`DVR_GRAFANA_HALF_WINDOW_MS = _grafanaWindowMin * 60 * 1000 / 2`）。
+- 下次 play 時：`window` 參數傳入 `/api/replay/play`，影響 pre-seed 範圍。
+
+**↻ Reset Chart**：重設 Grafana iframe 回到追蹤播放的視角。
+
+- PLAYING 期間按下：重設 iframe src 為 `from=now-{N}m&to=now&refresh=5s`。
+- PAUSED 期間按下：重設 iframe src 為 centered from/to。
+- 用途：使用者在 Grafana 圖表上手動放大觀察某段後，按此回歸正常追蹤視角。
+
+### 15.9 注意事項
+
+#### 多次 Play / Pause 循環
+
+每次 play 都會產生新的 pre-seed + emit 資料（都在 `_live_<id>` session label 下，但在不同的真實時間範圍）。Grafana `now-Nm ~ now` 只看最新的真實時間，舊的 play 嘗試自然淡出視窗。Prometheus TSDB 中會留下這些歷史資料，但不影響顯示，retention 到期後自動清除。
+
+#### 播放速度對 Grafana 曲線密度的影響
+
+Prometheus 每 5s scrape 一次，不受播放速度影響。
+
+| 速度 | 5s 內經過的 session 時間 | Grafana 上的效果 |
+|------|------------------------|-----------------|
+| 0.25x | 1.25s | 曲線變化慢，幾乎每個 scrape 點看起來一樣 |
+| 1x | 5s | 與 live 一致 |
+| 4x | 20s | 多筆 event 壓在同一個 scrape 點，gauge 取最後一個值 |
+
+高速播放時部分中間值會被「吞掉」（gauge 在兩次 scrape 之間被 set 多次，只有最後一次被記錄）。這與 live 模式下 event burst 的行為一致，是 Prometheus pull model 的固有特性，不影響趨勢判讀。
+
+#### Pre-seed remote write 失敗
+
+若 remote write 失敗，log warning 後仍然啟動 MetricPlayer emit loop 並回傳 200。Grafana 會顯示空白圖表，但隨著 Prometheus scrape 累積新資料，曲線會逐漸出現。體感類似 live 模式剛啟動時的「曲線逐漸長出」——不理想但可用。使用者可按 Pause 再重新 Play 重試 pre-seed。
