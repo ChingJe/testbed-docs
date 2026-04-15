@@ -143,13 +143,15 @@ replay 模式不會建立新的事件檔，而是讀取既有 session：
 - 前端以 iframe 嵌入 dashboard
 - dashboard 透過 `session` variable 切換不同 session 的 metrics
 
-## 8. 現況邊界
+## 8. 系統邊界
 
-目前 `overview/` 這層只描述系統主幹與跨層行為；更細的 implementation 細節應分別寫入：
+目前 `5g-viz` 的責任範圍是「讀取既有 log、轉成事件與 metrics，並提供 live / replay 視覺化介面」。
 
-- `design/backend/`
-- `design/frontend/`
-- `design/grafana/`
-- `design/dvr/`
+它目前**不**直接負責：
 
-這樣可以讓 `overview/` 保持在「先讀完能掌握整體架構」的層級。
+- 啟動、停止或編排 5GC / NWDAF 元件
+- 修改 NF 本身的行為或訓練流程
+- 直接實作自有圖表引擎；圖表仍委由 Grafana 呈現
+- 將 Prometheus TSDB 當作長期錄製格式；可攜的錄製資料仍以 session 目錄中的 `meta.json`、`events.jsonl`、`topology.yaml` 為主
+
+因此，`5g-viz` 比較接近一個「以 log 為來源的觀測與重播層」，而不是 5G testbed 的控制平面。

@@ -1,6 +1,6 @@
 # Overview
 
-系統層的 canonical 文件放在這裡。
+本目錄收錄 `5g-viz` 系統層的 canonical 文件。
 
 目前文件：
 

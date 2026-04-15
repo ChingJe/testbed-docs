@@ -252,7 +252,7 @@ POST /api/replay/play
 | 播放中的圖表 | 不需要 pseudo-live | 由 `MetricPlayer` remote write 產生 `pseudo_session` |
 | session 設定 | 啟動時新建 | 讀取既有 session |
 
-## 10. 目前資料流上的關鍵點
+## 10. 資料流上的關鍵分界
 
 - `event_reactions` 同時影響前端動畫與後端 `state_snapshot`
 - `session` label 不一定存在於事件 payload 中，而是由 metric handlers / replay writer 注入到 Prometheus metrics
@@ -260,4 +260,4 @@ POST /api/replay/play
   - 原始 replay session backfill
   - pseudo-live `pseudo_session`
 
-這些差異是後續閱讀 `design/grafana/` 與 `design/dvr/` 文件時的重要背景。
+這些分界直接決定同一批事件在 live 與 replay 模式下，如何被呈現為拓樸狀態與圖表資料。
