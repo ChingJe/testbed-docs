@@ -18,4 +18,3 @@
 12. [x] **Pseudo-live pipeline — Playback 控制 API**：`/api/replay/play`、`/api/replay/pause`、`/api/replay/speed`。
 13. [x] **Pseudo-live pipeline — 前端整合核心**：Play / Pause 時切換 Grafana 模式（backfill ↔ pseudo-live）、pause/scrub 使用 trailing backfill 視窗。
 14. [ ] **Chart 時間窗口 spinner、↻ Reset Chart 按鈕**。
-15. [ ] **Retrain annotation 改為獨立 event metric**（取代 `nwdaf_retrain_total + idelta(...)` 的曲折做法）。

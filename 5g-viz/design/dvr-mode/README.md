@@ -13,7 +13,6 @@
 - [x] Replay 的 Prometheus remote write backfill：已補齊 replay 啟動前 backfill、重複 session 檢查與 `--force-backfill`。
 - [x] Replay 模式 Grafana「近似 live」核心流程：已完成 `MetricPlayer`、`/api/replay/*`、前端 backfill ↔ pseudo-live 切換，以及 replay 啟動時清理 managed Prometheus TSDB，避免舊樣本污染。
 - [ ] Chart 時間窗口 spinner、↻ Reset Chart 按鈕尚未實作。
-- [ ] Retrain annotation 仍沿用 `nwdaf_retrain_total + idelta(...)`；後續建議改為獨立 event metric。
 - [ ] 匯出/匯入流程與 E2E 驗收腳本尚未實作。
 
 ## 1. 目標
@@ -45,3 +44,14 @@
   - `§14 Pseudo-Live Pipeline（Replay Grafana 近似 Live 體驗）`
 - [roadmap.md](roadmap.md)
   - `§15 實作順序建議`
+
+## 延伸議題（實作中發現）
+
+以下幾項是在 DVR 實作過程中暴露出來的相關問題，但不視為當前 DVR 主流程 blocker，已抽離為獨立設計討論：
+
+- [../grafana-chart-rendering.md](../grafana-chart-rendering.md)
+  - Grafana 在小時間窗下的邊界裁切、右邊界缺線、over-fetch / dynamic epsilon 等時間窗渲染語意。
+- [../replay-pseudo-live-consistency.md](../replay-pseudo-live-consistency.md)
+  - replay `pause/backfill` 與 `play/pseudo-live` 的圖表一致性問題，以及 pseudo-live timestamp remap 帶來的數值穩定性風險。
+- [../metric-event-modeling.md](../metric-event-modeling.md)
+  - `retrain` annotation 目前沿用 counter 推導事件；後續若要改為獨立 event metric，將在此文件整理 live / replay 共用的 metrics 建模。
