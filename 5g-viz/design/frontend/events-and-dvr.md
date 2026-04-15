@@ -71,6 +71,17 @@
 HH:MM:SS.mmm
 ```
 
+### 緩衝事件何時會被消費
+
+live mode 下，即使使用者已離開即時視角，前端仍會持續從 WebSocket 收事件並放進 `_events`。這些資料不是立刻丟棄，而是延後在下列時機使用：
+
+- `LIVE`：新事件一進 `_events` 就立刻 `dispatch(event)`，直接更新 topology 與 event log
+- `PAUSED` / `SCRUBBING`：`Topology.renderStaticSnapshot(...)` 會從 `_events` 重建指定時間點的 node class、edge 與 pulse；event log 也會改由 `_renderLogTailAt(...)` 從 `_events` 取該時間點之前的 tail
+- `PLAYING`：前端以 `_findFirstIndexAfter(_timelinePosMs)` 從 `_events` 找播放起點，再用 `_tickPlayback()` 逐筆重播
+- `Go Live`：若 `/api/state` 成功，前端直接套用 backend 權威 snapshot；若失敗，才退回用 `_events` 在最新時間點做一次靜態重建；此外 recent live log 也是從 `_events` 取回最近一段 tail
+
+因此 `_events` 不只是 replay 專用緩衝，而是 live DVR 的核心資料池。它讓前端能在不中斷後端 live pipeline 的情況下，隨時切到歷史視角再切回即時視角。
+
 ## 5. Live 模式的資料來源
 
 live mode 主要依賴 `/ws`。
