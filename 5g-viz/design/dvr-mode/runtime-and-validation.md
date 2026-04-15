@@ -218,7 +218,7 @@ Live DVR 模式下，前端在 pause 期間持續收 WebSocket events 存入 buf
 4. 播放 30 秒後改速度（例如 1x → 4x）→ 確認 topology 播放速度改變，Grafana 持續更新且不中斷（倍速體感不一定明顯，見 §14.9）。
 5. 按 Pause → 確認 Grafana 切回 backfill 視角（原始時間軸，trailing 到暫停位置）。
 6. 再次按 Play → 確認 Grafana 再次以 pseudo-live 模式啟動，曲線平滑。
-7. `Chart 時間窗口 spinner` 與 `↻ Reset Chart` 目前尚未實作，留待後續 UI 增補驗收。
+7. 改 `Chart` 為 `1 / 3 / 5` 分鐘並按 `↻ Reset Chart`，確認 Grafana 視窗能依新值重同步，且 reset 後回到預設 `3 min`。
 
 **導出 / 匯入流程**：
 
@@ -232,4 +232,3 @@ Live DVR 模式下，前端在 pause 期間持續收 WebSocket events 存入 buf
 2. 確認 `events.jsonl` 存在且可讀（最多遺失最後一筆）。
 3. 確認 `meta.json` 缺少 `end_time`（非正常關閉）。
 4. `./start.sh --replay sessions/<id>` → 確認 replay 正常運作（end_time 從 JSONL 最後一筆推斷）。
-

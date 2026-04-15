@@ -2,7 +2,7 @@
 
 本主題已由單一長文件拆分為多個子文件。子文件保留原始章節編號，方便沿用既有 `§X.Y` 引用。
 
-## 0. 進度註記（2026-04-14）
+## 0. 進度註記（2026-04-15）
 
 - [x] Session recording + JSONL：已完成 live session 建立、`meta.json`/`events.jsonl` 寫入、結束時回填 `end_time` 與 `event_count`。
 - [x] Prometheus session 隔離：`nwdaf_*` metrics 已加 `session` label，Grafana query 與 variable 已改為 session-aware。
@@ -12,7 +12,7 @@
 - [x] 前端 Grafana 同步：scrub/paused 對齊時間窗、replay 播放時切換 pseudo-live、Go Live 還原即時視窗。
 - [x] Replay 的 Prometheus remote write backfill：已補齊 replay 啟動前 backfill、重複 session 檢查與 `--force-backfill`。
 - [x] Replay 模式 Grafana「近似 live」核心流程：已完成 `MetricPlayer`、`/api/replay/*`、前端 backfill ↔ pseudo-live 切換，以及 replay 啟動時清理 managed Prometheus TSDB，避免舊樣本污染。
-- [ ] Chart 時間窗口 spinner、↻ Reset Chart 按鈕尚未實作。
+- [x] Chart 時間窗口 spinner、↻ Reset Chart：已完成可調 chart window（1~15 分鐘）、Reset Chart，以及 live/replay 暫停視角統一為 trailing window。
 - [ ] 匯出/匯入流程與 E2E 驗收腳本尚未實作。
 
 ## 1. 目標

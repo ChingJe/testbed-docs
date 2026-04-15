@@ -81,7 +81,7 @@ Play 開始時，後端從 scrub 位置往前取 `W × S` 的 session 時間範�
 
 ```
 scrub 位置 = T_scrub
-Grafana 視窗 = W（分鐘；目前固定 3，後續由前端 Chart 時間窗口 spinner 控制）
+Grafana 視窗 = W（分鐘；目前由前端 Chart 時間窗口 spinner 控制，預設 3）
 播放速度 = S
 
 pre-seed 範圍（session 時間）：T_scrub − W×S  ~  T_scrub
@@ -265,22 +265,24 @@ Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著沿相同 `pseudo_s
 
 ### 14.8 DVR 控制列新增元件
 
-本節是後續 UI 增補，**目前尚未實作**。當前版本仍使用固定 3 分鐘視窗，且沒有 ↻ Reset Chart 按鈕。
+本節對應的 UI 已實作。當前版本提供 `Chart` 時間窗口 spinner 與 `↻ Reset Chart`，並將 live / replay 的暫停視角統一為 trailing window。
 
 在 §8.1 的 DVR 控制列右側新增兩個元件：
 
-**Chart 時間窗口 spinner**：`<input type="number">`，設定 Grafana 顯示的時間窗口寬度（分鐘）。預設 3，最小 1，最大 30。可直接輸入數值或用上下按鈕 ±1 調整。
+**Chart 時間窗口 spinner**：`<input type="number">`，設定 Grafana 顯示的時間窗口寬度（分鐘）。預設 3，最小 1，最大 15。可直接輸入數值或用上下按鈕 ±1 調整。
 
-前端維護 `_grafanaWindowMin` 變數。變更時：
+前端維護 `_chartWindowMin` 變數。變更時：
 
-- PLAYING 期間：更新 iframe src 的 `from=now-{N}m`（reload 一次），後續繼續 auto-refresh。
-- PAUSED / SCRUBBING 期間：更新 trailing window 寬度（`from = scrub_time - _grafanaWindowMin * 60 * 1000`，`to = scrub_time`）。
-- 下次 play 時：`window` 參數傳入 `/api/replay/play`，影響 pre-seed 範圍。
+- live `LIVE`：更新 iframe src 的 `from=now-{N}m&to=now`。
+- PAUSED / SCRUBBING：更新 trailing window 寬度（`from = scrub_time - _chartWindowMin * 60 * 1000`，`to = scrub_time`）。
+- replay `PLAYING`：以目前 playhead 重新呼叫 `/api/replay/play`，用新的 `window` 重新 pre-seed + 生成新的 `pseudo_session`，再切回 pseudo-live。
+- 下次 play 時：`window` 參數一律傳入 `/api/replay/play`，影響 pre-seed 範圍。
 
 **↻ Reset Chart**：重設 Grafana iframe 回到追蹤播放的視角。
 
-- PLAYING 期間按下：重設 iframe src 為 `from=now-{N}m&to=now&refresh=5s`。
-- PAUSED 期間按下：重設 iframe src 為 trailing from/to。
+- 將 Chart window 恢復為預設 3 分鐘。
+- LIVE / PAUSED / SCRUBBING：以預設視窗重新同步 iframe。
+- replay `PLAYING`：用預設 window 重新啟動 pseudo-live，確保 pre-seed 與 iframe 視角同時回到預設狀態。
 - 用途：使用者在 Grafana 圖表上手動放大觀察某段後，按此回歸正常追蹤視角。
 
 ### 14.9 注意事項
@@ -336,4 +338,3 @@ Pseudo-live 每次 Play 都會產生新的 `pseudo_session`，因此 Prometheus 
 若 remote write 失敗，log warning 後仍然啟動 MetricPlayer emit loop 並回傳 200。Grafana 會顯示空白圖表，但隨著 emit loop 持續 remote write 新資料，曲線會逐漸出現。體感類似 live 模式剛啟動時的「曲線逐漸長出」——不理想但可用。使用者可按 Pause 再重新 Play 重試 pre-seed。
 
 ---
-

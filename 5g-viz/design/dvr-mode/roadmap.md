@@ -17,4 +17,4 @@
 11. [x] **Pseudo-live pipeline — 後端 MetricPlayer**：每次 Play 產生唯一 `pseudo_session`、pre-seed remote write、async emit loop，且播放中的新點也走 remote write。
 12. [x] **Pseudo-live pipeline — Playback 控制 API**：`/api/replay/play`、`/api/replay/pause`、`/api/replay/speed`。
 13. [x] **Pseudo-live pipeline — 前端整合核心**：Play / Pause 時切換 Grafana 模式（backfill ↔ pseudo-live）、pause/scrub 使用 trailing backfill 視窗。
-14. [ ] **Chart 時間窗口 spinner、↻ Reset Chart 按鈕**。
+14. [x] **Chart 時間窗口 spinner、↻ Reset Chart 按鈕**。

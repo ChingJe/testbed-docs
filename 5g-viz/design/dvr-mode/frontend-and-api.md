@@ -157,8 +157,8 @@ Live 模式下播放追上 live 位置    PLAYING → LIVE
 位於 header 下方，新增一列 UI：
 
 ```
-[⏸ Pause] [▶ Play] [⏭ Live]    ◀■■■■■■■■■■■■■■■□──────────▶    14:32:05 / 14:45:12    [0.25x ▾]    (Chart: [▼ 3 ▲] min  [↻] - TODO)
-                                  ↑ scrub slider                   ↑ 目前 / 結束時間       ↑ 速度選單   ↑ 後續補的控制元件
+[⏸ Pause] [▶ Play] [⏭ Live]    ◀■■■■■■■■■■■■■■■□──────────▶    14:32:05 / 14:45:12    [0.25x ▾]    [Chart: 3 min] [↻ Reset Chart]
+                                  ↑ scrub slider                   ↑ 目前 / 結束時間       ↑ 速度選單   ↑ 已實作的圖表控制元件
 ```
 
 元件：
@@ -171,8 +171,8 @@ Live 模式下播放追上 live 位置    PLAYING → LIVE
 | Timeline slider | 拖曳定位到任意時間點 |
 | 時間顯示 | 左邊 = scrub 目前位置，右邊 = session 結束時間（live 模式為「now」） |
 | 速度選單 | 0.25x / 0.5x / 1x / 2x / 4x |
-| Chart 時間窗口 | 後續 UI 增補項。預計提供 `<input type="number">` spinner，設定 Grafana 顯示的時間窗口寬度（分鐘）。目前固定為 3 分鐘 |
-| ↻ Reset Chart | 後續 UI 增補項。預計重設 Grafana iframe 回到追蹤播放的視角，目前尚未提供 |
+| Chart 時間窗口 | `<input type="number">` spinner，設定 Grafana 顯示的時間窗口寬度（分鐘）。預設 3，最小 1，最大 15 |
+| ↻ Reset Chart | 將 Chart window 恢復為預設 3 分鐘，並強制重新同步目前的 Grafana 視角 |
 
 ### 與現有 `↺ Live` 按鈕的關係
 
@@ -241,7 +241,7 @@ DVR 模式下，event log 面板的行為：
 
 ### 8.5 Grafana 同步
 
-目前前端以固定 3 分鐘視窗運作；Chart 時間窗口 spinner 尚未實作（見 §14.8 TODO）。Grafana iframe 維持 `&kiosk`（full kiosk），所有時間控制由 5g-viz DVR 控制列統一管理。
+目前前端已支援可調 Chart window（1~15 分鐘）與 `↻ Reset Chart`。Grafana iframe 維持 `&kiosk`（full kiosk），所有時間控制由 5g-viz DVR 控制列統一管理。
 
 | 動作 | Grafana 行為 |
 |------|-------------|
@@ -251,8 +251,8 @@ DVR 模式下，event log 面板的行為：
 | Replay Play 進行中 | 不更新 iframe——Grafana auto-refresh 自行追蹤（等同 live 體感） |
 | Replay Play 暫停 | 切回 backfill 資料：`var-session=<orig_id>`，trailing from/to 在暫停位置。iframe reload 一次 |
 | Go Live（live 模式） | 恢復 `from=now-Nm&to=now&refresh=5s`，`var-session=<orig_id>` |
-| Chart 時間窗口變更 | 尚未實作（目前固定 3 分鐘視窗） |
-| ↻ Reset Chart | 尚未實作 |
+| Chart 時間窗口變更 | live 模式下立即重算 `now-Nm ~ now` 或 trailing window；replay `PLAYING` 中會以目前 playhead 重新啟動 pseudo-live，讓 pre-seed 視窗與目前 window 一致 |
+| ↻ Reset Chart | 將 Chart window 恢復為 3 分鐘，並強制重同步目前 session / mode 的 Grafana iframe |
 
 ---
 
@@ -365,4 +365,3 @@ DVR 模式下，event log 面板的行為：
 **選擇方案 A**：replay 和 live DVR 的 scrub/play 邏輯統一放在前端。Live DVR 時前端已經有記憶體中的 event buffer（WebSocket 收到的），scrub 時補查 `/api/events`；replay 時前端持有完整 event list。兩種模式可共用同一套 DVR UI 邏輯。
 
 ---
-
