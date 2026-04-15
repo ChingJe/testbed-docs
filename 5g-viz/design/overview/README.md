@@ -2,8 +2,8 @@
 
 系統層的 canonical 文件放在這裡。
 
-預計內容：
+目前文件：
 
-- `system.md`：系統組件、啟動模型、主要責任分工
-- `data-flow.md`：從 VM log 到瀏覽器與圖表的端對端路徑
-- `event-schema.md`：event types、metric mapping 與跨層語意
+- [system.md](system.md)：系統組件、執行模式、啟動流程與對外介面
+- [data-flow.md](data-flow.md)：live / replay 兩條資料路徑的端對端流程
+- [event-schema.md](event-schema.md)：事件欄位、Prometheus metric 映射與 `state_snapshot` 結構
