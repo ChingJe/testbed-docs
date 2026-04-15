@@ -312,4 +312,4 @@
 - `event_reactions` 決定「這些事件在前端如何被表現」
 - `state.py` 又會重用其中的 `add_class` / `remove_class` 來維護 `state_snapshot`
 
-因此 `event-schema` 與 `topology-yaml` schema 是分工合作，而不是互相取代。
+因此 `event-schema` 與 [`../reference/topology-yaml.md`](../reference/topology-yaml.md) 是分工合作，而不是互相取代。

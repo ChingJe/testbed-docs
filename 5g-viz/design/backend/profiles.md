@@ -1,6 +1,7 @@
 # Profiles
 
 本文描述 `5g-viz` 的 profile 結構，以及 `.env` 與 `topology.yaml` 如何共同影響 backend 行為。
+各環境變數與 topology schema 的完整參考頁，另見 [`../reference/env-config.md`](../reference/env-config.md) 與 [`../reference/topology-yaml.md`](../reference/topology-yaml.md)。
 
 ## 1. Profile 的角色
 

@@ -1,6 +1,7 @@
 # Topology
 
 本文描述 `frontend/topology.js` 目前如何把 `topology.yaml` 轉成前端可互動的 Cytoscape 拓樸。
+`topology.yaml` 的完整欄位 schema 與 `event_reactions` action 定義，另見 [`../reference/topology-yaml.md`](../reference/topology-yaml.md)。
 
 ## 1. 前端拓樸層的責任
 
