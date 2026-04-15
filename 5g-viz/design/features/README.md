@@ -6,7 +6,4 @@
 
 - [traffic-chart.md](traffic-chart.md)：NWDAF 流量圖表從 event、metrics 到 Grafana iframe 的完整資料路徑
 - [subscription-chain.md](subscription-chain.md)：Consumer、NWDAF、SMF、UPF、Consumer 之間的訂閱與通知鏈路
-
-後續主題：
-
-- `nwdaf-ml-cycle.md`
+- [nwdaf-ml-cycle.md](nwdaf-ml-cycle.md)：UPF volume、AnLF 推論、MTLF 重訓、ADRF 取數到 model swap 的完整循環
