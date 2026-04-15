@@ -1,6 +1,6 @@
 # Metric Event Modeling Notes
 
-本文件整理 DVR / replay 實作過程中發現的 metrics 建模問題，特別是 `retrain` annotation 的表示方式。這些議題影響 live 與 replay 兩條路徑，不應被視為 DVR 單一路線的後續工作，因此從 `dvr-mode/` 主線抽離。
+本文件整理 DVR / replay 實作過程中發現的 metrics 建模問題，特別是 `retrain` annotation 的表示方式。這些議題影響 live 與 replay 兩條路徑，不應被視為 DVR 單一路線的後續工作，因此從 DVR 主線抽離並整理到 `plans/architecture/`。
 
 ## 範圍
 
@@ -28,7 +28,7 @@ idelta(nwdaf_retrain_total{session="$session"}[15s]) > 0
 
 ## 與 DVR 的關係
 
-下列內容仍屬 DVR 主線，留在 `dvr-mode/`：
+下列內容仍屬 DVR 主線，留在 `plans/dvr/`：
 
 - replay pseudo-live 如何把目前的 metric 寫回 Prometheus
 - pre-seed 如何配合現有 dashboard / annotation

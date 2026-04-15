@@ -20,18 +20,26 @@ docs/
 │
 ├── 5g-viz/                 Real-time visualisation system (FastAPI + WebSocket + Grafana)
 │   ├── design/
-│   │   ├── architecture/   System overview, core event/metric model
-│   │   ├── backend/        Server-side event and metric handling
-│   │   ├── frontend/       Topology rendering and filtering
-│   │   ├── grafana/        Grafana integration (embedding, chart rendering)
-│   │   └── dvr/            DVR recording & pseudo-live replay feature
+│   │   ├── overview/       Canonical system-level docs
+│   │   ├── backend/        Canonical server-side docs
+│   │   ├── frontend/       Canonical topology and UI docs
+│   │   ├── grafana/        Canonical Grafana/Prometheus docs
+│   │   ├── dvr/            Canonical DVR behavior docs
+│   │   ├── features/       Cross-layer feature walkthroughs
+│   │   └── reference/      Schemas and config reference
+│   ├── plans/              Historical implementation plans and design explorations
+│   │   ├── architecture/   Cross-layer planning docs
+│   │   ├── backend/        Backend refactor plans
+│   │   ├── frontend/       Frontend planning docs
+│   │   ├── grafana/        Grafana integration plans
+│   │   └── dvr/            DVR planning and debug notes
 │   ├── notes/
 │   │   ├── meetings/       Meeting records (YYYY-MM-DD-meeting.md)
 │   │   ├── impl/           Implementation notes and decisions
 │   │   └── internals/      System internals reading notes
 │   └── tmp/                Throwaway test data (not for long-term storage)
 │
-├── archive/                Retired or superseded documents
+├── archive/                Retired or superseded documents (for example `archive/5g-viz/`)
 └── specs/                  3GPP specifications and OpenAPI YAML files
     ├── TS 23.288/          Analytics, ML model provisioning & monitoring
     ├── TS 23.502/          UPF event exposure

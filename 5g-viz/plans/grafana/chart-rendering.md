@@ -1,6 +1,6 @@
 # Grafana Window Rendering Notes
 
-本文件整理 DVR 實作過程中發現的「時間窗渲染」問題。這些議題與 DVR 互相關聯，但不屬於 DVR 主流程本身，因此從 `dvr-mode/` 主線抽離。
+本文件整理 DVR 實作過程中發現的「時間窗渲染」問題。這些議題與 DVR 互相關聯，但不屬於 DVR 主流程本身，因此從 DVR 主線抽離並整理到 `plans/grafana/`。
 
 ## 範圍
 
@@ -16,7 +16,7 @@
 
 - replay `pause/backfill` 與 `play/pseudo-live` 的數值一致性
 - pseudo-live 的 timestamp remap / remote write 副作用  
-  這些另見 [replay-pseudo-live-consistency.md](replay-pseudo-live-consistency.md)
+  這些另見 [../dvr/replay-pseudo-live-consistency.md](../dvr/replay-pseudo-live-consistency.md)
 
 ## 背景
 
@@ -26,7 +26,7 @@
 
 ## 與 DVR 的關係
 
-下列內容仍屬 DVR 主線，留在 `dvr-mode/`：
+下列內容仍屬 DVR 主線，留在 `plans/dvr/`：
 
 - `Chart` 時間窗口控制項本身
 - `Pause / Play / Scrub / Go Live`

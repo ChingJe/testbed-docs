@@ -202,7 +202,7 @@ def evaluate_range(samples, start_ms, end_ms, step_ms):
 - 主要觀察 panel：
   - `sum by (target)(nwdaf_ground_truth_ul_bytes{session="$session",target="group=group-test-002"})`
   - `sum by (target)(nwdaf_predicted_ul_bytes{session="$session",target="group=group-test-002"} offset 5s)`
-- `nwdaf_retrain_total` 本次**刻意排除**，後續由 [metric-event-modeling.md](metric-event-modeling.md) 處理；本文件只判讀主圖（GT / Pred / Deviation）一致性
+- `nwdaf_retrain_total` 本次**刻意排除**，後續由 [../architecture/metric-event-modeling.md](../architecture/metric-event-modeling.md) 處理；本文件只判讀主圖（GT / Pred / Deviation）一致性
 
 ### Step 1 結果：A 層對主圖 metric 正常
 

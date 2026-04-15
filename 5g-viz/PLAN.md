@@ -114,7 +114,7 @@ docs/5g-viz/
 |---|---|
 | `design/architecture/5g-viz-improvements.md` | `notes/impl/improvement-history.md` |
 
-### 移入 `docs/archive/5g-viz/`（被新 `design/` 文件取代，保留備查）
+### 移入 `docs/archive/5g-viz/design/`（被新 `design/` 文件取代，保留備查）
 
 | 現有路徑 | 說明 |
 |---|---|
@@ -238,7 +238,7 @@ plans/
    - 依本文件上方的對應表搬移
    - `design/dvr/` 直接移到 `plans/dvr/`
    - `design/architecture/metric-event-modeling.md` 移到 `plans/architecture/`
-   - 被新 canonical 文件完全取代的總覽文件，改移到 `docs/archive/5g-viz/`
+   - 被新 canonical 文件完全取代的總覽文件，改移到 `docs/archive/5g-viz/design/`
 
 2. **在同一次整理中修正舊文件的相對連結與索引**
    - 修正 `plans/` 內互相引用的 Markdown 路徑
@@ -269,7 +269,7 @@ plans/
    - 保留原內容
    - 同步修正檔名、同層連結與跨檔引用
 
-4. **將被取代的舊總覽文件移入 `docs/archive/5g-viz/`**
+4. **將被取代的舊總覽文件移入 `docs/archive/5g-viz/design/`**
    - archive 前先確認已有新的 canonical 文件能接手其用途
 
 5. **最後更新索引與導覽**

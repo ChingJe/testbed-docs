@@ -16,7 +16,7 @@
 - 小時間窗右邊界缺線
 - `centered` / `trailing`
 - over-fetch / epsilon  
-  這些另見 [grafana-chart-rendering.md](grafana-chart-rendering.md)
+  這些另見 [../grafana/chart-rendering.md](../grafana/chart-rendering.md)
 
 ## 背景
 
