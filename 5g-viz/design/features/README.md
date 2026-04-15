@@ -1,8 +1,8 @@
 # Features
 
-Cross-layer feature walkthroughs belong here.
+跨層功能流程說明放在這裡。
 
-Planned content:
+預計內容：
 
 - `nwdaf-ml-cycle.md`
 - `subscription-chain.md`

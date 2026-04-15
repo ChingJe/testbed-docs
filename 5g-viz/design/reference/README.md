@@ -1,8 +1,8 @@
 # Reference
 
-Config and schema reference documents belong here.
+設定與 schema 參考文件放在這裡。
 
-Planned content:
+預計內容：
 
 - `topology-yaml.md`
 - `env-config.md`

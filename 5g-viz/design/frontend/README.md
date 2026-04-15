@@ -1,8 +1,8 @@
 # Frontend
 
-Canonical frontend documents belong here.
+前端的 canonical 文件放在這裡。
 
-Planned content:
+預計內容：
 
 - `topology.md`
 - `event-reactions.md`

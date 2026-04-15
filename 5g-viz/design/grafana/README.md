@@ -1,8 +1,8 @@
 # Grafana
 
-Canonical Grafana and Prometheus integration documents belong here.
+Grafana 與 Prometheus 整合的 canonical 文件放在這裡。
 
-Planned content:
+預計內容：
 
 - `setup.md`
 - `embed.md`

@@ -1,8 +1,8 @@
 # Backend
 
-Canonical backend documents belong here.
+後端的 canonical 文件放在這裡。
 
-Planned content:
+預計內容：
 
 - `collector.md`
 - `parser.md`

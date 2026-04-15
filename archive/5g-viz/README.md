@@ -1,10 +1,8 @@
 # 5g-viz Archive
 
-Retired or superseded `5g-viz` documents live here.
+已淘汰或被取代的 `5g-viz` 文件放在這裡。
 
-- Prefer [`../../5g-viz/design/`](../../5g-viz/design/README.md) for maintained
-  canonical design docs.
-- Prefer [`../../5g-viz/plans/`](../../5g-viz/plans/README.md) for historical
-  planning context that is still considered relevant.
+- 若要看維護中的 canonical 設計文件，請優先閱讀 [`../../5g-viz/design/`](../../5g-viz/design/README.md)。
+- 若要看仍有參考價值的歷史規劃脈絡，請優先閱讀 [`../../5g-viz/plans/`](../../5g-viz/plans/README.md)。
 
-Files in this archive are kept for traceability only.
+此處文件僅為保留追溯脈絡。

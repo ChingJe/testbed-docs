@@ -1,8 +1,8 @@
 # DVR
 
-Canonical DVR behavior documents belong here.
+DVR 行為的 canonical 文件放在這裡。
 
-Planned content:
+預計內容：
 
 - `overview.md`
 - `session.md`

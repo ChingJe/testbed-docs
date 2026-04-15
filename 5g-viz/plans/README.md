@@ -1,9 +1,6 @@
 # 5g-viz Plans
 
-Historical implementation plans and design explorations live here.
-These files preserve design intent and debugging context from when features were
-planned or implemented. They are useful background material, but they are not
-canonical descriptions of the current codebase.
+歷史實作規劃與設計探索文件放在這裡。
+這些文件保留功能規劃或實作當下的設計脈絡與除錯背景，可作為背景材料，但不應視為目前程式碼的 canonical 描述。
 
-Prefer [`../design/`](../design/README.md) when you need maintained system
-documentation.
+如果需要維護中的系統文件，請優先閱讀 [`../design/`](../design/README.md)。
