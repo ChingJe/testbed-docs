@@ -135,7 +135,7 @@ UPF volume notify
 這是整條 cycle 裡最重要的切換點之一，因為它同時影響：
 
 - topology：MTLF 加上 `retraining` class，並畫出 `RetrainTrigger` self-edge
-- Grafana：`nwdaf_retrain_total` counter 增加，用來驅動 retrain annotation
+- Grafana：`nwdaf_retrain_total` counter 增加，並寫 `nwdaf_retrain_start_event` pulse
 
 ### ADRF 相關事件
 
@@ -205,8 +205,9 @@ UPF volume notify
 | `aggregated_slot` | `nwdaf_ground_truth_ul_bytes`、`nwdaf_ground_truth_dl_bytes` |
 | `ml_inference` | `nwdaf_predicted_ul_bytes`、`nwdaf_predicted_dl_bytes` |
 | `accuracy` | `nwdaf_deviation` |
-| `retrain_trigger` | `nwdaf_retrain_total` |
-| `model_swap` | live 時刪除舊 deviation series |
+| `retrain_trigger` | `nwdaf_retrain_total`、`nwdaf_retrain_start_event` |
+| `retrain_done` | `nwdaf_retrain_done_event` |
+| `model_swap` | 終止舊 deviation series（live=`remove()`；replay=`NaN` cut-off） |
 
 也就是說，Grafana 主圖看到的是：
 
@@ -290,16 +291,18 @@ replay 啟動後，backend 會從 `events.jsonl` 篩出 metric 相關事件：
 因此使用者在 replay 播放時看到的是：
 
 - topology：事件再次 live-like 地 flash / pulse
-- Grafana：pseudo session 的 ground truth / prediction / deviation / retrain counter
+- Grafana：pseudo session 的 ground truth / prediction / deviation / retrain metrics
 
-### `model_swap` 的不對稱
+### `model_swap` 的對齊方式
 
-這條 feature 在 replay 下有一個重要現況差異：
+這條 feature 在 replay 下原本有一個重要差異：live 會移除舊 deviation series，但 replay remote
+write 無法直接呼叫 exporter `remove()`。
 
-- live 模式的 `model_swap` 會真的刪掉舊 deviation series
-- replay backfill 與 pseudo-live 目前都不會重播這個 delete 行為
+- live 模式：`model_swap` 真的刪掉舊 deviation series
+- replay backfill / pseudo-live：在 `model_swap` 對 active models 寫 `NaN` cut-off sample
 
-因此 replay 的 deviation panel 可能會比 live 保留更多舊 model 痕跡，目前主要靠 query「只取最新 timestamp 的 deviation series」來壓低這個差異。
+因此使用者看到的結果已對齊：舊 model 的 deviation 線會在 swap 當下截斷，後面保留新模型部署後的
+cold-start gap。
 
 ## 8. 使用者看到的整體效果
 
@@ -320,7 +323,9 @@ replay 啟動後，backend 會從 `events.jsonl` 篩出 metric 相關事件：
 ## 9. 目前限制
 
 - `threshold_breach` 與 ADRF 事件目前只有拓樸語意，沒有對應 metrics，因此無法直接在 Grafana 上量化觀察
-- retrain annotation 目前仍靠 `nwdaf_retrain_total + idelta()` 推導，屬於可運作但語意較曲折的建模
-- replay backfill 與 pseudo-live 都不會完整重播 `model_swap` 的 deviation series delete 行為
+- retrain annotation 現在靠 `nwdaf_retrain_start_event` / `nwdaf_retrain_done_event` pulse gauge，
+  不再從 `nwdaf_retrain_total` 間接推導
+- replay backfill 與 pseudo-live 以 `NaN` cut-off 模擬 `model_swap` 的 series terminate 語意，
+  和 live 的畫面效果對齊，但底層機制仍不同
 - parser 目前只保留 `aggregated_slot` 內前端與 metrics 真正需要的欄位，不是完整保留所有原始 log 欄位
 - Grafana prediction 對齊固定寫死 `offset 5s`；若未來 slot 長度或推論步長變化，這條 feature 的比較語意也要一起調整

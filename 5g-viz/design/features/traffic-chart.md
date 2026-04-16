@@ -31,8 +31,9 @@ traffic chart 並不是直接從 log 畫出來，而是經過 event 與 metrics 
 | `aggregated_slot` | 產生 ground truth UL / DL metrics |
 | `ml_inference` | 產生 predicted UL / DL metrics |
 | `accuracy` | 產生 `nwdaf_deviation` |
-| `retrain_trigger` | 遞增 `nwdaf_retrain_total`，供 annotation 使用 |
-| `model_swap` | live 路徑會清除舊 deviation series |
+| `retrain_trigger` | 遞增 `nwdaf_retrain_total`，並寫 `nwdaf_retrain_start_event` pulse |
+| `retrain_done` | 寫 `nwdaf_retrain_done_event` pulse |
+| `model_swap` | 終止舊 deviation series（live=`remove()`；replay=`NaN` cut-off） |
 
 如果這些事件沒有被 parser 正確產生，後面的 Prometheus 與 Grafana 就不會有對應圖形。
 
@@ -67,6 +68,8 @@ live 模式下，`main.py` 會在每筆事件進入主處理流程後呼叫 `_up
 | `nwdaf_predicted_dl_bytes` | `session`、`sub_id`、`target` | `ml_inference` |
 | `nwdaf_deviation` | `session`、`model` | `accuracy` |
 | `nwdaf_retrain_total` | `session` | `retrain_trigger` |
+| `nwdaf_retrain_start_event` | `session` | `retrain_trigger` |
+| `nwdaf_retrain_done_event` | `session` | `retrain_done` |
 
 這代表 traffic chart 看的不是 event log 本身，而是這批 event 投影出來的 time series。
 
@@ -90,7 +93,8 @@ sum by (target)(nwdaf_predicted_dl_bytes{session="$session",target="group=<group
 另外還有：
 
 - deviation panel：查 `nwdaf_deviation{session="$session"}` 的最新一批 model series
-- retrain annotation：查 `idelta(nwdaf_retrain_total{session="$session"}[15s]) > 0`
+- retrain annotation：查 `nwdaf_retrain_start_event{session="$session"} > 0` 與
+  `nwdaf_retrain_done_event{session="$session"} > 0`
 
 ### 5. 前端只負責把 dashboard 嵌進來
 
@@ -139,13 +143,13 @@ target="group=<group_id>"
 Grafana dashboard 的 session variable 目前查的是：
 
 ```promql
-label_values(nwdaf_ground_truth_ul_bytes, session)
+query_result(count by (session) (count_over_time(nwdaf_retrain_total[365d])))
 ```
 
 也就是說：
 
-- 只有出現在 ground truth UL metric 裡的 session 才能被 Grafana 選到
-- deviation-only 或 retrain-only session 不會單獨出現在下拉選單
+- 只有 retention 視窗內仍有 `nwdaf_retrain_total` 樣本的 session 才會出現在選單
+- 被 `delete_series` 清掉的 `_live_...` pseudo session，不會只因 label index 殘留而繼續出現在選單
 
 ### prediction 線不是改 timestamp，而是 query 固定 `offset 5s`
 
@@ -174,7 +178,7 @@ refresh=5s
 
 - ground truth / prediction 持續向右延伸
 - deviation panel 持續更新目前 session 的最新 model 偏差
-- retrain annotation 隨 `nwdaf_retrain_total` 的變化出現
+- retrain start / done annotation 會以 pulse event 顯示
 
 ## 6. Live DVR 下的圖表行為
 
@@ -250,8 +254,8 @@ refresh=5s
 
 ## 9. 目前已知限制
 
-- `model_swap` 造成的 deviation series 清除目前只有 live handler 會真實執行；replay backfill 與 pseudo-live 沒有完整重播 delete 語意
-- Grafana session variable 只看 `nwdaf_ground_truth_ul_bytes`，若未來某個 session 缺少 ground truth 樣本，就可能無法在 dashboard 被選到
+- `model_swap` 在 live 用 exporter `remove()`，在 replay / pseudo-live 用 `NaN` cut-off；畫面效果已對齊，但實作機制仍不同
+- Grafana session variable 目前以 `nwdaf_retrain_total` 作為 session 錨點；若未來某條資料路徑完全不寫這個 metric，仍可能無法在 dashboard 被選到
 - replay 啟動時 `start.sh` 會清空本機 Prometheus TSDB，因此 Grafana 能看到的 session 範圍取決於這次啟動後寫進去的資料
 - 前端只控制 iframe URL，不理解 panel 內部的 legend toggle、zoom 或 query inspector；Grafana 內互動不會回寫到 5g-viz 控制列
 - prediction 對齊目前固定寫死 `offset 5s`；若未來 slot 長度改變，這條 feature 的視覺語意也需要一起調整

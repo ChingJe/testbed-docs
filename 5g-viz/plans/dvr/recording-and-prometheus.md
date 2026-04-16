@@ -108,13 +108,16 @@ nwdaf_ground_truth_ul_bytes{session="20260413T063000123", sub_id="imsi-001", tar
 
 ### Grafana Dashboard 變更
 
-- 新增 template variable：`session`，query = `label_values(nwdaf_ground_truth_ul_bytes, session)`。
+- 新增 template variable：`session`，query =
+  `query_result(count by (session) (count_over_time(nwdaf_retrain_total[365d])))`，
+  並以 regex 抽出 `session="..."` label。
 - 所有 panel 的 PromQL 加 `session="$session"` filter。
 - 預設選取最新的 session。
 
 ### 注意事項
 
-- `nwdaf_retrain_total` 是 Counter 類型。`prometheus_client` 每次 process 啟動 Counter 從 0 開始，Prometheus 會視為 counter reset。因為每個 session 有獨立 label，reset 只發生在 session 開頭，不影響 `idelta()` 判斷。
+- `nwdaf_retrain_total` 仍是 Counter 類型，但 retrain annotation 已改由
+  `nwdaf_retrain_start_event` / `nwdaf_retrain_done_event` pulse gauge 處理，不再依賴 `idelta()`。
 - Session label 會增加 Prometheus 的 label cardinality，但 session 數量有限（一天通常個位數），不構成問題。
 
 ---
@@ -132,7 +135,7 @@ Prometheus 支援 remote write receiver（啟動時加 `--web.enable-remote-writ
 流程：
 
 1. **檢查是否已回填**：向 Prometheus 查詢 `count(nwdaf_ground_truth_ul_bytes{session="<id>"})`。若有結果，代表該 session 已回填過，跳過步驟 2~4（log 提示 "session already backfilled, skipping"）。這避免重複回填的等待時間。
-2. 讀取 `events.jsonl`，篩選出 metric 相關的 event types（`aggregated_slot`、`ml_inference`、`accuracy`、`retrain_trigger`、`model_swap`）。
+2. 讀取 `events.jsonl`，篩選出 metric 相關的 event types（`aggregated_slot`、`ml_inference`、`accuracy`、`retrain_trigger`、`retrain_done`、`model_swap`）。
 3. 將每筆 event 的數值轉為 Prometheus sample（timestamp + value + labels，包含 `session` label）。
 4. 以 batch 方式 POST 到 `http://localhost:9090/api/v1/write`（Prometheus remote write endpoint）。
 5. 回填完成後，Grafana 即可查詢該 session 的完整曲線。
@@ -147,4 +150,3 @@ Prometheus 支援 remote write receiver（啟動時加 `--web.enable-remote-writ
 - 若 Prometheus 裡已經有該 session 的資料（例如 live 模式錄製的），remote write 會產生重複 sample。Prometheus TSDB 對相同 timestamp + 相同值的重複寫入是 idempotent 的，不會造成問題；但若值不同（理論上不應該發生）會以後寫入的為準。
 
 ---
-

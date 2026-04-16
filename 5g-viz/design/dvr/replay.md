@@ -170,6 +170,8 @@ retrain_total = self._retrain_prefix[cursor]
 ### `pause`
 
 `pause` 只會停止目前 active 的 pseudo-live stream。若收到的是舊 token，會回 `204`，不去影響當前播放。
+之後 backend 還會刪掉該 `pseudo_session` 的 `nwdaf_*` series，避免 `_live_...` 長期留在 Grafana
+session 下拉選單裡。
 
 ### `speed`
 
@@ -226,12 +228,14 @@ replay 有一個重要現況：`PAUSED` 和 `PLAYING` 看到的 Grafana 圖，�
 
 ### `model_swap`
 
-live mode 的 metric handler 會在 `model_swap` 時刪掉舊 deviation series，但 replay backfill 與 `MetricPlayer` 都沒有真正重播這個刪除動作。
+live mode 的 metric handler 會在 `model_swap` 時刪掉舊 deviation series。replay backfill 與
+`MetricPlayer` 無法直接重播 exporter `remove()`，所以改在 `model_swap` 時對目前 active models
+寫一筆 `NaN` sample。
 
 結果是：
 
-- replay graph 的 deviation panel 和 live 可能不完全等價
-- 目前主要靠 Grafana query 只取最新 deviation series 來壓低差異
+- replay graph 也會在 swap 當下截斷舊 model 線段
+- 新 model 第一筆 `accuracy` 進來前，會保留和 live 一致的 cold-start gap
 
 ### Replay 啟動時清空 TSDB
 
@@ -253,4 +257,4 @@ live mode 的 metric handler 會在 `model_swap` 時刪掉舊 deviation series�
 - replay 前端會把整個 session 的事件一次載入記憶體；超長 session 時記憶體與初始等待時間會上升
 - pseudo-live 不保證與 paused backfill 完全數值一致
 - `MetricPlayer` 只處理 metric event，不處理 topology event；兩條播放面是分開推進的
-- replay run 內舊 pseudo sessions 仍會留在 TSDB 中，只是 Grafana 不再查它們
+- replay 仍是單一 active player 設計，多個使用者不應同時操作同一個 replay backend

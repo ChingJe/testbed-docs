@@ -116,22 +116,24 @@ timestamp 映射：mapped_ts = now − (T_scrub − event_time) / S
 
 高速播放時涵蓋更多 session 時間，但 sample 數量仍可控（event 頻率固定，只是映射到更密的真實時間間隔）。
 
-#### Retrain counter 的 pre-seed 策略
+#### Retrain metrics 的 pre-seed 策略
 
-Grafana 的 retrain annotation query 使用 `idelta(nwdaf_retrain_total{...}[15s]) > 0`，需要 15s 視窗內有**至少 2 個資料點**且值有變化才會觸發。若 pre-seed 只在 `retrain_trigger` event 發生的時間點寫入 counter 值，兩次 retrain 之間可能超過 15s 沒有資料點，`idelta` 無法偵測到變化。
+retrain annotation 現在不再靠 `idelta(nwdaf_retrain_total[15s])` 推導，而是直接查：
 
-解法：pre-seed 時在**每個 timestamp**（不只是 retrain event）都寫入 retrain counter 的當前累積值。這樣 `idelta` 在沒有 retrain 的區間看到連續相同值（delta = 0，不觸發 annotation），在 retrain 發生的時間點看到值跳變（delta > 0，觸發 annotation）。
+- `nwdaf_retrain_start_event`
+- `nwdaf_retrain_done_event`
 
-```
-timestamp    retrain_total    idelta    annotation
-mapped -60s       2              0        —
-mapped -55s       2              0        —
-mapped -50s       3              1        ✓ retrain
-mapped -45s       3              0        —
-mapped -40s       3              0        —
-```
+因此 pseudo-live 要保證兩件事：
 
-資料量影響可控：retrain counter 只有 1 個 label set（`session`），每個 timestamp 多 1 筆 sample。
+1. `retrain_trigger` / `retrain_done` 發生時，各自寫一組 `(ts_ms, 1.0)` 與
+   `(ts_ms + 5000, 0.0)` 的 pulse sample pair。
+2. `nwdaf_retrain_total` 仍在每個 mapped timestamp 持續寫入，並在 pre-seed 結尾補一筆
+   `now_ms` 錨點樣本，確保 pseudo_session 立刻出現在 Grafana session variable。
+
+這樣 annotation 與 session 選單就分別有自己的穩定依據：
+
+- annotation 靠 pulse gauge
+- session variable 靠 `nwdaf_retrain_total`
 
 #### Pre-seed 與 Prometheus scrape 的銜接
 

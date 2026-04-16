@@ -104,18 +104,24 @@ nwdaf_retrain_total
 
 ## 6. Retrain Annotation
 
-dashboard 另外建立一條 annotations query：
+dashboard 目前建立兩條 annotations query：
 
 ```promql
-idelta(nwdaf_retrain_total{session="$session"}[15s]) > 0
+nwdaf_retrain_start_event{session="$session"} > 0
+nwdaf_retrain_done_event{session="$session"} > 0
 ```
 
 效果是：
 
-- 當 `nwdaf_retrain_total` 在最近 15 秒內有增加，就在圖上打一個 `Retrain` 標記
+- `retrain_trigger` 時打紅色 `Retrain Start`
+- `retrain_done` 時打綠色 `Retrain Done`
 - annotations datasource 與 panel 相同，都是同一個 Prometheus datasource
 
-這條 annotation 在 live 與 pseudo-live 下都能工作，因為兩者都會持續產生新的 retrain counter 樣本。
+這樣做的原因是：
+
+- retrain start / done 是事件，不再需要從 counter 變化間接推導
+- live、replay backfill 與 pseudo-live 都能用相同語意建模
+- backfill / pseudo-live 只要寫一個 scrape interval 寬的 pulse，就能穩定出現單一 annotation
 
 ## 7. Live、Replay 與 Pseudo-Live 的圖表差異
 
@@ -149,17 +155,20 @@ replay 播放期間，前端會把 `var-session` 切到一個 `_live_<orig>__<to
 
 ## 8. 圖表與資料不完全對稱的地方
 
-目前有幾個 live 與 replay 並不完全對稱的細節。
+目前仍有幾個 live 與 replay 並不完全對稱的細節。
 
-### `model_swap` 清除只在 live handler 生效
+### `model_swap` 的終止語意用不同機制實現
 
-live mode 的 `model_swap` 會刪除既有 deviation series，但 replay backfill 與 pseudo-live 都沒有真正重播刪除動作。
+live mode 的 `model_swap` 會刪除既有 deviation series；replay backfill 與 pseudo-live 則改寫一筆
+`NaN` sample，強制舊 model 線段在 swap 時截斷。
 
-因此 replay session 的 deviation panel 可能會保留比 live 更多的舊 model 痕跡；目前主要靠 dashboard query 的「只取最新 timestamp」策略降低這個差異。
+因此三條路徑在畫面上都會保留新模型部署後的 cold-start gap，只是底層實作不是同一種 API。
 
-### Session variable 依賴 ground truth metric
+### Session variable 仍依賴 retrain metric 作為索引錨點
 
-若未來某條資料路徑只寫 prediction 或 deviation，不寫 `nwdaf_ground_truth_ul_bytes`，Grafana 端可能完全看不到這個 session。
+目前 session variable 查的是 `nwdaf_retrain_total` 的 `count_over_time(...)` 結果。這能避開
+Prometheus label index 對已刪除 `_live_...` session 的殘留問題，但也代表若某條未來資料路徑完全
+不寫 `nwdaf_retrain_total`，Grafana 端仍可能看不到那個 session。
 
 ### Prometheus TSDB 在 replay 啟動時會被清空
 
@@ -179,7 +188,7 @@ live mode 的 `model_swap` 會刪除既有 deviation series，但 replay backfil
 
 ## 10. 目前限制
 
-- dashboard variable 候選只看 ground truth UL metric，對其他 metric 類型不夠健壯
+- dashboard variable 目前以 `nwdaf_retrain_total` 作為 session 錨點；若未來某條資料路徑完全不寫這個 metric，仍需另找更通用的索引方式
 - prediction `offset 5s` 是固定常數；若 slot 定義或資料粒度改變，圖上對齊方式可能失真
-- deviation panel 目前用 query 技巧壓低舊 model 殘留，而不是從 replay 寫入路徑完整重播 series delete
+- live 與 replay 對 `model_swap` 的底層實作不同：前者用 `remove()`，後者用 `NaN` cut-off
 - query 與 panel 結構全由 Python 程式生成；要在 Grafana UI 做細部客製化時，可讀性不如直接維護 dashboard JSON

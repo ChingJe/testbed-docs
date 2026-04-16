@@ -13,7 +13,7 @@
 
 ## 2. 目前的 metric 集合
 
-目前系統只定義了六條 metrics，全部在 `rules/nwdaf.py`：
+目前系統定義了八條 metrics，全部在 `rules/nwdaf.py`：
 
 | Metric | 型別 | Labels | 來源事件 |
 |---|---|---|---|
@@ -23,6 +23,8 @@
 | `nwdaf_predicted_dl_bytes` | Gauge | `session`、`sub_id`、`target` | `ml_inference` |
 | `nwdaf_deviation` | Gauge | `session`、`model` | `accuracy` |
 | `nwdaf_retrain_total` | Counter | `session` | `retrain_trigger` |
+| `nwdaf_retrain_start_event` | Gauge | `session` | `retrain_trigger` |
+| `nwdaf_retrain_done_event` | Gauge | `session` | `retrain_done` |
 
 這些 series 目前都以 `session` label 作為主要切分維度，Grafana 也是靠這個 label 切換不同錄製或 pseudo-live session。
 
@@ -92,7 +94,17 @@ labels 與 `aggregated_slot` 相同。
 
 ### `retrain_trigger`
 
-`_on_retrain_trigger()` 會對 `nwdaf_retrain_total{session}` 做一次 `inc()`。
+`_on_retrain_trigger()` 會：
+
+1. 對 `nwdaf_retrain_total{session}` 做一次 `inc()`
+2. 將 `nwdaf_retrain_start_event{session}` 設為 `1`
+
+之後由 `main.py` 的 asyncio task 在一個 scrape interval 之後把 pulse reset 回 `0`。
+
+### `retrain_done`
+
+`_on_retrain_done()` 會把 `nwdaf_retrain_done_event{session}` 設為 `1`，同樣由 `main.py`
+非同步 reset 回 `0`。
 
 ### `model_swap`
 
@@ -106,7 +118,9 @@ _deviation.remove(session, model)
 
 這代表 model hot-swap 後，Grafana 查到的 deviation series 會以新模型重建，而不是無限制保留舊 model label。
 
-這個清除行為目前只存在於 live handler；replay backfill 與 pseudo-live remote write 都沒有等價的 delete 流程。
+live 路徑用 exporter `remove()` 表達「舊 model 結束」。replay backfill 與 pseudo-live 無法透過
+remote write 重播這個 API，因此改採等價語意：在 `model_swap` 時為所有 active models 寫一筆
+`NaN` cut-off sample，讓 Grafana 線段在部署當下截斷。
 
 ## 5. Replay backfill
 
@@ -161,9 +175,11 @@ remote write 需要 `python-snappy`。若匯入失敗，replay backfill 會直�
 - `ml_inference`
 - `accuracy`
 - `retrain_trigger`
+- `retrain_done`
 - `model_swap`
 
-其中 `model_swap` 雖然會被納入播放事件集合，但 `MetricPlayer` 目前不會把它轉成 deviation series 的刪除操作。
+這些事件都會經過同一個 `_build_metric_series_for_event()`，因此 pre-seed 與 emit loop 共用同一套
+metric 建模。
 
 然後建立一條新的 pseudo session，例如：
 
@@ -193,15 +209,27 @@ _live_<原始session>__20260415T061530123456Z
 
 因此 pseudo-live 並不是把舊資料原封不動重送，而是把它重新映射到「現在」。
 
-## 8. `nwdaf_retrain_total` 在 pseudo-live 中的處理
+## 8. Retrain metrics 在 pseudo-live 中的處理
 
-`MetricPlayer` 有一個特別處理：即使目前事件不是 `retrain_trigger`，它仍會在輸出的 series 中帶上一筆：
+`MetricPlayer` 有兩個特別處理：
+
+1. 即使目前事件不是 `retrain_trigger`，它仍會在輸出的 series 中帶上一筆：
 
 ```text
 nwdaf_retrain_total{session="<pseudo_session>"}
 ```
 
 這樣可以確保 counter 在 pseudo-live 播放過程中始終有可查詢的當前值，而不是只在 retrain 事件發生那一刻才出現樣本。
+
+2. 當事件為 `retrain_trigger` 或 `retrain_done` 時，會額外寫：
+
+```text
+nwdaf_retrain_start_event{session="<pseudo_session>"}
+nwdaf_retrain_done_event{session="<pseudo_session>"}
+```
+
+各自的 `(ts_ms, 1.0)` 與 `(ts_ms + 5000, 0.0)` pulse sample pair。這讓 pseudo-live 與 backfill
+都能被同一組 Grafana annotation query 命中。
 
 ## 9. 播放中斷與變速
 
@@ -224,6 +252,7 @@ nwdaf_retrain_total{session="<pseudo_session>"}
 
 - 目前只有 `rules/nwdaf.py` 定義 metric handlers；SMF 與 subscription 類事件不會寫入 Prometheus
 - replay backfill 與 pseudo-live 都依賴 Prometheus remote write receiver 已啟用
-- replay backfill 目前只重建會直接產生樣本的 metric 事件；live 中 `model_swap` 造成的 deviation series 清除不會被重播
+- replay backfill 與 pseudo-live 雖然不能重播 live exporter 的 `remove()`，但已用 `NaN` cut-off
+  樣本補上 `model_swap` 的線段終止語意
 - 若未來 rule 增加新的 metric handler，backfill 與 `MetricPlayer` 也需要同步擴充，否則 live 與 replay 的圖表語意會再度分岔
 - `/metrics` 與 remote write 會同時作用在同一個 Prometheus，但資料時間軸不同；理解圖表時必須分清楚 live series、原始 replay session 與 pseudo session
