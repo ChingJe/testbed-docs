@@ -80,6 +80,16 @@ parser 實際使用的是匯總後的 `ALL_RULES`。
 - `rules/nwdaf_sub.py`：Consumer / NWDAF / SMF 訂閱鏈路
 - `rules/nwdaf.py`：NWDAF 內部分析、retraining、ADRF 與 metrics 相關事件
 
+### 現況載入順序
+
+`rules/__init__.py` 目前是用 `pkgutil.iter_modules()` 掃描 `rules/` 目錄，再依掃描結果逐一 import。以目前 repo 內的檔名與執行環境，實際順序是：
+
+1. `nwdaf.py`
+2. `nwdaf_sub.py`
+3. `smf.py`
+
+因此 `ALL_RULES` 目前也是按這個模組順序串接。再加上 parser 採 first-match-wins，rule 的先後會直接影響哪一條規則先吃到某筆 log。
+
 ## 6. Rule match 條件
 
 每條規則至少包含：
@@ -138,7 +148,48 @@ parser 產生的 event 一定至少有：
 
 因此 event log 並不是原始 log 的完整鏡像，而是經過 rule 選擇後的結構化語意資料。
 
-## 9. 與 metrics 的關係
+## 9. 一個完整解析範例
+
+以下用 `aggregated_slot` 這條路徑說明 raw log 如何變成 event：
+
+```text
+time="2026-04-15T06:33:30Z" level="info" msg="latest aggregated slot: sub-001 group=group-test-001 ts=2026-04-15T06:33:30Z ulVol=1234 dlVol=5678 totalVol=6912 ulPkts=10 dlPkts=12 totalPkts=22 ulThr=12.3 dlThr=45.6 ulPktThr=1.2 dlPktThr=3.4" CAT="AnLF" NF="NWDAF"
+```
+
+先經過 `BASE` regex，得到的核心欄位大致是：
+
+```json
+{
+  "time": "2026-04-15T06:33:30Z",
+  "level": "info",
+  "msg": "latest aggregated slot: sub-001 group=group-test-001 ts=2026-04-15T06:33:30Z ulVol=1234 dlVol=5678 totalVol=6912 ulPkts=10 dlPkts=12 totalPkts=22 ulThr=12.3 dlThr=45.6 ulPktThr=1.2 dlPktThr=3.4",
+  "cat": "AnLF",
+  "nf": "NWDAF",
+  "extra": "",
+  "extra_kv": {},
+  "source": "nwdaf"
+}
+```
+
+接著 parser 依 `ALL_RULES` 順序比對，最後命中 `rules/nwdaf.py` 的 `aggregated_slot` 規則，產生：
+
+```json
+{
+  "type": "aggregated_slot",
+  "time": "2026-04-15T06:33:30Z",
+  "sub_id": "sub-001",
+  "target": "group=group-test-001",
+  "ts": "2026-04-15T06:33:30Z",
+  "ul_vol": 1234.0,
+  "dl_vol": 5678.0,
+  "ul_thr": 12.3,
+  "dl_thr": 45.6
+}
+```
+
+這筆 event 之後才會再被 `main.py` 拿去更新 metrics、寫入 `events.jsonl`、推到 WebSocket。
+
+## 10. 與 metrics 的關係
 
 parser 本身不碰 Prometheus，但 `rules/` 模組同時也是 metric handler 的註冊來源。
 
@@ -152,7 +203,7 @@ parser 本身不碰 Prometheus，但 `rules/` 模組同時也是 metric handler 
 1. parser 先產生 event
 2. `main.py` 再用 event type 對應到 metric handlers
 
-## 10. 目前限制
+## 11. 目前限制
 
 - 目前只支援單行、logrus 風格的文字 log；多行 stack trace 或 JSON log 不在範圍內
 - parser 只保留 rule 真正需要的欄位，未被 `build()` 取用的內容會在 event 階段消失

@@ -6,7 +6,7 @@
 
 Grafana setup 層目前由三部分共同構成：
 
-- `setup.sh`：檢查本機或目標環境是否具備 Prometheus 與 Grafana 的必要設定
+- `setup.sh`：檢查本機環境是否具備 Prometheus 與 Grafana 的必要設定
 - `start.sh`：啟動本地 Prometheus，並在 replay 模式下準備乾淨的 TSDB
 - `grafana_setup.py`：在 app 啟動時建立或更新 Prometheus datasource 與 dashboard
 
@@ -31,6 +31,14 @@ Grafana setup 層目前由三部分共同構成：
 ## 3. `setup.sh` 做了什麼
 
 `setup.sh` 的 Grafana / Prometheus 相關工作主要有四項：
+
+這裡說的 setup 範圍是執行 `5g-viz` 的本機環境，例如：
+
+- 本機是否找得到 `prometheus` binary
+- 本機使用者家目錄下是否已有 `~/prometheus/prometheus.yml`
+- 本機 `/etc/grafana/grafana.ini` 是否已開 `allow_embedding`
+
+它不會去驗證遠端 5GC VM 的 SSH 可達性，也不會檢查 VM 上的 log 路徑是否存在；那些屬於 collector / profile 層的責任。
 
 ### 建立 profile 基本檔案
 

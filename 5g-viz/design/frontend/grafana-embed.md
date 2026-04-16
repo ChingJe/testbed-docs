@@ -53,6 +53,19 @@ Grafana URL 由 `_grafanaUrl(from, to, refresh)` 組出，固定包含：
 - `refresh=5s` 只在需要「追著 now 跑」的模式下打開
 - `from` / `to` 可能是相對時間，也可能是絕對毫秒時間戳
 
+主要參數可整理成：
+
+| 參數 | 目前值 / 來源 | 用途 |
+|---|---|---|
+| 路徑 | `/d/<dashboardUid>` | 指向既有 dashboard UID |
+| `orgId` | 固定 `1` | 指向 Grafana 組織 |
+| `kiosk` | 固定帶上 | 隱藏 Grafana 頂部導覽列，讓 iframe 更像內嵌圖表 |
+| `theme` | 固定 `dark` | 使用深色主題 |
+| `var-session` | `_grafanaSessionId` | 指定 dashboard template variable `session` |
+| `refresh` | `5s` 或省略 | 只在 live now-window / replay pseudo-live 下啟用自動刷新 |
+| `from` | 相對或絕對時間 | 查詢起點 |
+| `to` | 相對或絕對時間 | 查詢終點 |
+
 ## 5. 四種主要顯示模式
 
 ### Live 即時模式

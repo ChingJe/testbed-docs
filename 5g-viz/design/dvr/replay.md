@@ -6,7 +6,7 @@
 
 `./start.sh --replay <session_path>` 目前會把系統帶進一個和 live 不同的啟動路徑：
 
-1. 清空 managed Prometheus TSDB
+1. 由 `start.sh` 清空 managed Prometheus TSDB
 2. 重新啟動 Prometheus，並開啟 remote write receiver
 3. 啟動 FastAPI app
 4. 在 lifespan 中載入 replay session
@@ -108,6 +108,19 @@ count(nwdaf_ground_truth_ul_bytes{session="<session_id>"})
 - 讓 Grafana 一切到 `now-window ~ now` 就有可看的歷史資料
 - 避免播放剛開始時圖表一片空白
 
+目前這段 pre-seed 有三個關鍵細節：
+
+- 歷史回看範圍是 `window_ms * speed`
+- 每筆 event 的映射時間為：
+
+```text
+mapped_ts = now_ms - int((from_ms - event_ms) / speed)
+```
+
+- 只有 `event_ms >= from_ms - window_ms * speed` 的事件會被映射進 pre-seed
+
+也就是說，播放速度越快，為了填滿同樣寬度的 `now-window ~ now` 圖窗，需要回看的原始歷史範圍就越大。
+
 ### Emit loop
 
 接著 `_emit_loop()` 會：
@@ -117,6 +130,22 @@ count(nwdaf_ground_truth_ul_bytes{session="<session_id>"})
 3. 批次 remote write 到 Prometheus
 
 因此 pseudo-live 並不是重播 topology 事件給 Grafana，而是重播 metric event 的時間分佈。
+
+### `_retrain_prefix` 與 cursor
+
+`MetricPlayer` 初始化時，除了保存排序後的 `_metric_events`，還會建立：
+
+- `_metric_times`：每筆 metric event 的原始毫秒時間
+- `_retrain_prefix`：到每個 cursor 為止累積了多少個 `retrain_trigger`
+
+`update_speed(...)` 時，backend 會用：
+
+```python
+cursor = bisect_right(self._metric_times, current_ms)
+retrain_total = self._retrain_prefix[cursor]
+```
+
+快速定位新的播放起點與對應的 retrain counter 狀態，而不是重新線性掃描整份事件。
 
 ## 6. Replay 控制 API
 
@@ -206,7 +235,7 @@ live mode 的 metric handler 會在 `model_swap` 時刪掉舊 deviation series�
 
 ### Replay 啟動時清空 TSDB
 
-這有助於讓 replay 驗證結果乾淨、可重現，但也表示 Prometheus 不是長期累積所有 session 的資料倉，而是每次 replay 啟動都可被重置的暫態環境。
+這個清理動作發生在 `start.sh` 層，而不是 FastAPI app lifespan 內。它有助於讓 replay 驗證結果乾淨、可重現，但也表示 Prometheus 不是長期累積所有 session 的資料倉，而是每次 replay 啟動都可被重置的暫態環境。
 
 ## 10. 圖表視窗與播放控制
 

@@ -30,24 +30,24 @@
 
 ## 2. 事件型別總表
 
-| type | 來源規則 | 主要欄位 | 主要用途 |
-|---|---|---|---|
-| `nf_up` | `rules/smf.py` | `nf` | 標記 NF 已上線 |
-| `sbi_call` | `rules/smf.py`、`rules/nwdaf_sub.py` | `from`、`to`、`label`，部分情況帶 `supi`、`corr_id`、`sub_id`、`n` | 驅動拓樸邊動畫 |
-| `smf_sub_confirmed` | `rules/nwdaf_sub.py` | `supi`、`corr_id` | 保留訂閱確認資訊，目前無視覺反應 |
-| `upf_volume` | `rules/nwdaf.py` | `upf`、`ip`、`ul_bytes`、`dl_bytes` | 表示 UPF 週期性流量回報 |
-| `ml_inference` | `rules/nwdaf.py` | `sub_id`、`target`、`ul_vol`、`dl_vol`、`confidence` | 驅動 AnLF 活動與預測 metrics |
-| `accuracy` | `rules/nwdaf.py` | `model`、`deviation`、`accuracy`、`samples` | 驅動 accuracy 視覺效果與 deviation metric |
-| `threshold_breach` | `rules/nwdaf.py` | `n`、`total` | 驅動 MTLF 警告視覺效果 |
-| `retrain_trigger` | `rules/nwdaf.py` | `model`、`tid` | 驅動 retraining 狀態與 retrain counter |
-| `retrain_done` | `rules/nwdaf.py` | 無額外欄位 | 表示 retraining 完成 |
-| `model_swap` | `rules/nwdaf.py` | `model_id` | 表示新模型切換完成 |
-| `aggregated_slot` | `rules/nwdaf.py` | `sub_id`、`target`、`ts`、`ul_vol`、`dl_vol`、`ul_thr`、`dl_thr` | ground truth metrics 的主要來源 |
-| `adrf_stored` | `rules/nwdaf.py` | `trans_id`、`supi`、`count` | 驅動 ADRF store 視覺效果 |
-| `adrf_retrieval_start` | `rules/nwdaf.py` | `model` | 驅動 ADRF retrieval start 視覺效果 |
-| `adrf_retrieval_notify` | `rules/nwdaf.py` | 無額外欄位 | 驅動 ADRF notify 視覺效果 |
-| `adrf_fetch` | `rules/nwdaf.py` | 無額外欄位 | 驅動 ADRF fetch 視覺效果 |
-| `ip_supi_map` | `rules/nwdaf.py` | `ip`、`supi` | 保留 IP/SUPI enrichment 資訊，目前無視覺反應 |
+| type | 來源規則 | 主要欄位 | 有無 metric handler | 主要用途 |
+|---|---|---|---|---|
+| `nf_up` | `rules/smf.py` | `nf` | 無 | 標記 NF 已上線 |
+| `sbi_call` | `rules/smf.py`、`rules/nwdaf_sub.py` | `from`、`to`、`label`，部分情況帶 `supi`、`corr_id`、`sub_id`、`n` | 無 | 驅動拓樸邊動畫 |
+| `smf_sub_confirmed` | `rules/nwdaf_sub.py` | `supi`、`corr_id` | 無 | 保留訂閱確認資訊，目前無視覺反應 |
+| `upf_volume` | `rules/nwdaf.py` | `upf`、`ip`、`ul_bytes`、`dl_bytes` | 無 | 表示 UPF 週期性流量回報 |
+| `ml_inference` | `rules/nwdaf.py` | `sub_id`、`target`、`ul_vol`、`dl_vol`、`confidence` | 有 | 驅動 AnLF 活動與預測 metrics |
+| `accuracy` | `rules/nwdaf.py` | `model`、`deviation`、`accuracy`、`samples` | 有 | 驅動 accuracy 視覺效果與 deviation metric |
+| `threshold_breach` | `rules/nwdaf.py` | `n`、`total` | 無 | 驅動 MTLF 警告視覺效果 |
+| `retrain_trigger` | `rules/nwdaf.py` | `model`、`tid` | 有 | 驅動 retraining 狀態與 retrain counter |
+| `retrain_done` | `rules/nwdaf.py` | 無額外欄位 | 無 | 表示 retraining 完成 |
+| `model_swap` | `rules/nwdaf.py` | `model_id` | 有 | 表示新模型切換完成 |
+| `aggregated_slot` | `rules/nwdaf.py` | `sub_id`、`target`、`ts`、`ul_vol`、`dl_vol`、`ul_thr`、`dl_thr` | 有 | ground truth metrics 的主要來源 |
+| `adrf_stored` | `rules/nwdaf.py` | `trans_id`、`supi`、`count` | 無 | 驅動 ADRF store 視覺效果 |
+| `adrf_retrieval_start` | `rules/nwdaf.py` | `model` | 無 | 驅動 ADRF retrieval start 視覺效果 |
+| `adrf_retrieval_notify` | `rules/nwdaf.py` | 無額外欄位 | 無 | 驅動 ADRF notify 視覺效果 |
+| `adrf_fetch` | `rules/nwdaf.py` | 無額外欄位 | 無 | 驅動 ADRF fetch 視覺效果 |
+| `ip_supi_map` | `rules/nwdaf.py` | `ip`、`supi` | 無 | 保留 IP/SUPI enrichment 資訊，目前無視覺反應 |
 
 ## 3. 各事件欄位
 
@@ -234,6 +234,7 @@
 注意：
 
 - parser 不保留 log 中所有欄位，只保留目前前端與 metrics 需要的子集
+- `ul_thr` / `dl_thr` 雖然會被 parser 提取，但目前沒有對應的 metric handler，進入 event log 後就不再投影成 Prometheus series
 
 ### ADRF 相關事件
 
@@ -278,7 +279,13 @@
 
 ## 5. Prometheus metric 對應
 
-目前 metrics 都由 `rules/nwdaf.py` 的 metric handlers 負責更新。
+目前 metrics 都由 `rules/nwdaf.py` 的 metric handlers 負責更新。也就是說，只有下列五種事件會再往 Prometheus 投影：
+
+- `aggregated_slot`
+- `ml_inference`
+- `accuracy`
+- `retrain_trigger`
+- `model_swap`
 
 | Metric | Labels | 來源事件 | 值 |
 |---|---|---|---|

@@ -89,8 +89,16 @@ live 正常結束時，`_finalize_live_session()` 會再補上：
 - 使用 append-only 寫入
 - 每筆事件都 `write + flush`
 - `ensure_ascii=False`，保留原始 UTF-8 輸出
+- 保持 `_process_queue()` 成功 parse 的先後順序，不做額外排序
 
 這個檔案目前被視為 replay 的唯一權威事件來源。Prometheus replay backfill 與 topology replay 都是從這份事件流衍生，不另外依賴 live 時的 Prometheus TSDB。
+
+也就是說，`events.jsonl` 的順序語意是：
+
+- live 錄製時：先寫檔，再更新 metrics / broadcast
+- replay 載入時：先依檔案行序讀回事件
+
+前端若要依時間戳做 scrub 或播放，會在自己的 `_events` 緩衝中再做排序；session 檔本身不會在載入時重排。
 
 ## 6. `topology.yaml` 為什麼也要複製進 session
 

@@ -44,7 +44,9 @@ live mode 建立新 session 時，`main.py` 會呼叫：
 set_metric_session_id(session_id)
 ```
 
-`rules/nwdaf.py` 內部把這個值保存在 `_SESSION_ID`。後續 metric handler 會用：
+這裡的 `set_metric_session_id()` 是 `rules/__init__.py` 匯總後對外暴露的封裝函式。各 rule 模組若有實作內部的 `set_session_id()`，就會被 registry 收進 `_SESSION_SETTERS`，由這個封裝入口一起呼叫。
+
+目前真正保存值的是 `rules/nwdaf.py` 內部的 `set_session_id()`；它會把 session ID 寫進 `_SESSION_ID`。後續 metric handler 會用：
 
 ```python
 event.get("session") or _SESSION_ID

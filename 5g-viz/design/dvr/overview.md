@@ -135,6 +135,7 @@ DVR 之所以複雜，是因為它同時協調三條不同的資料面。
 | 層 | 主要責任 |
 |---|---|
 | `main.py` | 決定 live / replay 模式、建立 session、載入 replay session、提供 `/api/events`、`/api/state`、`/api/replay/*` |
+| `state.py` | 根據 event 與 `event_reactions` 維護權威 `state_snapshot`，供新 live client 與 `Go Live` 回跳使用 |
 | `frontend/events.js` | 管理 DVR 狀態機、timeline、事件緩衝、播放控制與 Grafana 模式切換 |
 | `frontend/topology.js` | 依 event reactions 重建 paused / scrub 的靜態拓樸 |
 | `metric_player.py` | replay `PLAYING` 期間產生 pseudo-live metrics |

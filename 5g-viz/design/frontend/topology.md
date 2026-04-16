@@ -95,7 +95,21 @@ filter sidebar 由 `topology.js` 依目前 config 動態生成，不再維護硬
 
 這表示 edge filter 只控制顯示，不改變 event 本身是否存在於前端 buffer。
 
-## 6. Event Reaction 執行模型
+## 6. Panel Resizer 與版面互動
+
+除了 `panels` 提供的初始比例外，`topology.js` 目前還會綁兩個拖曳 resizer：
+
+- `resizer-1`：調整 `topology-row` 與 `#charts` 的上下分配
+- `resizer-2`：調整 `#eventlog` 高度
+
+拖曳時，前端會先建立一個全頁透明 overlay，避免滑鼠事件被 iframe 或 Cytoscape 吃掉；拖曳結束後若 Cytoscape 已初始化，還會主動呼叫 `cy.resize()`。
+
+這代表版面行為目前分成兩層：
+
+- `topology.yaml.panels`：決定初始 flex / height
+- 使用者拖曳 resizer：只改當前頁面記憶體中的尺寸，不會寫回 profile 或 session
+
+## 7. Event Reaction 執行模型
 
 `window.Topology.react(event)` 是 live dispatch 與 DVR 播放共用的入口。它的流程是：
 
@@ -120,6 +134,14 @@ filter sidebar 由 `topology.js` 依目前 config 動態生成，不再維護硬
 - 會依 `label` 的 base 名稱回查 `edge_styles`
 - 相同 key 的 edge 若短時間內過多，超過閾值後會折疊成 `...(N more)` summary edge
 
+目前這個閾值是：
+
+```text
+EDGE_COLLAPSE_THRESHOLD = 2
+```
+
+也就是說，同一組 edge key 的第 1、2 條會各自顯示；從第 3 條開始，前端會改用一條 summary edge 表示額外堆積量。
+
 ### `pulse`
 
 `pulse()` 會暫時把 node 加上 `active` 效果，並做一次 border 動畫。播放速度變更時，動畫 duration 會依 `_playbackSpeed` 縮放。
@@ -128,7 +150,7 @@ filter sidebar 由 `topology.js` 依目前 config 動態生成，不再維護硬
 
 這兩類 action 既用於 live 顯示，也用於 DVR 靜態重建。`topology.js` 會先從所有 reaction 中收集 `_managedClasses`，之後在套用 snapshot 時只清除這批由 reaction 管理的 class。
 
-## 7. `state_snapshot` 與靜態快照
+## 8. `state_snapshot` 與靜態快照
 
 前端有兩條不同的狀態重建路徑。
 
@@ -155,7 +177,7 @@ filter sidebar 由 `topology.js` 依目前 config 動態生成，不再維護硬
 
 這也是前端在不依賴 backend state 的情況下，重建任意時間點拓樸畫面的核心機制。
 
-## 8. 對外暴露的 Topology API
+## 9. 對外暴露的 Topology API
 
 `topology.js` 目前暴露下列 API 給 `events.js` 使用：
 
@@ -168,7 +190,7 @@ filter sidebar 由 `topology.js` 依目前 config 動態生成，不再維護硬
 
 其中 `clearTransientEdges()` 名稱較窄，但目前實作其實也會清除 transient node effect。
 
-## 9. 目前限制
+## 10. 目前限制
 
 - Cytoscape style 與 reaction execution 仍全寫在 `topology.js`，尚未拆成更細的前端模組
 - 靜態快照重建採用「從頭 replay 到 targetMs」策略；事件量再高一個數量級時可能需要 checkpoint

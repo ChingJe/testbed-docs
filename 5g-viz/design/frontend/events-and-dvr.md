@@ -50,6 +50,17 @@
 
 控制列按鈕的 enabled / disabled 也完全由這個狀態機決定。
 
+可以把常見轉移簡化成：
+
+```text
+LIVE --pause--> PAUSED --play--> PLAYING
+  ^                ^               |
+  |                |               |
+  +----go-live-----+-----pause-----+
+
+PAUSED --drag--> SCRUBBING --release--> PAUSED
+```
+
 ## 4. 事件緩衝與時間軸
 
 所有非 `state_snapshot` 事件都會進 `_events`。前端維護的不是單純 append-only view，而是一個可排序的事件緩衝。
@@ -133,6 +144,8 @@ GET /api/events?session=<session_id>&from=<session_start>&to=<target>
 ```
 
 補拉缺失事件。
+
+這條補拉路徑目前還有一個 single-flight 鎖：`_historyFetchPromise`。只要前一次補拉尚未完成，新的 scrub 補抓請求就會直接等待同一個 promise，而不會重複發出第二條 `/api/events` backfill。
 
 ### Play
 

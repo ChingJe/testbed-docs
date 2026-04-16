@@ -149,7 +149,7 @@ label_values(nwdaf_ground_truth_ul_bytes, session)
 
 ### prediction 線不是改 timestamp，而是 query 固定 `offset 5s`
 
-預測線的「向左對齊一個 slot」是 Grafana query 層的呈現策略，不是 metrics 寫入時真的把樣本時間戳往前改。
+預測線的對齊不是在寫入時改 timestamp，而是 Grafana 在顯示時間 `T` 時，實際去查 `T-5s` 的 prediction 樣本。也就是說，`offset 5s` 的效果是「往前取 5 秒前的值」，讓 prediction 與對應 slot 的 ground truth 在圖上顯示於同一位置。
 
 因此這個 feature 的視覺語意有一部分是由 dashboard query 決定，而不是單靠 event 或 metrics 本身決定。
 

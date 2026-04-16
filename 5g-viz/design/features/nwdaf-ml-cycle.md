@@ -235,7 +235,7 @@ UPF volume notify
 offset 5s
 ```
 
-因此使用者在 Grafana 上看到的 prediction 線，是靠 query 層向左平移一個 slot 後，才和 ground truth 對齊。
+因此使用者在 Grafana 上看到的 prediction 線，不是寫入時真的把樣本時間往前改，而是 query 在顯示時間 `T` 時實際查 `T-5s` 的 prediction 值，讓它和對應 slot 的 ground truth 在時間軸上視覺對齊。
 
 也就是說，這條 feature 的「模型預測 vs 真實值」比較，不只靠 event / metric 本身，還依賴 dashboard rendering 策略。
 

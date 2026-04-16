@@ -79,6 +79,23 @@
 
 第一條匹配成功的 rule 會產生 event dict。這些事件會成為整個系統的共同資料模型。
 
+現況上，`rules/__init__.py` 是用 `pkgutil.iter_modules()` 掃描 `rules/` 目錄；以目前 repo 檔名與執行環境，模組載入順序是：
+
+1. `nwdaf.py`
+2. `nwdaf_sub.py`
+3. `smf.py`
+
+再加上 parser 採 first-match-wins，因此 rule 的先後順序會直接影響哪一條規則先匹配到某筆 log。
+
+一個簡化後的 `aggregated_slot` 範例如下：
+
+```text
+raw log
+  -> BASE regex 取出 time / level / msg / CAT / NF
+  -> match `rules/nwdaf.py` 的 aggregated_slot 規則
+  -> event = {type, time, sub_id, target, ts, ul_vol, dl_vol, ul_thr, dl_thr}
+```
+
 ## 3. Live：從 event 到前端
 
 ### Step 4. 後端更新 state snapshot
@@ -141,6 +158,17 @@
 
 這些 handler 定義在 `rules/nwdaf.py`。
 
+對照如下：
+
+| Event Type | 寫入 Metrics | Labels |
+|---|---|---|
+| `aggregated_slot` | `nwdaf_ground_truth_ul_bytes`、`nwdaf_ground_truth_dl_bytes` | `session`、`sub_id`、`target` |
+| `ml_inference` | `nwdaf_predicted_ul_bytes`、`nwdaf_predicted_dl_bytes` | `session`、`sub_id`、`target` |
+| `accuracy` | `nwdaf_deviation` | `session`、`model` |
+| `retrain_trigger` | `nwdaf_retrain_total` | `session` |
+| `model_swap` | live 路徑會刪除舊 deviation series | `session`、`model` |
+| 其他事件 | 不進 Prometheus，只保留在 event log / topology | — |
+
 ### Step 8. Prometheus scrape，Grafana 查詢
 
 - `/metrics` 由 `prometheus_client.generate_latest()` 產生
@@ -190,10 +218,19 @@ lifespan 啟動時會呼叫 `_run_replay_backfill()`：
 
 1. 從 `_events` 篩出 metric 相關事件
 2. 依事件時間重建 Prometheus time series
-3. 編碼成 remote write payload
-4. 寫入本機 Prometheus `/api/v1/write`
+3. 編碼成 remote write protobuf payload
+4. 用 `snappy` 壓縮 payload
+5. 寫入本機 Prometheus `/api/v1/write`
 
 這一步讓 replay 模式即使不播放，也能直接查詢「原始 session 時間軸」上的圖表。
+
+若 `FORCE_BACKFILL` 未開，backend 在真正寫入前還會先 query：
+
+```promql
+count(nwdaf_ground_truth_ul_bytes{session="<session_id>"})
+```
+
+只有在查不到既有樣本時才繼續 backfill；`FORCE_BACKFILL=1` 則會略過這個 pre-check。
 
 ## 7. Replay：前端資料來源
 

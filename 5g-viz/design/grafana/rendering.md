@@ -45,7 +45,20 @@ prediction 兩條 query 目前都固定加上：
 offset 5s
 ```
 
-目的是把預測曲線整體向左對齊一個 slot，讓它在視覺上和 ground truth 比較接近。
+這不是把資料寫入時的 timestamp 改掉，而是要求 Prometheus 在查 `T` 這個顯示時間點時，實際取用 `T-5s` 的 prediction 樣本。
+
+目前比較精確的理解是：
+
+- ground truth 樣本記錄在它自己的事件時間上
+- prediction 樣本較晚產生，但 UI 想把它和對應 slot 的 ground truth 放在同一個顯示位置比較
+- 因此 query 層固定用 `offset 5s` 往前取 5 秒前的 prediction 值，讓兩條線在時間軸上視覺對齊
+
+可以把它想成：
+
+```text
+顯示時間 T      -> ground truth 查 T 的值
+顯示時間 T      -> prediction 實際查 T-5s 的值
+```
 
 這是 dashboard 定義本身的呈現策略，不是資料寫入時真的改了 timestamp。
 

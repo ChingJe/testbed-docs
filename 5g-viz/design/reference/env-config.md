@@ -2,6 +2,8 @@
 
 本文整理 `5g-viz` 目前與 profile `.env` 相關的環境變數契約，以及少數不屬於 profile 檔、但會一起影響啟動模式的 runtime env。
 
+> 重要：目前若要覆寫 Prometheus 位址，應設定的是 `PROMETHEUS_URL`。`.env.example` 內的 `PROMETHEUS_BASE` 目前只是範本殘留，程式不會讀這個名稱。
+
 ## 1. 載入方式
 
 `config.py` 在模組匯入時，會根據：
@@ -60,7 +62,7 @@ profiles/<PROFILE>/.env
 | 變數 | 格式 | 主要消費者 | 用途 |
 |---|---|---|---|
 | `GRAFANA_BASE` | URL | `config.py`、`main.py`、前端 iframe | 瀏覽器可達的 Grafana base URL |
-| `GRAFANA_ADMIN_USER` | string | `grafana_setup.py` | 建 datasource / dashboard / public dashboard token |
+| `GRAFANA_ADMIN_USER` | string | `grafana_setup.py` | 建 datasource / dashboard |
 | `GRAFANA_ADMIN_PASS` | string | `grafana_setup.py` | 同上 |
 | `GRAFANA_GROUPS` | `a,b,c` | `config.py`、`grafana_setup.py`、`main.py` | dashboard panel 群組與 session metadata |
 
@@ -70,6 +72,14 @@ profiles/<PROFILE>/.env
 - `GRAFANA_GROUPS` 會被解析成逗號分隔字串陣列，空白會被 `strip()`
 
 live session 建立時，`main.py` 也會把 `GRAFANA_GROUPS` 寫進 `meta.json`。replay 時若 `meta.json` 內有保存值，會優先使用 session 內保存的 groups。
+
+### Grafana 遺留變數
+
+`profiles/default/.env` 目前還留著：
+
+| 變數 | 現況 |
+|---|---|
+| `GRAFANA_PUBLIC_TOKEN` | 目前程式碼不讀取，也不參與 iframe 嵌入；屬於舊設計殘留 |
 
 ### Parser / metrics 用的 UPF 映射
 
@@ -162,4 +172,6 @@ key=value,key=value
 - `.env` 與 `topology.yaml` 之間只有字串名稱關聯，例如 `host_env: SSH_5GC_HOST`；拼字錯誤通常要到 runtime 才會發現
 - `WS_PORT` 雖然存在於 `config.py`，但 `start.sh` 目前沒有用它來決定 uvicorn port
 - `.env.example` 目前列出 `PROMETHEUS_BASE`，但 `main.py` 實際讀的是 `PROMETHEUS_URL`
+- replay mode 不啟動 collector，因此 `SSH_5GC_*`、`LOG_*` 這類 collector 相關變數在 replay runtime 中通常不會被實際使用
+- `GRAFANA_PUBLIC_TOKEN` 目前仍可能出現在既有 `.env`，但程式碼不會讀它
 - replay 時主要依賴 session 內保存的 `meta.json` 與 `topology.yaml`；修改目前 profile `.env` 不會 retroactively 改變舊 session 的 topology 或 grafana groups metadata
