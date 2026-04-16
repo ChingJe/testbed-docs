@@ -1,8 +1,8 @@
 # 5g-viz 文件重構計畫
 
-狀態：提案中  
+狀態：已完成  
 最後更新：2026-04-16  
-本檔範圍：第二階段文件重構藍圖。本檔只定義分析、資訊架構、phase、mapping、驗收與交接方式，不直接改寫既有文件正文。
+本檔範圍：`5g-viz` 文件重構藍圖與完成紀錄。本檔保留規劃依據、資訊架構、phase、mapping、驗收與交接方式，供後續維護與增補時參考。
 
 ## 1. 背景與目標
 
@@ -508,7 +508,7 @@ docs/5g-viz/
 | 1 | 入口層與導覽層 | Completed | 2026-04-16 | `docs/5g-viz/README.md` 與 `guides/start-here/` 初版已建立，並完成第一輪語氣收斂 |
 | 2 | UI 與工作流程層 | Completed | 2026-04-16 | `guides/ui-workflows/` 初版已建立，並完成 `event-history.md`、`state_snapshot` 與 `pre-seed` 補強 |
 | 3 | 心智模型與 troubleshooting 層 | Completed | 2026-04-16 | `guides/mental-model/` 與 `guides/troubleshooting/common-scenarios.md` 初版已建立 |
-| 4 | reference re-anchoring 與 legacy cleanup | In Progress | 2026-04-16 | 已新增 `reference/README.md`、`notes/README.md`，並開始收斂 `design/*` 與索引頁的定位；guides 已收進 `guides/` 父層 |
+| 4 | reference re-anchoring 與 legacy cleanup | Completed | 2026-04-16 | 已新增 `reference/README.md`、`notes/README.md`，完成 `design/*` 與索引頁的定位收斂，並將 human-facing 目錄收進 `guides/` 父層 |
 
 ### Artifact tracker
 
@@ -544,7 +544,7 @@ docs/5g-viz/
 
 | 日期 | 狀態摘要 | 下一步 |
 |---|---|---|
-| 2026-04-16 | 規劃藍圖完成；Phase 1 入口層已建立；Phase 2 `guides/ui-workflows/` 初版已建立；Phase 3 `guides/mental-model/` 與 `guides/troubleshooting/` 初版已建立；Phase 4 已開始收斂 reference / design / notes 的定位，並將 human-facing 目錄收進 `guides/`；寫作語氣約束已納入計畫；`common-workflows.md` 已替換為 `event-history.md` | 依審核結果決定：繼續完成 Phase 4 的 reference re-anchoring，或做最小整理後進入維護模式 |
+| 2026-04-16 | 規劃藍圖完成；Phase 1 到 Phase 4 均已完成；human-facing 文件已收斂到 `guides/`；`reference/`、`design/`、`plans/`、`notes/` 的角色邊界已明確化；寫作語氣約束已納入計畫；`common-workflows.md` 已替換為 `event-history.md` | 後續不再依 phase 推進；若有新需求，依既有資訊架構增補內容，並以維護模式更新本檔 |
 
 ### Update rule
 
@@ -564,8 +564,12 @@ docs/5g-viz/
 後續 session 若要接手，建議照以下順序：
 
 1. 先讀本檔。
-2. 確認目前獲准執行的是哪一個 phase。
-3. 若 decision log 尚未更新，不要自行推翻本檔的 phase 邊界。
+2. 先確認需求屬於哪一層：
+   - `guides/`：human-facing explanation layer
+   - `reference/README.md`：deep reference 導覽
+   - `design/*`：canonical technical reference
+   - `plans/*`、`notes/*`：歷史背景與工作過程
+3. 不要任意打破目前的層級邊界與寫作語氣約束。
 4. 在寫新文件前，再次對照實際 code path，特別是：
    - `main.py`
    - `frontend/events.js`
@@ -580,6 +584,9 @@ docs/5g-viz/
    - 不使用第二人稱作為主要敘述方式
    - 不假設讀者主觀感受
    - 不在正文中使用寫給作者自己的階段性規劃口吻
+
+目前沒有未完成的 phase。  
+後續若需要進一步重構，應先在「決策紀錄區塊」補一筆新的 decision，再決定是否開新 phase。
 
 ### Session continuation checklist
 
@@ -596,18 +603,19 @@ docs/5g-viz/
 
 | 日期 | 決策 | 理由 | 狀態 |
 |---|---|---|---|
-| 2026-04-16 | 先在 `design/*` 之上新增 human-facing layer，而不是先重寫 `design/*` | 現況真正缺的是 explanation layer，不是 reference 細節 | Proposed |
-| 2026-04-16 | 延後大規模 physical move / rename | 先避免 path churn，等新 reader path 成形後再判斷是否值得搬 | Proposed |
-| 2026-04-16 | 用 start-here / ui-workflows / mental-model / troubleshooting 切，而不是按 subsystem 切 | 比較貼近真實讀者問題與實際 UI / runtime 行為 | Proposed |
+| 2026-04-16 | 先在 `design/*` 之上新增 human-facing layer，而不是先重寫 `design/*` | 現況真正缺的是 explanation layer，不是 reference 細節 | Completed |
+| 2026-04-16 | 延後大規模 physical move / rename | 先避免 path churn，等新 reader path 成形後再判斷是否值得搬 | Completed |
+| 2026-04-16 | 用 start-here / ui-workflows / mental-model / troubleshooting 切，而不是按 subsystem 切 | 比較貼近真實讀者問題與實際 UI / runtime 行為 | Completed |
+| 2026-04-16 | 將 human-facing 目錄收進 `guides/` 父層 | 降低 `5g-viz/` 根層的扁平感，讓 explanation layer 的邊界更清楚 | Completed |
 
 ### Progress log
 
 | 日期 | Phase | 摘要 | By |
 |---|---|---|---|
 | 2026-04-16 | Planning | 已完成 repo/doc audit，並新增正式重構藍圖 | Codex |
+| 2026-04-16 | Execution | 已完成 Phase 1 到 Phase 4，並將 human-facing 文件收斂到 `guides/` 結構 | Codex |
 
 ### Open questions
 
-- `docs/5g-viz/README.md` 未來是否應成為唯一 landing page，還是與 `design/README.md` 長期共存但服務不同 audience？
-- 完成 Phase 1 到 3 後，是否真的有必要做實體 `reference/` 搬移，還是用 logical index 就足夠？
-- `features/*` 應長期保留為獨立 scenario docs，還是有些應被吸收到 workflow / mental-model 文件中？
+- `features/*` 是否長期保留為獨立案例文件，還是部分內容應逐步吸收到 `guides/` 文件中？
+- 若後續新增更多 human-facing 文件，`guides/` 是否需要再拆出更細的子索引或 naming 規則？
