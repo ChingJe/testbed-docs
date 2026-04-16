@@ -177,14 +177,148 @@ idelta(nwdaf_retrain_total{session="$session"}[15s]) > 0
 
 ## 實作任務
 
-| # | 任務 | 檔案 | 說明 |
+| # | 任務 | 檔案 | 狀態 |
 |---|---|---|---|
-| 1 | 加 `nwdaf_retrain_start_event` Gauge | `rules/nwdaf.py` | Pulse；保留 `_retrain_total` counter 不動 |
-| 2 | 加 `nwdaf_retrain_done_event` Gauge | `rules/nwdaf.py` | 同上；連接 `retrain_done` event |
-| 3 | Pulse reset 機制 | `main.py` | `_process_queue` 在 `_update_metrics` 後為 retrain 事件排 asyncio task |
-| 4 | Replay backfill 更新 | `main.py` | `_build_replay_metric_series` 加 retrain_done 處理，start/done 各寫 pulse sample pair |
-| 5 | Grafana annotation 更新 | `grafana_setup.py` | start 改用 event metric query；加 done annotation（綠色） |
-| 6 | sMAPE panel 標示 | `grafana_setup.py` | title、axisLabel、legendFormat |
+| 1 | 加 `nwdaf_retrain_start_event` Gauge | `rules/nwdaf.py` | ✅ |
+| 2 | 加 `nwdaf_retrain_done_event` Gauge | `rules/nwdaf.py` | ✅ |
+| 3 | Pulse reset 機制（live 路徑） | `main.py` | ✅ |
+| 4 | Replay backfill 更新 | `main.py` | ✅（有 bug，見下） |
+| 5 | Grafana annotation 更新 | `grafana_setup.py` | ✅ |
+| 6 | sMAPE panel 標示 | `grafana_setup.py` | ✅ |
+| 7 | Backfill pulse 寬度修正 | `main.py` | ⬜ |
+| 8 | MetricPlayer pseudo-live annotation 補寫 | `metric_player.py` | ⬜ |
+| 9 | Grafana session 選單修正 | `grafana_setup.py` | ⬜ |
+
+---
+
+## 實作紀錄（2026-04-16）
+
+### 已完成（任務 1–6）
+
+初版實作完成。Live 路徑（`_process_queue` → gauge pulse → asyncio reset）與 Grafana
+dashboard 設定（annotation query、sMAPE panel）運作正常。
+
+Replay backfill 路徑（`_build_replay_metric_series`）也已更新，寫入 retrain start/done
+pulse 的 sample pair。
+
+---
+
+### 測試發現的問題
+
+#### Bug 1：Backfill 模式下 annotation 線重複兩次
+
+**現象**：pause 狀態時，紅色與綠色 annotation 線各出現兩次，時間間距約 5 秒。
+
+**根因**：Grafana annotation 以 5s 為步距掃描時間軸。Backfill 寫入的 pulse：
+```
+(ts_ms,        1.0)   ← on
+(ts_ms + 8000, 0.0)   ← off，8s 後
+```
+8 秒跨越兩個 5s 步距區間，兩個取樣點都讀到值 1.0，因此畫出兩條線。
+
+**修正方向（任務 7）**：將 off 樣本改為 `ts_ms + 5000`（剛好一個 scrape interval）。
+數學上，任意步距對齊情況下，`[ts_ms, ts_ms+5000)` 範圍內只會有一個步距邊界落入，
+確保恰好一個取樣點看到值 1.0。
+
+---
+
+#### Bug 2：Pseudo-live（play）模式所有線消失且不回來
+
+**現象**：按下 play 後，Grafana 圖上的 annotation 線與 chart 曲線全部消失，即使
+emit loop 持續運作也不恢復。
+
+**根因分析**（兩個獨立問題）：
+
+**① Annotation 線消失（任務 4 遺漏）**
+
+Replay 有兩條路徑：
+- Backfill（pause）：由 `_build_replay_metric_series` 寫歷史樣本到 Prometheus
+- Pseudo-live（play）：由 `MetricPlayer._build_metric_series_for_event` 即時寫樣本
+
+任務 4 只補了 backfill 路徑。`metric_player.py` 的
+`_build_metric_series_for_event` 完全沒有寫 `nwdaf_retrain_start_event` 或
+`nwdaf_retrain_done_event`，pseudo_session 對這兩個 metric 永遠是空的，
+Grafana annotation query 永遠回傳空，annotation 線不出現。
+
+**② Chart 曲線（GT / Pred / Deviation）消失（pre-existing 問題）**
+
+Grafana session 下拉選單的來源 query：
+```promql
+label_values(nwdaf_ground_truth_ul_bytes, session)
+```
+Play 開始時，pseudo_session（`_live_...`）尚無 `nwdaf_ground_truth_ul_bytes`
+（preseed 若為空則 GT 資料尚未寫入），session 選單找不到 `_live_...`。
+Grafana 收到 URL 參數 `var-session=_live_...` 但選單中無此選項，
+自動 fallback 到第一個有效 session（原始 session）。
+原始 session 的資料時間戳為歷史時間，不在 `now-3m ~ now` 視窗內，所有 panel 為空。
+
+此外，template variable 的 `refresh` 設為 1（只有 dashboard 載入時才重新查詢），
+即使之後 `_live_...` 有了資料，選單也不更新，session 不切換，chart 線不回來。
+
+此問題與本次 annotation 變更無關，為 pre-existing 問題，但兩者疊加導致 play 畫面全空。
+
+#### Bug 3：Retrain 後舊 model 的 deviation 線被平推到下一個 model 第一筆 accuracy
+
+**現象**：在 replay / pseudo-live 中，`retrain_done` / `model_swap` 之後，前一個 model 的
+deviation 線沒有立刻斷掉，而是以最後一筆值持續水平延伸，直到下一個 model 出現第一筆
+`accuracy` 為止。這和 live mode 看到的冷啟動空窗不一致。
+
+**根因**：live mode 在 `model_swap` 會直接刪除 exporter 內舊的
+`nwdaf_deviation{session,model}` series，Prometheus scrape 後就會出現斷點；但 replay backfill
+與 pseudo-live 只有重播數值樣本，沒有重播這個「series 被終止」的語意，所以 query 仍會拿舊
+model 的最後一筆 deviation 當成目前可見 series。
+
+**修正方向**：在 replay backfill 與 pseudo-live 的 `model_swap` 處，為當前舊 model 寫一筆
+`NaN` cut-off 樣本，強制 Grafana 在 swap 時把線段截斷，保留部署後 cold start 的空窗。
+
+---
+
+### Replay 兩個模式功能對照
+
+| 項目 | Backfill（pause） | Pseudo-live（play） |
+|---|---|---|
+| GT / Pred / Deviation chart 線 | ✅ | ❌ session 選不到 `_live_...`（pre-existing）|
+| sMAPE panel 標示 | ✅ | ✅ |
+| Retrain Start annotation（紅線） | ⚠️ 出現但重複（Bug 1） | ❌ metric 未寫入 |
+| Retrain Done annotation（綠線） | ⚠️ 出現但重複（Bug 1） | ❌ metric 未寫入 |
+
+---
+
+### 補充修正計畫
+
+**任務 7：Backfill pulse 寬度修正（`main.py`）**
+
+`_build_replay_metric_series` 中 `nwdaf_retrain_start_event` 與
+`nwdaf_retrain_done_event` 的 off 樣本時間戳從 `ts_ms + 8000` 改為
+`ts_ms + 5000`（定義為常數 `_BACKFILL_PULSE_MS = 5000`）。
+
+**任務 8：MetricPlayer pseudo-live annotation 補寫（`metric_player.py`）**
+
+在 `_build_metric_series_for_event` 中，為 retrain 事件補寫 pulse 樣本：
+
+```python
+_PULSE_MS = 5000  # one Prometheus scrape interval
+
+# retrain_trigger → nwdaf_retrain_start_event pulse
+# retrain_done   → nwdaf_retrain_done_event pulse
+# 各寫 (ts_ms, 1.0) 與 (ts_ms + _PULSE_MS, 0.0)
+```
+
+Preseed 與 emit loop 共用同一個 `_build_metric_series_for_event`，
+補一處即同時覆蓋兩個場景。
+
+**任務 9：Grafana session 選單修正（`grafana_setup.py`）**
+
+兩處調整：
+
+1. Template variable query 從 `nwdaf_ground_truth_ul_bytes` 改為
+   `nwdaf_retrain_total`。`MetricPlayer._prepare_state_and_preseed` 無論
+   preseed 是否為空，**一定**會為 pseudo_session 寫一筆 `nwdaf_retrain_total`
+   錨點樣本，確保 `_live_...` 一定出現在選單中。
+
+2. Template variable `refresh` 從 `1`（dashboard 載入時）改為 `2`
+   （time range 改變時）。Play 時 Grafana 切換時間窗口到 `now-3m ~ now`，
+   觸發選單重新查詢，session 正確切換到 `_live_...`。
 
 ---
 
@@ -193,7 +327,12 @@ idelta(nwdaf_retrain_total{session="$session"}[15s]) > 0
 這是 DVR 實作過程中發現的延伸建模問題，同時也對應 2026-04-10 開會提出的顯示改善需求。
 決定採用 Gauge pulse event metric，兼顧語意清晰與 replay 相容性。
 
-實作上分兩個獨立方向：
-1. **Metric 建模**（任務 1–5）：涉及 `rules/nwdaf.py`、`main.py`、`grafana_setup.py`，
-   live 與 replay 路徑都需更新。
-2. **Panel 標示**（任務 6）：僅 `grafana_setup.py`，獨立且低風險。
+初版實作（任務 1–6）已完成，但測試發現 replay 的兩個模式未完整覆蓋：
+
+- **Backfill**：pulse 寬度過寬導致 annotation 重複（任務 7 修正）
+- **Pseudo-live**：annotation metric 未接入 MetricPlayer（任務 8），
+  session 選單無法找到 pseudo_session（任務 9，pre-existing 問題）
+- **Deviation gap**：replay / pseudo-live 缺少 live `model_swap` 的 series terminate 語意，
+  需補 `NaN` cut-off 樣本，否則舊 model 會被平推到新 model 第一筆 accuracy。
+
+任務 7–9 為補充修正，完成後 live / backfill / pseudo-live 三條路徑才全部對齊。
