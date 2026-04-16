@@ -18,10 +18,10 @@
 
 較適合先讀：
 
-- [`../start-here/`](../start-here/README.md)
-- [`../ui-workflows/`](../ui-workflows/README.md)
-- [`../mental-model/`](../mental-model/README.md)
-- [`../troubleshooting/common-scenarios.md`](../troubleshooting/common-scenarios.md)
+- [`../guides/start-here/`](../guides/start-here/README.md)
+- [`../guides/ui-workflows/`](../guides/ui-workflows/README.md)
+- [`../guides/mental-model/`](../guides/mental-model/README.md)
+- [`../guides/troubleshooting/common-scenarios.md`](../guides/troubleshooting/common-scenarios.md)
 
 ## 什麼問題適合到這裡查
 

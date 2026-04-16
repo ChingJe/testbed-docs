@@ -9,8 +9,8 @@
 
 若目前需求是先理解畫面或操作，先讀：
 
-- [`../../start-here/`](../../start-here/README.md)
-- [`../../mental-model/`](../../mental-model/README.md)
+- [`../../guides/start-here/`](../../guides/start-here/README.md)
+- [`../../guides/mental-model/`](../../guides/mental-model/README.md)
 
 目前文件：
 

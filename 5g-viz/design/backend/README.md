@@ -9,8 +9,8 @@
 
 若目前需求是先理解畫面上的效果，先讀：
 
-- [`../../ui-workflows/`](../../ui-workflows/README.md)
-- [`../../mental-model/`](../../mental-model/README.md)
+- [`../../guides/ui-workflows/`](../../guides/ui-workflows/README.md)
+- [`../../guides/mental-model/`](../../guides/mental-model/README.md)
 
 主要文件：
 

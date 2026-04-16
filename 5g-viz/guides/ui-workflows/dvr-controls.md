@@ -185,6 +185,6 @@ Replay 沒有一個對應的「回到最新 live 狀態」操作。
 - Event History：[`./event-history.md`](./event-history.md)
 - Grafana：[`./grafana.md`](./grafana.md)
 - deeper reference：
-  - [`../design/frontend/events-and-dvr.md`](../design/frontend/events-and-dvr.md)
-  - [`../design/dvr/overview.md`](../design/dvr/overview.md)
-  - [`../design/dvr/replay.md`](../design/dvr/replay.md)
+  - [`../../design/frontend/events-and-dvr.md`](../../design/frontend/events-and-dvr.md)
+  - [`../../design/dvr/overview.md`](../../design/dvr/overview.md)
+  - [`../../design/dvr/replay.md`](../../design/dvr/replay.md)

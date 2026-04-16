@@ -156,6 +156,6 @@ Grafana 查的是：
 - Event History：[`../ui-workflows/event-history.md`](../ui-workflows/event-history.md)
 - Grafana：[`../ui-workflows/grafana.md`](../ui-workflows/grafana.md)
 - deeper reference：
-  - [`../design/overview/data-flow.md`](../design/overview/data-flow.md)
-  - [`../design/dvr/replay.md`](../design/dvr/replay.md)
-  - [`../design/frontend/events-and-dvr.md`](../design/frontend/events-and-dvr.md)
+  - [`../../design/overview/data-flow.md`](../../design/overview/data-flow.md)
+  - [`../../design/dvr/replay.md`](../../design/dvr/replay.md)
+  - [`../../design/frontend/events-and-dvr.md`](../../design/frontend/events-and-dvr.md)

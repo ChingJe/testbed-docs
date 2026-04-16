@@ -192,4 +192,4 @@ Replay Topology 的核心特性是：
 - Event Log：[`./event-log.md`](./event-log.md)
 - DVR Controls：[`./dvr-controls.md`](./dvr-controls.md)
 - Event History：[`./event-history.md`](./event-history.md)
-- deeper reference：[`../design/frontend/topology.md`](../design/frontend/topology.md)
+- deeper reference：[`../../design/frontend/topology.md`](../../design/frontend/topology.md)

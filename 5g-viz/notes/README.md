@@ -26,7 +26,7 @@
 
 ## 與其他目錄的邊界
 
-- [`../start-here/`](../start-here/README.md)、[`../ui-workflows/`](../ui-workflows/README.md)、[`../mental-model/`](../mental-model/README.md)：面向讀者的理解層
+- [`../guides/start-here/`](../guides/start-here/README.md)、[`../guides/ui-workflows/`](../guides/ui-workflows/README.md)、[`../guides/mental-model/`](../guides/mental-model/README.md)：面向讀者的理解層
 - [`../design/`](../design/README.md)：目前系統行為的 canonical reference
 - [`../plans/`](../plans/README.md)：規劃與設計探索
 

@@ -9,8 +9,8 @@
 
 若目前需求是先理解操作意義與使用者可觀察到的行為，先讀：
 
-- [`../../ui-workflows/dvr-controls.md`](../../ui-workflows/dvr-controls.md)
-- [`../../mental-model/live-vs-replay-data-paths.md`](../../mental-model/live-vs-replay-data-paths.md)
+- [`../../guides/ui-workflows/dvr-controls.md`](../../guides/ui-workflows/dvr-controls.md)
+- [`../../guides/mental-model/live-vs-replay-data-paths.md`](../../guides/mental-model/live-vs-replay-data-paths.md)
 
 主要文件：
 

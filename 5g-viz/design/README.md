@@ -6,7 +6,7 @@
 第一次接觸這套系統時，先看：
 
 - [`../README.md`](../README.md)
-- [`../start-here/README.md`](../start-here/README.md)
+- [`../guides/start-here/README.md`](../guides/start-here/README.md)
 
 歷史規劃與設計探索內容已移至 [`../plans/`](../plans/README.md)。
 

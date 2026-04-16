@@ -188,25 +188,27 @@
 ```text
 docs/5g-viz/
   README.md
-  start-here/
+  guides/
     README.md
-    what-is-5g-viz.md
-    live-vs-replay.md
-    screen-tour.md
-    first-concepts.md
-  ui-workflows/
-    topology.md
-    event-log.md
-    event-history.md
-    grafana.md
-    dvr-controls.md
-  mental-model/
-    README.md
-    events-snapshots-metrics.md
-    live-vs-replay-data-paths.md
-    ui-only-vs-metric-events.md
-  troubleshooting/
-    common-scenarios.md
+    start-here/
+      README.md
+      what-is-5g-viz.md
+      live-vs-replay.md
+      screen-tour.md
+      first-concepts.md
+    ui-workflows/
+      topology.md
+      event-log.md
+      event-history.md
+      grafana.md
+      dvr-controls.md
+    mental-model/
+      README.md
+      events-snapshots-metrics.md
+      live-vs-replay-data-paths.md
+      ui-only-vs-metric-events.md
+    troubleshooting/
+      common-scenarios.md
   reference/
     README.md
     ...（初期先指向既有 design/*）
@@ -231,19 +233,19 @@ docs/5g-viz/
 ### 新讀者建議閱讀順序
 
 1. `docs/5g-viz/README.md`
-2. `start-here/what-is-5g-viz.md`
-3. `start-here/live-vs-replay.md`
-4. `start-here/screen-tour.md`
-5. `ui-workflows/*`
-6. `mental-model/*`
-7. `troubleshooting/common-scenarios.md`
+2. `guides/start-here/what-is-5g-viz.md`
+3. `guides/start-here/live-vs-replay.md`
+4. `guides/start-here/screen-tour.md`
+5. `guides/ui-workflows/*`
+6. `guides/mental-model/*`
+7. `guides/troubleshooting/common-scenarios.md`
 8. `reference/README.md` 與其指向的 deep docs
 
 ### very short outline examples
 
 以下只是未來文件骨架示例，不是正文草稿。
 
-#### 示例：`start-here/screen-tour.md`
+#### 示例：`guides/start-here/screen-tour.md`
 
 - 第一次打開畫面會看到什麼
 - Header 與模式 / 連線狀態
@@ -254,7 +256,7 @@ docs/5g-viz/
 - Live 與 replay 在畫面上哪裡不同
 - 下一步該讀哪份文件
 
-#### 示例：`ui-workflows/dvr-controls.md`
+#### 示例：`guides/ui-workflows/dvr-controls.md`
 
 - Pause freeze 了什麼、沒 freeze 什麼
 - Play 重播的是什麼
@@ -268,14 +270,14 @@ docs/5g-viz/
 | 現有文件 / 類別 | 未來角色 | 規劃中的處理方式 |
 |---|---|---|
 | `5g-viz/README.md` | setup / run reference | 保留為 repo-level setup 文件；從新 gateway 連過去，但不作為主要概念入口。 |
-| `design/overview/system.md` | human overview + reference | 抽出人類導向部分到 `start-here/what-is-5g-viz.md`；保留組件級內容在 reference。 |
-| `design/overview/data-flow.md` | mental-model bridge + reference | 把 reader-facing 部分拆到 `start-here/live-vs-replay.md` 與 `mental-model/live-vs-replay-data-paths.md`；原檔保留深層資料流。 |
-| `design/dvr/overview.md` | user-facing DVR 概念 + reference | 觀察者視角的部分進 `ui-workflows/dvr-controls.md`；跨層細節保留原檔。 |
-| `design/dvr/replay.md` | mental model + troubleshooting | 把 replay 需要 backfill / pseudo-live 的使用者層說明抽到 `mental-model/*` 與 troubleshooting；原檔保留 runtime 細節。 |
-| `design/dvr/session.md` | first concepts + reference | 把「session 是什麼」放進 `start-here/first-concepts.md`；`meta.json` / `events.jsonl` / `topology.yaml` 細節保留原檔。 |
-| `design/frontend/topology.md` | workflow doc + reference | 新增 `ui-workflows/topology.md`；Cytoscape / filter / reaction 細節仍留在 reference。 |
-| `design/frontend/events-and-dvr.md` | workflow doc + reference | 新增 `ui-workflows/dvr-controls.md`、`ui-workflows/event-log.md`、`ui-workflows/event-history.md`；state-machine 細節保留原檔。 |
-| `design/frontend/grafana-embed.md` | workflow doc + reference | 新增 `ui-workflows/grafana.md`；iframe / session / window mechanics 保留原檔。 |
+| `design/overview/system.md` | human overview + reference | 抽出人類導向部分到 `guides/start-here/what-is-5g-viz.md`；保留組件級內容在 reference。 |
+| `design/overview/data-flow.md` | mental-model bridge + reference | 把 reader-facing 部分拆到 `guides/start-here/live-vs-replay.md` 與 `guides/mental-model/live-vs-replay-data-paths.md`；原檔保留深層資料流。 |
+| `design/dvr/overview.md` | user-facing DVR 概念 + reference | 觀察者視角的部分進 `guides/ui-workflows/dvr-controls.md`；跨層細節保留原檔。 |
+| `design/dvr/replay.md` | mental model + troubleshooting | 把 replay 需要 backfill / pseudo-live 的使用者層說明抽到 `guides/mental-model/*` 與 troubleshooting；原檔保留 runtime 細節。 |
+| `design/dvr/session.md` | first concepts + reference | 把「session 是什麼」放進 `guides/start-here/first-concepts.md`；`meta.json` / `events.jsonl` / `topology.yaml` 細節保留原檔。 |
+| `design/frontend/topology.md` | workflow doc + reference | 新增 `guides/ui-workflows/topology.md`；Cytoscape / filter / reaction 細節仍留在 reference。 |
+| `design/frontend/events-and-dvr.md` | workflow doc + reference | 新增 `guides/ui-workflows/dvr-controls.md`、`guides/ui-workflows/event-log.md`、`guides/ui-workflows/event-history.md`；state-machine 細節保留原檔。 |
+| `design/frontend/grafana-embed.md` | workflow doc + reference | 新增 `guides/ui-workflows/grafana.md`；iframe / session / window mechanics 保留原檔。 |
 | `design/features/traffic-chart.md` | scenario support + reference | 作為 Grafana / troubleshooting 文件的支援 reference。 |
 | `design/features/subscription-chain.md`、`nwdaf-ml-cycle.md` | scenario examples | 保留為具體 feature flow 例子；從 workflow / mental-model 文件往下連。 |
 | `design/backend/*.md`、`design/grafana/*.md`、`design/reference/*.md`、`design/overview/event-schema.md`、`design/overview/architecture.md` | deep reference layer | 暫時保留原位；後續補 index / link-in / audience framing。 |
@@ -304,7 +306,7 @@ docs/5g-viz/
 #### 範圍
 
 - 新增 `docs/5g-viz/README.md`
-- 新增 `start-here/` index 與最小 onboarding set
+- 新增 `guides/start-here/` index 與最小 onboarding set
 - 從新入口把既有 deep docs 重新串成清楚的路徑
 - 明確區分：
   - human-facing docs
@@ -315,10 +317,10 @@ docs/5g-viz/
 #### 預計產出
 
 - `docs/5g-viz/README.md`
-- `docs/5g-viz/start-here/README.md`
-- `docs/5g-viz/start-here/what-is-5g-viz.md`
-- `docs/5g-viz/start-here/live-vs-replay.md`
-- `docs/5g-viz/start-here/screen-tour.md`
+- `docs/5g-viz/guides/start-here/README.md`
+- `docs/5g-viz/guides/start-here/what-is-5g-viz.md`
+- `docs/5g-viz/guides/start-here/live-vs-replay.md`
+- `docs/5g-viz/guides/start-here/screen-tour.md`
 - 必要的 index / link 更新
 
 #### 不要做的事
@@ -358,11 +360,11 @@ docs/5g-viz/
 
 #### 預計產出
 
-- `docs/5g-viz/ui-workflows/topology.md`
-- `docs/5g-viz/ui-workflows/event-log.md`
-- `docs/5g-viz/ui-workflows/event-history.md`
-- `docs/5g-viz/ui-workflows/grafana.md`
-- `docs/5g-viz/ui-workflows/dvr-controls.md`
+- `docs/5g-viz/guides/ui-workflows/topology.md`
+- `docs/5g-viz/guides/ui-workflows/event-log.md`
+- `docs/5g-viz/guides/ui-workflows/event-history.md`
+- `docs/5g-viz/guides/ui-workflows/grafana.md`
+- `docs/5g-viz/guides/ui-workflows/dvr-controls.md`
 
 #### 不要做的事
 
@@ -406,10 +408,10 @@ docs/5g-viz/
 
 #### 預計產出
 
-- `docs/5g-viz/mental-model/events-snapshots-metrics.md`
-- `docs/5g-viz/mental-model/live-vs-replay-data-paths.md`
-- `docs/5g-viz/mental-model/ui-only-vs-metric-events.md`
-- `docs/5g-viz/troubleshooting/common-scenarios.md`
+- `docs/5g-viz/guides/mental-model/events-snapshots-metrics.md`
+- `docs/5g-viz/guides/mental-model/live-vs-replay-data-paths.md`
+- `docs/5g-viz/guides/mental-model/ui-only-vs-metric-events.md`
+- `docs/5g-viz/guides/troubleshooting/common-scenarios.md`
 
 #### 不要做的事
 
@@ -503,10 +505,10 @@ docs/5g-viz/
 
 | Phase | 名稱 | 狀態 | 最近更新 | 備註 |
 |---|---|---|---|---|
-| 1 | 入口層與導覽層 | Completed | 2026-04-16 | `docs/5g-viz/README.md` 與 `start-here/` 初版已建立，並完成第一輪語氣收斂 |
-| 2 | UI 與工作流程層 | Completed | 2026-04-16 | `ui-workflows/` 初版已建立，並完成 `event-history.md`、`state_snapshot` 與 `pre-seed` 補強 |
-| 3 | 心智模型與 troubleshooting 層 | Completed | 2026-04-16 | `mental-model/` 與 `troubleshooting/common-scenarios.md` 初版已建立 |
-| 4 | reference re-anchoring 與 legacy cleanup | In Progress | 2026-04-16 | 已新增 `reference/README.md`、`notes/README.md`，並開始收斂 `design/*` 與索引頁的定位 |
+| 1 | 入口層與導覽層 | Completed | 2026-04-16 | `docs/5g-viz/README.md` 與 `guides/start-here/` 初版已建立，並完成第一輪語氣收斂 |
+| 2 | UI 與工作流程層 | Completed | 2026-04-16 | `guides/ui-workflows/` 初版已建立，並完成 `event-history.md`、`state_snapshot` 與 `pre-seed` 補強 |
+| 3 | 心智模型與 troubleshooting 層 | Completed | 2026-04-16 | `guides/mental-model/` 與 `guides/troubleshooting/common-scenarios.md` 初版已建立 |
+| 4 | reference re-anchoring 與 legacy cleanup | In Progress | 2026-04-16 | 已新增 `reference/README.md`、`notes/README.md`，並開始收斂 `design/*` 與索引頁的定位；guides 已收進 `guides/` 父層 |
 
 ### Artifact tracker
 
@@ -514,34 +516,35 @@ docs/5g-viz/
 |---|---|---|---|
 | 計畫 | `plans/docs/5g-viz-restructure-plan.md` | Active | 正式規劃檔；後續應持續更新 phase 狀態與決策 |
 | 入口 | `docs/5g-viz/README.md` | Drafted | Phase 1 初版已建立 |
-| 入口 | `docs/5g-viz/start-here/README.md` | Drafted | Phase 1 初版已建立 |
-| 入口 | `docs/5g-viz/start-here/what-is-5g-viz.md` | Drafted | Phase 1 初版已建立 |
-| 入口 | `docs/5g-viz/start-here/live-vs-replay.md` | Drafted | Phase 1 初版已建立 |
-| 入口 | `docs/5g-viz/start-here/screen-tour.md` | Drafted | Phase 1 初版已建立 |
-| workflow | `docs/5g-viz/ui-workflows/README.md` | Drafted | Phase 2 初版已建立 |
-| workflow | `docs/5g-viz/ui-workflows/topology.md` | Drafted | Phase 2 初版已建立 |
-| workflow | `docs/5g-viz/ui-workflows/event-log.md` | Drafted | Phase 2 初版已建立 |
-| workflow | `docs/5g-viz/ui-workflows/event-history.md` | Drafted | 取代較不穩定的 `common-workflows.md`，聚焦 event buffer / history fetch / scrub 行為 |
-| workflow | `docs/5g-viz/ui-workflows/grafana.md` | Drafted | Phase 2 初版已建立 |
-| workflow | `docs/5g-viz/ui-workflows/dvr-controls.md` | Drafted | Phase 2 初版已建立 |
-| mental-model | `docs/5g-viz/mental-model/README.md` | Drafted | Phase 3 初版已建立 |
-| mental-model | `docs/5g-viz/mental-model/events-snapshots-metrics.md` | Drafted | 說明 event / snapshot / metrics 的分工 |
-| mental-model | `docs/5g-viz/mental-model/live-vs-replay-data-paths.md` | Drafted | 說明 live / replay 的資料來源與 chart 路徑差異 |
-| mental-model | `docs/5g-viz/mental-model/ui-only-vs-metric-events.md` | Drafted | 說明 UI-only event 與 metric event 邊界 |
-| troubleshooting | `docs/5g-viz/troubleshooting/common-scenarios.md` | Drafted | 整理跨區塊常見現象與最常見解釋 |
+| guides | `docs/5g-viz/guides/README.md` | Drafted | human-facing 入口層的父索引 |
+| 入口 | `docs/5g-viz/guides/start-here/README.md` | Drafted | Phase 1 初版已建立 |
+| 入口 | `docs/5g-viz/guides/start-here/what-is-5g-viz.md` | Drafted | Phase 1 初版已建立 |
+| 入口 | `docs/5g-viz/guides/start-here/live-vs-replay.md` | Drafted | Phase 1 初版已建立 |
+| 入口 | `docs/5g-viz/guides/start-here/screen-tour.md` | Drafted | Phase 1 初版已建立 |
+| workflow | `docs/5g-viz/guides/ui-workflows/README.md` | Drafted | Phase 2 初版已建立 |
+| workflow | `docs/5g-viz/guides/ui-workflows/topology.md` | Drafted | Phase 2 初版已建立 |
+| workflow | `docs/5g-viz/guides/ui-workflows/event-log.md` | Drafted | Phase 2 初版已建立 |
+| workflow | `docs/5g-viz/guides/ui-workflows/event-history.md` | Drafted | 取代較不穩定的 `common-workflows.md`，聚焦 event buffer / history fetch / scrub 行為 |
+| workflow | `docs/5g-viz/guides/ui-workflows/grafana.md` | Drafted | Phase 2 初版已建立 |
+| workflow | `docs/5g-viz/guides/ui-workflows/dvr-controls.md` | Drafted | Phase 2 初版已建立 |
+| mental-model | `docs/5g-viz/guides/mental-model/README.md` | Drafted | Phase 3 初版已建立 |
+| mental-model | `docs/5g-viz/guides/mental-model/events-snapshots-metrics.md` | Drafted | 說明 event / snapshot / metrics 的分工 |
+| mental-model | `docs/5g-viz/guides/mental-model/live-vs-replay-data-paths.md` | Drafted | 說明 live / replay 的資料來源與 chart 路徑差異 |
+| mental-model | `docs/5g-viz/guides/mental-model/ui-only-vs-metric-events.md` | Drafted | 說明 UI-only event 與 metric event 邊界 |
+| troubleshooting | `docs/5g-viz/guides/troubleshooting/common-scenarios.md` | Drafted | 整理跨區塊常見現象與最常見解釋 |
 | reference | `docs/5g-viz/reference/README.md` | Drafted | deep reference 導覽與主題索引 |
 | notes | `docs/5g-viz/notes/README.md` | Drafted | notes 的定位、用途與邊界 |
 | 索引 | `docs/README.md` | Updated | 已補 `5g-viz` 入口與 `plans/docs/` 區塊 |
 | 索引 | `docs/5g-viz/design/README.md` | Updated | 已補「先看新入口」導向 |
 | 索引 | `docs/5g-viz/plans/README.md` | Updated | 已補 docs 規劃區塊 |
-| 索引 | `docs/5g-viz/README.md` | Updated | 已加入 `ui-workflows/` 閱讀入口 |
-| 索引 | `docs/5g-viz/start-here/README.md` | Updated | 已加入 workflow 層導向 |
+| 索引 | `docs/5g-viz/README.md` | Updated | 已加入 `guides/` 與其子層閱讀入口 |
+| 索引 | `docs/5g-viz/guides/start-here/README.md` | Updated | 已加入 guides 其他子層導向 |
 
 ### Current checkpoint
 
 | 日期 | 狀態摘要 | 下一步 |
 |---|---|---|
-| 2026-04-16 | 規劃藍圖完成；Phase 1 入口層已建立；Phase 2 `ui-workflows/` 初版已建立；Phase 3 `mental-model/` 與 `troubleshooting/` 初版已建立；Phase 4 已開始收斂 reference / design / notes 的定位；寫作語氣約束已納入計畫；`common-workflows.md` 已替換為 `event-history.md` | 依審核結果決定：繼續完成 Phase 4 的 reference re-anchoring，或做最小整理後進入維護模式 |
+| 2026-04-16 | 規劃藍圖完成；Phase 1 入口層已建立；Phase 2 `guides/ui-workflows/` 初版已建立；Phase 3 `guides/mental-model/` 與 `guides/troubleshooting/` 初版已建立；Phase 4 已開始收斂 reference / design / notes 的定位，並將 human-facing 目錄收進 `guides/`；寫作語氣約束已納入計畫；`common-workflows.md` 已替換為 `event-history.md` | 依審核結果決定：繼續完成 Phase 4 的 reference re-anchoring，或做最小整理後進入維護模式 |
 
 ### Update rule
 

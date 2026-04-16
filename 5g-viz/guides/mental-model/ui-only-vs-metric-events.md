@@ -146,5 +146,5 @@ Grafana 只吃其中一部分會進 metrics 的事件。
 - Event Log：[`../ui-workflows/event-log.md`](../ui-workflows/event-log.md)
 - Grafana：[`../ui-workflows/grafana.md`](../ui-workflows/grafana.md)
 - deeper reference：
-  - [`../design/overview/event-schema.md`](../design/overview/event-schema.md)
-  - [`../design/backend/metrics.md`](../design/backend/metrics.md)
+  - [`../../design/overview/event-schema.md`](../../design/overview/event-schema.md)
+  - [`../../design/backend/metrics.md`](../../design/backend/metrics.md)

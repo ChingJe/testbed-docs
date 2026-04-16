@@ -9,8 +9,8 @@
 
 若目前需求是先理解主畫面 chart 的用途與行為，先讀：
 
-- [`../../ui-workflows/grafana.md`](../../ui-workflows/grafana.md)
-- [`../../mental-model/events-snapshots-metrics.md`](../../mental-model/events-snapshots-metrics.md)
+- [`../../guides/ui-workflows/grafana.md`](../../guides/ui-workflows/grafana.md)
+- [`../../guides/mental-model/events-snapshots-metrics.md`](../../guides/mental-model/events-snapshots-metrics.md)
 
 主要文件：
 

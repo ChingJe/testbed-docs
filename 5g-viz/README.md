@@ -17,13 +17,14 @@
 
 ## 建議閱讀順序
 
-1. [What Is 5g-viz](./start-here/what-is-5g-viz.md)
-2. [Live Vs Replay](./start-here/live-vs-replay.md)
-3. [Screen Tour](./start-here/screen-tour.md)
-4. [UI Workflows](./ui-workflows/README.md)
-5. [Mental Model](./mental-model/README.md)
-6. [Common Scenarios](./troubleshooting/common-scenarios.md)
-7. [Reference](./reference/README.md)
+1. [Guides](./guides/README.md)
+2. [What Is 5g-viz](./guides/start-here/what-is-5g-viz.md)
+3. [Live Vs Replay](./guides/start-here/live-vs-replay.md)
+4. [Screen Tour](./guides/start-here/screen-tour.md)
+5. [UI Workflows](./guides/ui-workflows/README.md)
+6. [Mental Model](./guides/mental-model/README.md)
+7. [Common Scenarios](./guides/troubleshooting/common-scenarios.md)
+8. [Reference](./reference/README.md)
 
 上述路徑讀完後，再依需求進入 deeper reference：
 
@@ -34,10 +35,11 @@
 
 ## 這個目錄怎麼看
 
-- [`start-here/`](./start-here/README.md)：給第一次接觸這個系統的人
-- [`ui-workflows/`](./ui-workflows/README.md)：依畫面區塊與操作流程理解系統
-- [`mental-model/`](./mental-model/README.md)：解釋 event、snapshot、metrics 與 live / replay 的概念邊界
-- [`troubleshooting/`](./troubleshooting/common-scenarios.md)：整理常見現象與最常見解釋
+- [`guides/`](./guides/README.md)：給讀者的 human-facing 入口層
+- [`guides/start-here/`](./guides/start-here/README.md)：第一次接觸這個系統時的入口
+- [`guides/ui-workflows/`](./guides/ui-workflows/README.md)：依畫面區塊與操作流程理解系統
+- [`guides/mental-model/`](./guides/mental-model/README.md)：解釋 event、snapshot、metrics 與 live / replay 的概念邊界
+- [`guides/troubleshooting/`](./guides/troubleshooting/common-scenarios.md)：整理常見現象與最常見解釋
 - [`reference/`](./reference/README.md)：deep reference 導覽與主題索引
 - [`design/`](./design/README.md)：深層設計與 implementation reference
 - [`plans/`](./plans/README.md)：歷史規劃與設計探索

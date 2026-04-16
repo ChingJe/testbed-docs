@@ -9,7 +9,7 @@
 
 若目前需求是先理解畫面區塊與操作，先讀：
 
-- [`../../ui-workflows/`](../../ui-workflows/README.md)
+- [`../../guides/ui-workflows/`](../../guides/ui-workflows/README.md)
 
 主要文件：
 

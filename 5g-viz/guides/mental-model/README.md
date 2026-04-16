@@ -29,7 +29,7 @@
 
 ## 對應的 deeper reference
 
-- event / DVR / history buffer：[`../design/frontend/events-and-dvr.md`](../design/frontend/events-and-dvr.md)
-- state snapshot：[`../design/backend/state.md`](../design/backend/state.md)
-- metrics：[`../design/backend/metrics.md`](../design/backend/metrics.md)
-- replay / pseudo-live：[`../design/dvr/replay.md`](../design/dvr/replay.md)
+- event / DVR / history buffer：[`../../design/frontend/events-and-dvr.md`](../../design/frontend/events-and-dvr.md)
+- state snapshot：[`../../design/backend/state.md`](../../design/backend/state.md)
+- metrics：[`../../design/backend/metrics.md`](../../design/backend/metrics.md)
+- replay / pseudo-live：[`../../design/dvr/replay.md`](../../design/dvr/replay.md)

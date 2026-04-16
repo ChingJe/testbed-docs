@@ -164,6 +164,6 @@ Topology 下方的 Grafana 區塊是嵌入進來的 dashboard。
 
 - 模式差異：回看 [Live Vs Replay](./live-vs-replay.md)
 - deeper reference：
-  - [`../design/frontend/topology.md`](../design/frontend/topology.md)
-  - [`../design/frontend/events-and-dvr.md`](../design/frontend/events-and-dvr.md)
-  - [`../design/frontend/grafana-embed.md`](../design/frontend/grafana-embed.md)
+  - [`../../design/frontend/topology.md`](../../design/frontend/topology.md)
+  - [`../../design/frontend/events-and-dvr.md`](../../design/frontend/events-and-dvr.md)
+  - [`../../design/frontend/grafana-embed.md`](../../design/frontend/grafana-embed.md)

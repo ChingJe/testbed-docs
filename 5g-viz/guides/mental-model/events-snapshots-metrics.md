@@ -170,6 +170,6 @@ Grafana 主要讀的是：
 - Event History：[`../ui-workflows/event-history.md`](../ui-workflows/event-history.md)
 - Grafana：[`../ui-workflows/grafana.md`](../ui-workflows/grafana.md)
 - deeper reference：
-  - [`../design/backend/state.md`](../design/backend/state.md)
-  - [`../design/backend/metrics.md`](../design/backend/metrics.md)
-  - [`../design/frontend/events-and-dvr.md`](../design/frontend/events-and-dvr.md)
+  - [`../../design/backend/state.md`](../../design/backend/state.md)
+  - [`../../design/backend/metrics.md`](../../design/backend/metrics.md)
+  - [`../../design/frontend/events-and-dvr.md`](../../design/frontend/events-and-dvr.md)

@@ -246,4 +246,4 @@ GET /api/events?session=<session_id>&from=<session_start>&to=<target_time>
 
 - Event Log：[`./event-log.md`](./event-log.md)
 - DVR Controls：[`./dvr-controls.md`](./dvr-controls.md)
-- deeper reference：[`../design/frontend/events-and-dvr.md`](../design/frontend/events-and-dvr.md)
+- deeper reference：[`../../design/frontend/events-and-dvr.md`](../../design/frontend/events-and-dvr.md)

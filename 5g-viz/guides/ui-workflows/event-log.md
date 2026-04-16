@@ -155,5 +155,5 @@ Event Log 主要關心的是一般事件序列。
 - Event History：[`./event-history.md`](./event-history.md)
 - Grafana：[`./grafana.md`](./grafana.md)
 - deeper reference：
-  - [`../design/frontend/events-and-dvr.md`](../design/frontend/events-and-dvr.md)
-  - [`../design/backend/parser.md`](../design/backend/parser.md)
+  - [`../../design/frontend/events-and-dvr.md`](../../design/frontend/events-and-dvr.md)
+  - [`../../design/backend/parser.md`](../../design/backend/parser.md)

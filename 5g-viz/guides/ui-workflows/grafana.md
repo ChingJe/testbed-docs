@@ -252,6 +252,6 @@ Replay `playing` 期間會切到 pseudo-live 路徑，這是刻意設計，不�
 - DVR Controls：[`./dvr-controls.md`](./dvr-controls.md)
 - Event History：[`./event-history.md`](./event-history.md)
 - deeper reference：
-  - [`../design/frontend/grafana-embed.md`](../design/frontend/grafana-embed.md)
-  - [`../design/backend/metrics.md`](../design/backend/metrics.md)
-  - [`../design/features/traffic-chart.md`](../design/features/traffic-chart.md)
+  - [`../../design/frontend/grafana-embed.md`](../../design/frontend/grafana-embed.md)
+  - [`../../design/backend/metrics.md`](../../design/backend/metrics.md)
+  - [`../../design/features/traffic-chart.md`](../../design/features/traffic-chart.md)
