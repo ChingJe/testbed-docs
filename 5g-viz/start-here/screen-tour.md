@@ -75,7 +75,7 @@ Topology 不是整個系統的原樣複製，比較準確的理解是：
 這個區塊包含幾種不同性質的內容：
 
 - node 的持久狀態  
-  例如某些 node 目前已經 `up`，或某個 node 正處於 `retraining`
+  例如某個 node 正處於 `retraining`，或某些持久 class 已經成立
 
 - transient edge / pulse  
   例如某次 SBI call、某次 internal flow、某次 pulse 效果

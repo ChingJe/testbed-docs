@@ -17,6 +17,7 @@
 
 ## 後續閱讀方向
 
+- 畫面區塊與操作流程：[`../ui-workflows/`](../ui-workflows/README.md)
 - 系統組件與端到端資料流：[`../design/overview/`](../design/overview/README.md)
 - pause / replay / pseudo-live：[`../design/dvr/`](../design/dvr/README.md)
 - topology / DVR / Grafana iframe 的實作行為：[`../design/frontend/`](../design/frontend/README.md)

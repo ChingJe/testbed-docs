@@ -197,9 +197,9 @@ docs/5g-viz/
   ui-workflows/
     topology.md
     event-log.md
+    event-history.md
     grafana.md
     dvr-controls.md
-    common-workflows.md
   mental-model/
     events-snapshots-metrics.md
     live-vs-replay-data-paths.md
@@ -273,7 +273,7 @@ docs/5g-viz/
 | `design/dvr/replay.md` | mental model + troubleshooting | 把 replay 需要 backfill / pseudo-live 的使用者層說明抽到 `mental-model/*` 與 troubleshooting；原檔保留 runtime 細節。 |
 | `design/dvr/session.md` | first concepts + reference | 把「session 是什麼」放進 `start-here/first-concepts.md`；`meta.json` / `events.jsonl` / `topology.yaml` 細節保留原檔。 |
 | `design/frontend/topology.md` | workflow doc + reference | 新增 `ui-workflows/topology.md`；Cytoscape / filter / reaction 細節仍留在 reference。 |
-| `design/frontend/events-and-dvr.md` | workflow doc + reference | 新增 `ui-workflows/dvr-controls.md`、`ui-workflows/event-log.md`、workflow/scenario 文件；state-machine 細節保留原檔。 |
+| `design/frontend/events-and-dvr.md` | workflow doc + reference | 新增 `ui-workflows/dvr-controls.md`、`ui-workflows/event-log.md`、`ui-workflows/event-history.md`；state-machine 細節保留原檔。 |
 | `design/frontend/grafana-embed.md` | workflow doc + reference | 新增 `ui-workflows/grafana.md`；iframe / session / window mechanics 保留原檔。 |
 | `design/features/traffic-chart.md` | scenario support + reference | 作為 Grafana / troubleshooting 文件的支援 reference。 |
 | `design/features/subscription-chain.md`、`nwdaf-ml-cycle.md` | scenario examples | 保留為具體 feature flow 例子；從 workflow / mental-model 文件往下連。 |
@@ -350,17 +350,18 @@ docs/5g-viz/
 
 - topology 在看什麼
 - event log 在看什麼
+- event 何時進前端、前端如何保留與補抓歷史
 - Grafana 在看什麼
 - DVR controls 在做什麼
-- 常見工作流程與觀察方式
+- 需要直接由畫面與操作理解的跨區塊行為
 
 #### 預計產出
 
 - `docs/5g-viz/ui-workflows/topology.md`
 - `docs/5g-viz/ui-workflows/event-log.md`
+- `docs/5g-viz/ui-workflows/event-history.md`
 - `docs/5g-viz/ui-workflows/grafana.md`
 - `docs/5g-viz/ui-workflows/dvr-controls.md`
-- `docs/5g-viz/ui-workflows/common-workflows.md`
 
 #### 不要做的事
 
@@ -501,8 +502,8 @@ docs/5g-viz/
 
 | Phase | 名稱 | 狀態 | 最近更新 | 備註 |
 |---|---|---|---|---|
-| 1 | 入口層與導覽層 | In Progress | 2026-04-16 | 已新增 `docs/5g-viz/README.md` 與 `start-here/` 初版；仍可持續收斂語氣、入口排序與 index 連結 |
-| 2 | UI 與工作流程層 | Pending | — | 尚未開始撰寫 workflow 正文 |
+| 1 | 入口層與導覽層 | Completed | 2026-04-16 | `docs/5g-viz/README.md` 與 `start-here/` 初版已建立，並完成第一輪語氣收斂 |
+| 2 | UI 與工作流程層 | In Progress | 2026-04-16 | 已新增 `ui-workflows/` 初版與主入口連結；`common-workflows.md` 已改為更具體的 `event-history.md`；後續仍可持續收斂內容邊界與交叉連結 |
 | 3 | 心智模型與 troubleshooting 層 | Pending | — | 尚未開始 |
 | 4 | reference re-anchoring 與 legacy cleanup | Pending | — | 尚未開始 |
 
@@ -516,15 +517,23 @@ docs/5g-viz/
 | 入口 | `docs/5g-viz/start-here/what-is-5g-viz.md` | Drafted | Phase 1 初版已建立 |
 | 入口 | `docs/5g-viz/start-here/live-vs-replay.md` | Drafted | Phase 1 初版已建立 |
 | 入口 | `docs/5g-viz/start-here/screen-tour.md` | Drafted | Phase 1 初版已建立 |
+| workflow | `docs/5g-viz/ui-workflows/README.md` | Drafted | Phase 2 初版已建立 |
+| workflow | `docs/5g-viz/ui-workflows/topology.md` | Drafted | Phase 2 初版已建立 |
+| workflow | `docs/5g-viz/ui-workflows/event-log.md` | Drafted | Phase 2 初版已建立 |
+| workflow | `docs/5g-viz/ui-workflows/event-history.md` | Drafted | 取代較不穩定的 `common-workflows.md`，聚焦 event buffer / history fetch / scrub 行為 |
+| workflow | `docs/5g-viz/ui-workflows/grafana.md` | Drafted | Phase 2 初版已建立 |
+| workflow | `docs/5g-viz/ui-workflows/dvr-controls.md` | Drafted | Phase 2 初版已建立 |
 | 索引 | `docs/README.md` | Updated | 已補 `5g-viz` 入口與 `plans/docs/` 區塊 |
 | 索引 | `docs/5g-viz/design/README.md` | Updated | 已補「先看新入口」導向 |
 | 索引 | `docs/5g-viz/plans/README.md` | Updated | 已補 docs 規劃區塊 |
+| 索引 | `docs/5g-viz/README.md` | Updated | 已加入 `ui-workflows/` 閱讀入口 |
+| 索引 | `docs/5g-viz/start-here/README.md` | Updated | 已加入 workflow 層導向 |
 
 ### Current checkpoint
 
 | 日期 | 狀態摘要 | 下一步 |
 |---|---|---|
-| 2026-04-16 | 規劃藍圖完成；Phase 1 入口層初版已建立；寫作語氣約束已納入計畫 | 依審核結果決定：繼續收斂 Phase 1，或進入 Phase 2 workflow 文件 |
+| 2026-04-16 | 規劃藍圖完成；Phase 1 入口層已建立；Phase 2 `ui-workflows/` 初版已建立；寫作語氣約束已納入計畫；`common-workflows.md` 已替換為 `event-history.md` | 依審核結果決定：繼續收斂 Phase 2 workflow 文件，或進入 Phase 3 mental-model / troubleshooting 文件 |
 
 ### Update rule
 

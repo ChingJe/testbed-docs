@@ -21,6 +21,7 @@ docs/
 ├── 5g-viz/                 即時視覺化系統（FastAPI + WebSocket + Grafana）
 │   ├── README.md           給人的入口頁，先講系統是什麼、怎麼讀這套文件
 │   ├── start-here/         onboarding / first-read 文件
+│   ├── ui-workflows/       畫面區塊與操作流程文件
 │   ├── design/
 │   │   ├── overview/       canonical 系統層文件
 │   │   ├── backend/        canonical 後端文件
