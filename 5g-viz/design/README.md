@@ -3,12 +3,31 @@
 本目錄收錄 `5g-viz` 目前系統行為的 canonical 設計文件。
 這一層偏向 deep technical reference，不是第一次閱讀 `5g-viz` 的建議入口。
 
-如果你是第一次接觸這套系統，先看：
+第一次接觸這套系統時，先看：
 
 - [`../README.md`](../README.md)
 - [`../start-here/README.md`](../start-here/README.md)
 
 歷史規劃與設計探索內容已移至 [`../plans/`](../plans/README.md)。
+
+若需要 deep reference 的主題索引，先看：
+
+- [`../reference/README.md`](../reference/README.md)
+
+## 什麼時候應該讀 `design/*`
+
+適合的情況包括：
+
+- 需要確認某個行為在目前程式碼裡的 canonical 描述
+- 需要查 subsystem 邊界、API、schema、runtime 契約
+- 需要把 human-facing docs 往下連到更細的實作文件
+
+這一層不處理的事情是：
+
+- onboarding
+- 畫面導覽
+- first-pass mental model
+- 常見現象的 first-line explanation
 
 ## 結構
 

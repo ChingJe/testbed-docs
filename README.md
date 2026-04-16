@@ -1,7 +1,7 @@
 # docs
 
 `~/testbed` 的 5G 測試床獨立文件庫。
-刻意與程式碼儲存庫分離，讓文件可以獨立演進。
+與程式碼儲存庫分離，讓文件可以獨立演進。
 
 ## 結構
 
@@ -24,6 +24,7 @@ docs/
 │   ├── ui-workflows/       畫面區塊與操作流程文件
 │   ├── mental-model/       概念邊界與資料路徑說明
 │   ├── troubleshooting/    常見現象與解釋
+│   ├── reference/          deep reference 導覽與主題索引
 │   ├── design/
 │   │   ├── overview/       canonical 系統層文件
 │   │   ├── backend/        canonical 後端文件
@@ -40,6 +41,7 @@ docs/
 │   │   ├── grafana/        Grafana 整合規劃
 │   │   └── dvr/            DVR 規劃與除錯筆記
 │   ├── notes/
+│   │   ├── README.md       notes 的定位與使用邊界
 │   │   ├── meetings/       會議紀錄（YYYY-MM-DD-meeting.md）
 │   │   ├── impl/           實作筆記與決策
 │   │   └── internals/      系統內部閱讀筆記

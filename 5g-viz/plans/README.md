@@ -4,6 +4,7 @@
 這些文件保留功能規劃或實作當下的設計脈絡與除錯背景，可作為背景材料，但不應視為目前程式碼的 canonical 描述。
 
 如果需要維護中的系統文件，請優先閱讀 [`../design/`](../design/README.md)。
+若需要 deep reference 的主題索引，請看 [`../reference/README.md`](../reference/README.md)。
 
 ## 結構
 

@@ -23,8 +23,9 @@
 4. [UI Workflows](./ui-workflows/README.md)
 5. [Mental Model](./mental-model/README.md)
 6. [Common Scenarios](./troubleshooting/common-scenarios.md)
+7. [Reference](./reference/README.md)
 
-這三份讀完後，再依需求進入 deeper reference：
+上述路徑讀完後，再依需求進入 deeper reference：
 
 - 想看系統與資料路徑：[`design/overview/`](./design/overview/README.md)
 - 想看 DVR / replay：[`design/dvr/`](./design/dvr/README.md)
@@ -37,9 +38,10 @@
 - [`ui-workflows/`](./ui-workflows/README.md)：依畫面區塊與操作流程理解系統
 - [`mental-model/`](./mental-model/README.md)：解釋 event、snapshot、metrics 與 live / replay 的概念邊界
 - [`troubleshooting/`](./troubleshooting/common-scenarios.md)：整理常見現象與最常見解釋
+- [`reference/`](./reference/README.md)：deep reference 導覽與主題索引
 - [`design/`](./design/README.md)：深層設計與 implementation reference
 - [`plans/`](./plans/README.md)：歷史規劃與設計探索
-- `notes/`：實作 / 會議 / 內部筆記，不是 onboarding 主入口
+- [`notes/`](./notes/README.md)：實作 / 會議 / 內部筆記，不是 onboarding 主入口
 
 ## 三個基礎前提
 

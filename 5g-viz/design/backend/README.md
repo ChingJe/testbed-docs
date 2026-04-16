@@ -2,6 +2,16 @@
 
 本目錄收錄 `5g-viz` 後端行為的 canonical 文件，聚焦於事件收集、解析、狀態管理、API 與 metrics。
 
+適合的情況包括：
+
+- 需要查 collector、parser、state、API、metrics 的實際責任邊界
+- 需要確認 `state_snapshot`、replay backfill、pseudo-live remote write 的 backend 路徑
+
+若目前需求是先理解畫面上的效果，先讀：
+
+- [`../../ui-workflows/`](../../ui-workflows/README.md)
+- [`../../mental-model/`](../../mental-model/README.md)
+
 主要文件：
 
 - [collector.md](collector.md)：live 模式下的 SSH log 收集器、queue contract 與 reconnect 行為
