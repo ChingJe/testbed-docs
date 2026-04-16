@@ -12,7 +12,7 @@
 
 - 實際使用時會看到什麼
 - 主畫面各區塊在做什麼
-- live 與 replay 在體感上有什麼差異
+- live 與 replay 在使用行為與畫面行為上有什麼差異
 - 常見操作時，畫面、資料、圖表分別會怎麼變
 - event、snapshot、metrics、Prometheus、Grafana、pseudo-live 之間的關係
 
@@ -171,6 +171,15 @@
    - `notes/*`：內部筆記 / 背景
    - `design/*`：深層設計 / reference
    - 新增的人類導向層：主要閱讀入口
+
+9. 高層文件的敘述語氣採直接陳述式，不採導覽式第二人稱。
+   - 避免使用第二人稱，如「你會看到」「如果你想」「你現在看到的是」。
+   - 避免假設讀者的視覺感受、體感或主觀反應，如「第一眼會覺得」「直覺上會看到」。
+   - 優先直接說明物件是什麼、用途是什麼、與其他部分的關係是什麼。
+
+10. 高層文件不使用寫給作者或維護者自己的階段性口吻。
+   - 避免使用「目標不是取代...」「這一層刻意不做...」這類偏規劃備忘錄式寫法作為正文主敘述。
+   - 若需要說明文件層級或閱讀定位，應直接陳述其角色，例如「本目錄收錄...」「本文件說明...」「`design/*` 保留為 reference」。
 
 ## 5. 新的資訊架構建議
 
@@ -367,14 +376,14 @@ docs/5g-viz/
 - event log 顯示的是什麼
 - Grafana 顯示的是什麼
 - Pause / Play / Scrub / Go Live / Chart Window 各自做什麼
-- 哪些操作在 live 與 replay 下體感不同
+- 哪些操作在 live 與 replay 下有不同的畫面與資料行為
 
 #### 風險 / 注意事項
 
 - 風險：變成 frontend deep docs 的第二份副本。
 - 處理方式：每篇 workflow doc 固定用下面順序：
-  - 你會看到什麼
-  - 你可以做什麼
+  - 區塊或機制是什麼
+  - 主要用途與操作
   - 常見誤解
   - 如需細節，再往下連 reference
 
@@ -477,7 +486,60 @@ docs/5g-viz/
 4. troubleshooting 需要 Phase 1 與 Phase 2 的共通詞彙，否則容易再次寫成 implementation note。
 5. reference cleanup 放最後，才能避免在 reader path 尚未成形前就先做高 churn 搬動。
 
-## 9. 後續 session 接手說明
+## 9. 重構進度表
+
+這個區塊用來記錄實際重構進度，而不是只記規劃。
+
+後續 session 若有執行任何 phase，應同步更新：
+
+- 各 phase 狀態
+- 已新增 / 已調整的文件
+- 本輪完成項
+- 下一步建議
+
+### Phase status tracker
+
+| Phase | 名稱 | 狀態 | 最近更新 | 備註 |
+|---|---|---|---|---|
+| 1 | 入口層與導覽層 | In Progress | 2026-04-16 | 已新增 `docs/5g-viz/README.md` 與 `start-here/` 初版；仍可持續收斂語氣、入口排序與 index 連結 |
+| 2 | UI 與工作流程層 | Pending | — | 尚未開始撰寫 workflow 正文 |
+| 3 | 心智模型與 troubleshooting 層 | Pending | — | 尚未開始 |
+| 4 | reference re-anchoring 與 legacy cleanup | Pending | — | 尚未開始 |
+
+### Artifact tracker
+
+| 類別 | 項目 | 狀態 | 備註 |
+|---|---|---|---|
+| 計畫 | `plans/docs/5g-viz-restructure-plan.md` | Active | 正式規劃檔；後續應持續更新 phase 狀態與決策 |
+| 入口 | `docs/5g-viz/README.md` | Drafted | Phase 1 初版已建立 |
+| 入口 | `docs/5g-viz/start-here/README.md` | Drafted | Phase 1 初版已建立 |
+| 入口 | `docs/5g-viz/start-here/what-is-5g-viz.md` | Drafted | Phase 1 初版已建立 |
+| 入口 | `docs/5g-viz/start-here/live-vs-replay.md` | Drafted | Phase 1 初版已建立 |
+| 入口 | `docs/5g-viz/start-here/screen-tour.md` | Drafted | Phase 1 初版已建立 |
+| 索引 | `docs/README.md` | Updated | 已補 `5g-viz` 入口與 `plans/docs/` 區塊 |
+| 索引 | `docs/5g-viz/design/README.md` | Updated | 已補「先看新入口」導向 |
+| 索引 | `docs/5g-viz/plans/README.md` | Updated | 已補 docs 規劃區塊 |
+
+### Current checkpoint
+
+| 日期 | 狀態摘要 | 下一步 |
+|---|---|---|
+| 2026-04-16 | 規劃藍圖完成；Phase 1 入口層初版已建立；寫作語氣約束已納入計畫 | 依審核結果決定：繼續收斂 Phase 1，或進入 Phase 2 workflow 文件 |
+
+### Update rule
+
+每次後續 session 若有實際推進，至少更新以下三處之一：
+
+- `Phase status tracker`
+- `Artifact tracker`
+- `Current checkpoint`
+
+若 phase 邊界或定義改變，則還要同步更新：
+
+- `分階段執行方案`
+- `決策紀錄區塊`
+
+## 10. 後續 session 接手說明
 
 後續 session 若要接手，建議照以下順序：
 
@@ -494,6 +556,10 @@ docs/5g-viz/
    - `profiles/default/topology.yaml`
 5. 優先往下連 existing reference docs，不要複製第二份 deep explanation。
 6. 若後續實作發現本計畫的結構太細或太粗，先更新本檔，再開始新增 / 改寫文件。
+7. 後續新增的人類導向文件，需遵守本檔「重構原則」中的語氣約束，特別是：
+   - 不使用第二人稱作為主要敘述方式
+   - 不假設讀者主觀感受
+   - 不在正文中使用寫給作者自己的階段性規劃口吻
 
 ### Session continuation checklist
 
@@ -502,8 +568,9 @@ docs/5g-viz/
 - 新發現的 open questions：
 - 是否改了 mapping / phase 邊界：
 - 是否更新 decision log：
+- 是否更新 progress tracker：
 
-## 10. 決策紀錄區塊
+## 11. 決策紀錄區塊
 
 ### Active decisions
 

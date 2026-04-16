@@ -19,6 +19,8 @@ docs/
 │   └── reports/            事故與 bug 報告
 │
 ├── 5g-viz/                 即時視覺化系統（FastAPI + WebSocket + Grafana）
+│   ├── README.md           給人的入口頁，先講系統是什麼、怎麼讀這套文件
+│   ├── start-here/         onboarding / first-read 文件
 │   ├── design/
 │   │   ├── overview/       canonical 系統層文件
 │   │   ├── backend/        canonical 後端文件
@@ -30,6 +32,7 @@ docs/
 │   ├── plans/              歷史實作規劃與設計探索
 │   │   ├── architecture/   跨層規劃文件
 │   │   ├── backend/        後端重構規劃
+│   │   ├── docs/           文件架構與重構規劃
 │   │   ├── frontend/       前端規劃文件
 │   │   ├── grafana/        Grafana 整合規劃
 │   │   └── dvr/            DVR 規劃與除錯筆記

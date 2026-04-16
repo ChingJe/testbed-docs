@@ -1,6 +1,13 @@
 # 5g-viz Design
 
 本目錄收錄 `5g-viz` 目前系統行為的 canonical 設計文件。
+這一層偏向 deep technical reference，不是第一次閱讀 `5g-viz` 的建議入口。
+
+如果你是第一次接觸這套系統，先看：
+
+- [`../README.md`](../README.md)
+- [`../start-here/README.md`](../start-here/README.md)
+
 歷史規劃與設計探索內容已移至 [`../plans/`](../plans/README.md)。
 
 ## 結構
