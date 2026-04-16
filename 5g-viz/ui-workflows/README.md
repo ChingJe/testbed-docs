@@ -30,6 +30,8 @@
 
 - `start-here/`：先建立系統定位、模式差異與主畫面概念
 - `ui-workflows/`：開始進入各區塊與操作流程
+- `mental-model/`：解釋這些畫面現象背後的概念邊界
+- `troubleshooting/`：整理最常見的使用情境與誤解
 - `design/*`：需要 deeper implementation / runtime / reference 時再往下讀
 
 ## 對應的 deeper reference

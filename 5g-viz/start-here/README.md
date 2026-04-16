@@ -18,6 +18,8 @@
 ## 後續閱讀方向
 
 - 畫面區塊與操作流程：[`../ui-workflows/`](../ui-workflows/README.md)
+- 概念邊界與資料路徑：[`../mental-model/`](../mental-model/README.md)
+- 常見現象與解釋：[`../troubleshooting/common-scenarios.md`](../troubleshooting/common-scenarios.md)
 - 系統組件與端到端資料流：[`../design/overview/`](../design/overview/README.md)
 - pause / replay / pseudo-live：[`../design/dvr/`](../design/dvr/README.md)
 - topology / DVR / Grafana iframe 的實作行為：[`../design/frontend/`](../design/frontend/README.md)

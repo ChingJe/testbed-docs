@@ -201,6 +201,7 @@ docs/5g-viz/
     grafana.md
     dvr-controls.md
   mental-model/
+    README.md
     events-snapshots-metrics.md
     live-vs-replay-data-paths.md
     ui-only-vs-metric-events.md
@@ -503,8 +504,8 @@ docs/5g-viz/
 | Phase | 名稱 | 狀態 | 最近更新 | 備註 |
 |---|---|---|---|---|
 | 1 | 入口層與導覽層 | Completed | 2026-04-16 | `docs/5g-viz/README.md` 與 `start-here/` 初版已建立，並完成第一輪語氣收斂 |
-| 2 | UI 與工作流程層 | In Progress | 2026-04-16 | 已新增 `ui-workflows/` 初版與主入口連結；`common-workflows.md` 已改為更具體的 `event-history.md`；後續仍可持續收斂內容邊界與交叉連結 |
-| 3 | 心智模型與 troubleshooting 層 | Pending | — | 尚未開始 |
+| 2 | UI 與工作流程層 | Completed | 2026-04-16 | `ui-workflows/` 初版已建立，並完成 `event-history.md`、`state_snapshot` 與 `pre-seed` 補強 |
+| 3 | 心智模型與 troubleshooting 層 | Completed | 2026-04-16 | `mental-model/` 與 `troubleshooting/common-scenarios.md` 初版已建立 |
 | 4 | reference re-anchoring 與 legacy cleanup | Pending | — | 尚未開始 |
 
 ### Artifact tracker
@@ -523,6 +524,11 @@ docs/5g-viz/
 | workflow | `docs/5g-viz/ui-workflows/event-history.md` | Drafted | 取代較不穩定的 `common-workflows.md`，聚焦 event buffer / history fetch / scrub 行為 |
 | workflow | `docs/5g-viz/ui-workflows/grafana.md` | Drafted | Phase 2 初版已建立 |
 | workflow | `docs/5g-viz/ui-workflows/dvr-controls.md` | Drafted | Phase 2 初版已建立 |
+| mental-model | `docs/5g-viz/mental-model/README.md` | Drafted | Phase 3 初版已建立 |
+| mental-model | `docs/5g-viz/mental-model/events-snapshots-metrics.md` | Drafted | 說明 event / snapshot / metrics 的分工 |
+| mental-model | `docs/5g-viz/mental-model/live-vs-replay-data-paths.md` | Drafted | 說明 live / replay 的資料來源與 chart 路徑差異 |
+| mental-model | `docs/5g-viz/mental-model/ui-only-vs-metric-events.md` | Drafted | 說明 UI-only event 與 metric event 邊界 |
+| troubleshooting | `docs/5g-viz/troubleshooting/common-scenarios.md` | Drafted | 整理跨區塊常見現象與最常見解釋 |
 | 索引 | `docs/README.md` | Updated | 已補 `5g-viz` 入口與 `plans/docs/` 區塊 |
 | 索引 | `docs/5g-viz/design/README.md` | Updated | 已補「先看新入口」導向 |
 | 索引 | `docs/5g-viz/plans/README.md` | Updated | 已補 docs 規劃區塊 |
@@ -533,7 +539,7 @@ docs/5g-viz/
 
 | 日期 | 狀態摘要 | 下一步 |
 |---|---|---|
-| 2026-04-16 | 規劃藍圖完成；Phase 1 入口層已建立；Phase 2 `ui-workflows/` 初版已建立；寫作語氣約束已納入計畫；`common-workflows.md` 已替換為 `event-history.md` | 依審核結果決定：繼續收斂 Phase 2 workflow 文件，或進入 Phase 3 mental-model / troubleshooting 文件 |
+| 2026-04-16 | 規劃藍圖完成；Phase 1 入口層已建立；Phase 2 `ui-workflows/` 初版已建立；Phase 3 `mental-model/` 與 `troubleshooting/` 初版已建立；寫作語氣約束已納入計畫；`common-workflows.md` 已替換為 `event-history.md` | 依審核結果決定：進入 Phase 4 reference re-anchoring，或先收斂 Phase 3 的概念邊界與 scenario wording |
 
 ### Update rule
 

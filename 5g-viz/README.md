@@ -21,6 +21,8 @@
 2. [Live Vs Replay](./start-here/live-vs-replay.md)
 3. [Screen Tour](./start-here/screen-tour.md)
 4. [UI Workflows](./ui-workflows/README.md)
+5. [Mental Model](./mental-model/README.md)
+6. [Common Scenarios](./troubleshooting/common-scenarios.md)
 
 這三份讀完後，再依需求進入 deeper reference：
 
@@ -33,6 +35,8 @@
 
 - [`start-here/`](./start-here/README.md)：給第一次接觸這個系統的人
 - [`ui-workflows/`](./ui-workflows/README.md)：依畫面區塊與操作流程理解系統
+- [`mental-model/`](./mental-model/README.md)：解釋 event、snapshot、metrics 與 live / replay 的概念邊界
+- [`troubleshooting/`](./troubleshooting/common-scenarios.md)：整理常見現象與最常見解釋
 - [`design/`](./design/README.md)：深層設計與 implementation reference
 - [`plans/`](./plans/README.md)：歷史規劃與設計探索
 - `notes/`：實作 / 會議 / 內部筆記，不是 onboarding 主入口

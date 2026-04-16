@@ -22,6 +22,8 @@ docs/
 │   ├── README.md           給人的入口頁，先講系統是什麼、怎麼讀這套文件
 │   ├── start-here/         onboarding / first-read 文件
 │   ├── ui-workflows/       畫面區塊與操作流程文件
+│   ├── mental-model/       概念邊界與資料路徑說明
+│   ├── troubleshooting/    常見現象與解釋
 │   ├── design/
 │   │   ├── overview/       canonical 系統層文件
 │   │   ├── backend/        canonical 後端文件
