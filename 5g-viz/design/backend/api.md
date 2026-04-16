@@ -129,6 +129,12 @@
 
 這組 API 只有在 replay mode 且 `_metric_player` 已建立時才可用，否則會回 `404`。
 
+**目前限制**：
+
+- replay playback 目前是**單一使用者 / 單一 active player**設計，不是多人隔離架構
+- backend 只維護一份 active `MetricPlayer` stream；若第二個瀏覽器呼叫 `/api/replay/play`，會先停止前一個 pseudo-live stream，再切到新的 `pseudo_session`
+- 因此多個使用者可以同時看 live 頁面，但**不應同時操作同一個 replay backend**
+
 ### `POST /api/replay/play`
 
 request body：
@@ -169,6 +175,8 @@ request body：
 行為：
 
 - 若 pseudo session 正在播放，停止它並回 `{"status": "paused"}`
+- backend 會接著透過 Prometheus admin API 刪掉該 `pseudo_session` 的 `nwdaf_*` series，避免 Grafana
+  session 下拉選單累積舊的 `_live_...` 項目
 - 若找不到對應的 active pseudo session，回 `204 No Content`
 
 ### `POST /api/replay/speed`

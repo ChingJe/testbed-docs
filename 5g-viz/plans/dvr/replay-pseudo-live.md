@@ -30,6 +30,13 @@ Prometheus TSDB 中會存在兩組不衝突的資料：
                  └─ 用途：PLAYING 時 Grafana now-Nm ~ now 顯示（每次 Play 皆為新的 pseudo_session）
 ```
 
+**多人使用限制**：
+
+- 目前 replay pseudo-live 是**單一使用者控制語意**
+- backend 只維護一份 active pseudo-live emit loop，不做 per-browser / per-user 隔離
+- 因此若第二個使用者在同一個 backend 上按 `Play`，會取代前一個使用者的 replay stream；這不是 bug，而是目前設計範圍
+- 若未來要支援多人同時 replay，需把 `MetricPlayer`、`/api/replay/*` 與 pseudo-session cleanup 全部改成 per-client ownership 模型
+
 ### 14.3 後端 MetricPlayer
 
 新增 `MetricPlayer` class（建議放在獨立的 `metric_player.py`），管理 replay 播放期間的 pseudo-live metric 發射。
@@ -177,7 +184,9 @@ Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著沿相同 `pseudo_s
 
 1. 僅當 `pseudo_session` 等於目前 active 的 pseudo-live stream 時才處理；若收到舊 token，直接忽略或回傳 204，避免 race condition。
 2. 取消 emit loop 的 `asyncio.sleep`，停止為該 `pseudo_session` 產生新的 remote-write sample。
-3. 前端切回原始 session 的 backfill 視窗；舊的 `pseudo_session` 樣本留在當前 replay run 的 TSDB 中，但不再被 Grafana 查詢。
+3. 透過 Prometheus admin API 呼叫 `delete_series` + `clean_tombstones`，刪掉
+   `session="<pseudo_session>"` 的 `nwdaf_*` series，避免 Grafana session 選單累積舊 `_live_...`。
+4. 前端切回原始 session 的 backfill 視窗。
 
 #### `/api/replay/speed`
 
@@ -289,28 +298,33 @@ Pre-seed 最後一筆 timestamp ≈ now。MetricPlayer 接著沿相同 `pseudo_s
 
 #### 多次 Play / Pause 循環
 
-每次 play 都會產生新的 `pseudo_session`，pause / play end 只會停止該 stream 的 emit loop，不再為它產生新的 remote-write sample。Grafana `now-Nm ~ now` 只查當前 `pseudo_session`，因此同一輪 replay 中先前播放留下的 pseudo-live 樣本不會混入目前畫面。
+每次 play 都會產生新的 `pseudo_session`，pause / play end 會先停止該 stream 的 emit loop，再刪掉
+當次 pseudo-live series。Grafana `now-Nm ~ now` 只查當前 `pseudo_session`，因此同一輪 replay 中先前播放留下的 `_live_...` 樣本不會混入目前畫面。
 
 為了避免「跨 replay 啟動」讀到舊版本遺留的 replay / scrape 樣本，`start.sh --replay` 目前會先清空 managed Prometheus TSDB（`~/prometheus/data`）再啟動。這讓 replay 驗證保持可重現，也解掉了先前同一個 model 出現雙線的污染問題。
 
 #### Prometheus 空間回收
 
-Pseudo-live 每次 Play 都會產生新的 `pseudo_session`，因此 Prometheus TSDB 中的 series / samples 會隨播放次數累積。這不會影響查詢正確性，因為 Grafana 只查當前 `pseudo_session`；但若使用者頻繁 play / pause / scrub，磁碟佔用會逐步增加。
+Pseudo-live 每次 Play 都會產生新的 `pseudo_session`，但目前 backend 會在 pause / play end 與 app
+startup / shutdown 主動清掉 `_live_...` series，因此不再把 pseudo sessions 長期留在 TSDB 裡。
 
 **目前的回收機制**：
 
-- Replay run 之間：`start.sh --replay` 會先清空 managed TSDB，因此上一輪 replay 的 pseudo-live 資料不會帶到下一輪。
-- 同一輪 replay 之內：舊的 `pseudo_session` 樣本仍保留在 TSDB，但 Grafana 只查當前 `pseudo_session`，不影響畫面正確性。
+- App startup：backend 啟動時先掃掉 `session=~"_live_.+"` 的 pseudo-live series，避免前一次執行殘留。
+- Pause / play end：刪掉當次 `pseudo_session`。
+- App shutdown：再掃一次所有 `_live_...`，避免切回 live 時 Grafana 還看到舊 pseudo session。
+- Grafana session variable 不再用 `label_values(...)` 直接讀 Prometheus label index，而是改查 retention
+  內仍有樣本的 session；因此被刪掉的 `_live_...` 不會只因 tombstone / index 殘留繼續出現在下拉選單。
 
 **建議的加強方案**：
 
-1. **明確設定 TSDB retention**：在 `start.sh` 加 `--storage.tsdb.retention.time=<duration>`，避免 pseudo-live 累積太久。若系統仍需要保留較久的一般 replay/live session，應保守設定（例如 `3d`、`7d`），或優先搭配第 2 項只刪 pseudo-live series，而不要直接把全域 retention 壓到過短。
-2. **主動刪除 pseudo-live series**：在 `pause` / `play end` 後，透過 Prometheus admin API 呼叫 `delete_series` 刪除 `session="<pseudo_session>"` 的所有 `nwdaf_*` series，之後再視需要呼叫 `clean_tombstones`。這能讓 pseudo-live 歷史資料更快從查詢結果中消失，但實際磁碟空間回收仍取決於 Prometheus compaction / tombstone 清理節奏，不是立即釋放。
+1. **明確設定 TSDB retention**：在 `start.sh` 加 `--storage.tsdb.retention.time=<duration>`，避免一般 replay/live session 留太久。若系統仍需要保留較久的一般歷史，應保守設定（例如 `3d`、`7d`）。
+2. **更細粒度的 tombstone 策略**：目前 pause 與 startup/shutdown 都會呼叫 `clean_tombstones`。若未來覺得 pause 路徑的 admin API 成本偏高，可改成只在 startup/shutdown 做 tombstone 清理，pause 僅標記 delete。
 
 **本 phase 現況**：
 
-- 已採用「唯一 `pseudo_session` + replay 啟動清 TSDB」的保守策略，優先確保 replay 驗證結果乾淨、可重現。
-- 若未來希望保留 replay run 之間的 Prometheus 歷史，再重新評估 retention 或 `delete_series` / `clean_tombstones`。
+- 已採用「唯一 `pseudo_session` + delete_series cleanup」策略，避免 replay 與 live 間殘留舊 `_live_...` session。
+- 若未來希望保留更長期的 Prometheus 歷史，再重新評估 retention 與 tombstone 清理頻率。
 
 #### 播放速度對 Grafana 曲線密度的影響
 

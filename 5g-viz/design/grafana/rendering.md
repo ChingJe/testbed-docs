@@ -84,19 +84,21 @@ topk by (session) (1, timestamp(nwdaf_deviation{session="$session"}))
 dashboard 內建一個 template variable：
 
 ```promql
-label_values(nwdaf_ground_truth_ul_bytes, session)
+query_result(count by (session) (count_over_time(nwdaf_retrain_total[365d])))
 ```
 
-也就是說，Grafana 可切換的 session 候選集合目前完全來自：
+並用 regex 從 query result 抽出 `session="..."` label。
+
+也就是說，Grafana 可切換的 session 候選集合目前來自 retention 視窗內實際還有樣本的：
 
 ```text
-nwdaf_ground_truth_ul_bytes
+nwdaf_retrain_total
 ```
 
 這帶來兩個直接效果：
 
-- 若某個 session 沒有任何 ground-truth traffic metric，它就不會出現在 session 下拉選單
-- deviation-only 或 retrain-only 的 session 不會單靠其他 metrics 出現在 dashboard variable 中
+- pseudo session 若已被 `delete_series` 清掉，就不會只因為舊 label index 殘留而繼續出現在下拉選單
+- pseudo-live 在 Play 開始時只要先寫入 `nwdaf_retrain_total` 錨點樣本，就能立刻出現在 session 下拉選單
 
 前端 iframe 則是直接用 `var-session=<session_id>` 指定當前要看的 session。
 
