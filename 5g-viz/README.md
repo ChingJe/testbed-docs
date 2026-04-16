@@ -19,12 +19,13 @@
 
 1. [Guides](./guides/README.md)
 2. [What Is 5g-viz](./guides/start-here/what-is-5g-viz.md)
-3. [Live Vs Replay](./guides/start-here/live-vs-replay.md)
-4. [Screen Tour](./guides/start-here/screen-tour.md)
-5. [UI Workflows](./guides/ui-workflows/README.md)
-6. [Mental Model](./guides/mental-model/README.md)
-7. [Common Scenarios](./guides/troubleshooting/common-scenarios.md)
-8. [Reference](./reference/README.md)
+3. [Terminology](./guides/start-here/terminology.md)
+4. [Live Vs Replay](./guides/start-here/live-vs-replay.md)
+5. [Screen Tour](./guides/start-here/screen-tour.md)
+6. [UI Workflows](./guides/ui-workflows/README.md)
+7. [Mental Model](./guides/mental-model/README.md)
+8. [Common Scenarios](./guides/troubleshooting/common-scenarios.md)
+9. [Reference](./reference/README.md)
 
 上述路徑讀完後，再依需求進入 deeper reference：
 

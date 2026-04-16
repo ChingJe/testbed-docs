@@ -9,10 +9,13 @@
 1. [What Is 5g-viz](./what-is-5g-viz.md)  
    說明系統定位、解決的問題，以及 topology、event log、Grafana 三個主要觀測面。
 
-2. [Live Vs Replay](./live-vs-replay.md)  
+2. [Terminology](./terminology.md)  
+   整理 guides 中較常出現、且需要先釐清邊界的名詞。
+
+3. [Live Vs Replay](./live-vs-replay.md)  
    說明兩種模式在資料來源、時間語意、畫面行為與圖表行為上的差異。
 
-3. [Screen Tour](./screen-tour.md)  
+4. [Screen Tour](./screen-tour.md)  
    依畫面區塊說明各部分的角色與用途。
 
 ## 後續閱讀方向
