@@ -13,7 +13,7 @@
 
 ## 2. 目前的 metric 集合
 
-目前系統定義了八條 metrics，全部在 `rules/nwdaf.py`：
+目前系統定義了九條 metrics，全部在 `rules/nwdaf.py`：
 
 | Metric | 型別 | Labels | 來源事件 |
 |---|---|---|---|
@@ -25,6 +25,7 @@
 | `nwdaf_retrain_total` | Counter | `session` | `retrain_trigger` |
 | `nwdaf_retrain_start_event` | Gauge | `session` | `retrain_trigger` |
 | `nwdaf_retrain_done_event` | Gauge | `session` | `retrain_done` |
+| `nwdaf_session_anchor` | Gauge | `session` | session 建立時 |
 
 這些 series 目前都以 `session` label 作為主要切分維度，Grafana 也是靠這個 label 切換不同錄製或 pseudo-live session。
 
@@ -60,6 +61,23 @@ event.get("session") or _SESSION_ID
 
 - event payload 不一定要自帶 `session`
 - 只要 live session 已初始化，metric handler 仍能把樣本寫到正確的 session series
+
+### `nwdaf_session_anchor` 的初始化
+
+live mode 建立新 session 時，`main.py` 除了呼叫 `set_metric_session_id()` 之外，還會呼叫：
+
+```python
+ensure_metric_session(session_id)
+```
+
+這對應 `rules/__init__.py` 中的 `ensure_metric_session()`，它會呼叫每個 rule 模組的
+`ensure_session_metrics()`。`rules/nwdaf.py` 的實作會：
+
+1. 把 `nwdaf_session_anchor{session}` 設為 `1`
+2. 把 `nwdaf_retrain_start_event` 與 `nwdaf_retrain_done_event` 初始化為 `0`
+
+此外，`main.py` 也會同時以 remote write 寫入一筆 `nwdaf_session_anchor` 樣本，讓 session 在
+下一次 Prometheus scrape 之前就出現在 Grafana session 下拉選單。
 
 ## 4. 各 handler 的實際行為
 
@@ -149,6 +167,14 @@ dict[(metric, sorted_labels)] -> dict[ts_ms] -> value
 - 同一個 metric + labels + timestamp 若重複出現，後寫的值會覆蓋前值
 - 實際送出前會依 metric、labels、timestamp 排序
 
+此外，backfill 時會在 session 第一筆 metric event 的時間戳額外寫入：
+
+```text
+nwdaf_session_anchor{session="<session_id>"} = 1.0
+```
+
+確保 replay session 出現在 Grafana session 下拉選單。
+
 ### backfill 何時會跳過
 
 `_run_replay_backfill()` 預設會先 query：
@@ -211,9 +237,17 @@ _live_<原始session>__20260415T061530123456Z
 
 ## 8. Retrain metrics 在 pseudo-live 中的處理
 
-`MetricPlayer` 有兩個特別處理：
+`MetricPlayer` 有三個特別處理：
 
-1. 即使目前事件不是 `retrain_trigger`，它仍會在輸出的 series 中帶上一筆：
+1. 每筆 metric event 都會額外帶上一筆：
+
+```text
+nwdaf_session_anchor{session="<pseudo_session>"}
+```
+
+確保 pseudo session 從第一筆資料開始就出現在 Grafana session 下拉選單。
+
+2. 即使目前事件不是 `retrain_trigger`，它仍會在輸出的 series 中帶上一筆：
 
 ```text
 nwdaf_retrain_total{session="<pseudo_session>"}
@@ -221,7 +255,7 @@ nwdaf_retrain_total{session="<pseudo_session>"}
 
 這樣可以確保 counter 在 pseudo-live 播放過程中始終有可查詢的當前值，而不是只在 retrain 事件發生那一刻才出現樣本。
 
-2. 當事件為 `retrain_trigger` 或 `retrain_done` 時，會額外寫：
+3. 當事件為 `retrain_trigger` 或 `retrain_done` 時，會額外寫：
 
 ```text
 nwdaf_retrain_start_event{session="<pseudo_session>"}

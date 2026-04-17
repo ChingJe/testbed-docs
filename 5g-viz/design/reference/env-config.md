@@ -65,6 +65,7 @@ profiles/<PROFILE>/.env
 | `GRAFANA_ADMIN_USER` | string | `grafana_setup.py` | 建 datasource / dashboard |
 | `GRAFANA_ADMIN_PASS` | string | `grafana_setup.py` | 同上 |
 | `GRAFANA_GROUPS` | `a,b,c` | `config.py`、`grafana_setup.py`、`main.py` | dashboard panel 群組與 session metadata |
+| `GRAFANA_DEVIATION_LABEL` | string | `grafana_setup.py` | deviation panel 標題（選填，預設 `"Deviation (sMAPE)"`） |
 
 這裡有兩個重要限制：
 
@@ -157,6 +158,7 @@ key=value,key=value
 - `GRAFANA_ADMIN_USER`
 - `GRAFANA_ADMIN_PASS`
 - `GRAFANA_GROUPS`
+- `GRAFANA_DEVIATION_LABEL`（選填，已以 `#` 註解，預設 `"Deviation (sMAPE)"`）
 - `PROMETHEUS_BASE`
 
 其中 `setup.sh` 在第一次建立 profile 後，還會特別提示使用者檢查：

@@ -84,7 +84,7 @@ topk by (session) (1, timestamp(nwdaf_deviation{session="$session"}))
 dashboard 內建一個 template variable：
 
 ```promql
-query_result(count by (session) (count_over_time(nwdaf_retrain_total[365d])))
+query_result(count by (session) (count_over_time(nwdaf_session_anchor[365d])))
 ```
 
 並用 regex 從 query result 抽出 `session="..."` label。
@@ -92,13 +92,13 @@ query_result(count by (session) (count_over_time(nwdaf_retrain_total[365d])))
 也就是說，Grafana 可切換的 session 候選集合目前來自 retention 視窗內實際還有樣本的：
 
 ```text
-nwdaf_retrain_total
+nwdaf_session_anchor
 ```
 
 這帶來兩個直接效果：
 
 - pseudo session 若已被 `delete_series` 清掉，就不會只因為舊 label index 殘留而繼續出現在下拉選單
-- pseudo-live 在 Play 開始時只要先寫入 `nwdaf_retrain_total` 錨點樣本，就能立刻出現在 session 下拉選單
+- pseudo-live 在 Play 開始時只要先寫入 `nwdaf_session_anchor` 錨點樣本，就能立刻出現在 session 下拉選單
 
 前端 iframe 則是直接用 `var-session=<session_id>` 指定當前要看的 session。
 
@@ -107,8 +107,8 @@ nwdaf_retrain_total
 dashboard 目前建立兩條 annotations query：
 
 ```promql
-nwdaf_retrain_start_event{session="$session"} > 0
-nwdaf_retrain_done_event{session="$session"} > 0
+(nwdaf_retrain_start_event{session="$session"} > 0) unless on(session) (nwdaf_retrain_start_event{session="$session"} offset 5s > 0)
+(nwdaf_retrain_done_event{session="$session"} > 0) unless on(session) (nwdaf_retrain_done_event{session="$session"} offset 5s > 0)
 ```
 
 效果是：
@@ -121,7 +121,8 @@ nwdaf_retrain_done_event{session="$session"} > 0
 
 - retrain start / done 是事件，不再需要從 counter 變化間接推導
 - live、replay backfill 與 pseudo-live 都能用相同語意建模
-- backfill / pseudo-live 只要寫一個 scrape interval 寬的 pulse，就能穩定出現單一 annotation
+- backfill / pseudo-live 在 `ts_ms` 寫 `1.0`、在 `ts_ms + 5000` 寫 `0.0`，每個事件只有一個上升沿，天然不需去重
+- live mode 中，pulse 若跨越多個 Prometheus scrape，`unless on(session) (...) offset 5s > 0` 確保只保留連續高電位的第一個 5s step，Grafana 不會渲染重複的 annotation 線
 
 ## 7. Live、Replay 與 Pseudo-Live 的圖表差異
 
@@ -164,15 +165,20 @@ live mode 的 `model_swap` 會刪除既有 deviation series；replay backfill �
 
 因此三條路徑在畫面上都會保留新模型部署後的 cold-start gap，只是底層實作不是同一種 API。
 
-### Session variable 仍依賴 retrain metric 作為索引錨點
+### Session variable 以 `nwdaf_session_anchor` 作為索引錨點
 
-目前 session variable 查的是 `nwdaf_retrain_total` 的 `count_over_time(...)` 結果。這能避開
-Prometheus label index 對已刪除 `_live_...` session 的殘留問題，但也代表若某條未來資料路徑完全
-不寫 `nwdaf_retrain_total`，Grafana 端仍可能看不到那個 session。
+session variable 查的是 `nwdaf_session_anchor` 的 `count_over_time(...)` 結果（而非
+`nwdaf_retrain_total`）。使用獨立錨點 metric，可讓 session 在建立後立刻出現在下拉選單，
+無需等待第一筆 retrain 事件。這能避開 Prometheus label index 對已刪除 `_live_...` session
+的殘留問題，但也代表若某條未來資料路徑完全不寫 `nwdaf_session_anchor`，Grafana 端仍可能
+看不到那個 session。
 
-### Prometheus TSDB 在 replay 啟動時會被清空
+### `start.sh` 每次啟動都清除所有 `nwdaf_*` series
 
-這使得 replay 圖表相對乾淨，但也表示 Grafana 上同時可查的 session 範圍取決於當前這次 `start.sh` 啟動之後寫進 TSDB 的內容，而不是一個長期累積的資料倉。
+這是 live 與 replay 共同的啟動行為：`start.sh` 透過 Prometheus admin API 刪除所有
+`nwdaf_.*` series，確保前一次 session 的殘留資料不會汙染新圖表。這也表示 Grafana 上可查的
+session 範圍，完全取決於當次 `start.sh` 啟動後寫入 TSDB 的內容，而不是一個長期累積的
+session 資料倉。
 
 ## 9. 呈現參數
 
@@ -188,7 +194,7 @@ Prometheus label index 對已刪除 `_live_...` session 的殘留問題，但也
 
 ## 10. 目前限制
 
-- dashboard variable 目前以 `nwdaf_retrain_total` 作為 session 錨點；若未來某條資料路徑完全不寫這個 metric，仍需另找更通用的索引方式
+- dashboard variable 目前以 `nwdaf_session_anchor` 作為 session 錨點；若未來某條資料路徑完全不寫這個 metric，Grafana 端仍可能看不到那個 session
 - prediction `offset 5s` 是固定常數；若 slot 定義或資料粒度改變，圖上對齊方式可能失真
 - live 與 replay 對 `model_swap` 的底層實作不同：前者用 `remove()`，後者用 `NaN` cut-off
 - query 與 panel 結構全由 Python 程式生成；要在 Grafana UI 做細部客製化時，可讀性不如直接維護 dashboard JSON

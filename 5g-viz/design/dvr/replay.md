@@ -4,16 +4,17 @@
 
 ## 1. Replay 啟動做了什麼
 
-`./start.sh --replay <session_path>` 目前會把系統帶進一個和 live 不同的啟動路徑：
+`./start.sh --replay <session_path>` 的啟動流程如下（`start.sh` 本身的行為與 live 模式相同；差異在 app lifespan 根據 `SESSION_MODE` 進行不同的初始化）：
 
-1. 由 `start.sh` 清空 managed Prometheus TSDB
-2. 重新啟動 Prometheus，並開啟 remote write receiver
-3. 啟動 FastAPI app
-4. 在 lifespan 中載入 replay session
-5. 重建 state
-6. 執行 replay backfill
-7. 建立 `MetricPlayer`
-8. 執行 Grafana setup
+1. `start.sh` 重啟 Prometheus（帶 `--web.enable-admin-api` 與 `--web.enable-remote-write-receiver`）
+2. `start.sh` 透過 admin API 刪除所有 `nwdaf_*` series 並清理 tombstones
+3. `start.sh` 啟動 FastAPI app（帶 `SESSION_MODE=replay`、`SESSION_PATH` 環境變數）
+4. lifespan：清除所有 `_live_.*` pseudo-session series（startup cleanup）
+5. lifespan：載入 replay session（`events.jsonl` 與 `meta.json`）
+6. lifespan：重建 state
+7. lifespan：執行 replay backfill（以原始 timestamp remote write 進 Prometheus）
+8. lifespan：建立 `MetricPlayer`
+9. lifespan：執行 Grafana setup
 
 這表示 replay 不是在 live session 上「暫停再重放」，而是另起一個專用 runtime。
 
@@ -237,9 +238,6 @@ live mode 的 metric handler 會在 `model_swap` 時刪掉舊 deviation series�
 - replay graph 也會在 swap 當下截斷舊 model 線段
 - 新 model 第一筆 `accuracy` 進來前，會保留和 live 一致的 cold-start gap
 
-### Replay 啟動時清空 TSDB
-
-這個清理動作發生在 `start.sh` 層，而不是 FastAPI app lifespan 內。它有助於讓 replay 驗證結果乾淨、可重現，但也表示 Prometheus 不是長期累積所有 session 的資料倉，而是每次 replay 啟動都可被重置的暫態環境。
 
 ## 10. 圖表視窗與播放控制
 
@@ -258,3 +256,4 @@ live mode 的 metric handler 會在 `model_swap` 時刪掉舊 deviation series�
 - pseudo-live 不保證與 paused backfill 完全數值一致
 - `MetricPlayer` 只處理 metric event，不處理 topology event；兩條播放面是分開推進的
 - replay 仍是單一 active player 設計，多個使用者不應同時操作同一個 replay backend
+- 每次 `start.sh` 啟動都清除所有 `nwdaf_*` series；Prometheus 不是累積式 session 資料倉，Grafana 上可查的歷史範圍取決於當次啟動後寫入的內容

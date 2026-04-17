@@ -93,15 +93,19 @@ org_role = Viewer
 
 其中 remote write receiver 是 replay backfill 與 pseudo-live 必要條件。
 
-### Replay 模式的 TSDB 清理
+### 每次啟動的 nwdaf_* series 清理
 
-當 `SESSION_MODE=replay` 時，`start.sh` 會先清空：
+無論 live 或 replay，`start.sh` 每次啟動 Prometheus 並等待 ready 之後，都會透過 admin API
+刪除所有 `nwdaf_*` series：
 
-```text
-$HOME/prometheus/data
+```bash
+curl -X POST --data-urlencode 'match[]={__name__=~"nwdaf_.+"}' \
+    http://localhost:9090/api/v1/admin/tsdb/delete_series
+curl -X POST http://localhost:9090/api/v1/admin/tsdb/clean_tombstones
 ```
 
-這樣做的目的，是讓 replay session 的 backfill 與 pseudo-live 寫入落在一個乾淨的 Prometheus 時間庫中，避免和先前殘留的本機資料混在一起。
+這樣做的目的，是確保前一次 session 的殘留 metrics 不會汙染新 session 的圖表，同時只精確清除
+5g-viz 自身的 metrics，不影響 Prometheus 中其他 job 的資料。
 
 ## 5. `grafana_setup.py` 的初始化流程
 
