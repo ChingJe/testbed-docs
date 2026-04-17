@@ -66,6 +66,8 @@ profiles/<PROFILE>/.env
 | `GRAFANA_ADMIN_PASS` | string | `grafana_setup.py` | 同上 |
 | `GRAFANA_GROUPS` | `a,b,c` | `config.py`、`grafana_setup.py`、`main.py` | dashboard panel 群組與 session metadata |
 | `GRAFANA_DEVIATION_LABEL` | string | `grafana_setup.py` | deviation panel 標題（選填，預設 `"Deviation (sMAPE)"`） |
+| `GRAFANA_DEVIATION_UNIT` | string | `grafana_setup.py` | deviation panel y 軸標籤（選填，預設 `"sMAPE"`） |
+| `GRAFANA_DEVIATION_LEGEND_SUFFIX` | string | `grafana_setup.py` | deviation panel 曲線名稱後綴，格式為 `{{model}} <suffix>`；設為空字串時只顯示 model 名稱（選填，預設 `"sMAPE"`） |
 
 這裡有兩個重要限制：
 
@@ -159,6 +161,8 @@ key=value,key=value
 - `GRAFANA_ADMIN_PASS`
 - `GRAFANA_GROUPS`
 - `GRAFANA_DEVIATION_LABEL`（選填，已以 `#` 註解，預設 `"Deviation (sMAPE)"`）
+- `GRAFANA_DEVIATION_UNIT`（選填，已以 `#` 註解，預設 `"sMAPE"`）
+- `GRAFANA_DEVIATION_LEGEND_SUFFIX`（選填，已以 `#` 註解，預設 `"sMAPE"`）
 - `PROMETHEUS_BASE`
 
 其中 `setup.sh` 在第一次建立 profile 後，還會特別提示使用者檢查：
