@@ -412,6 +412,31 @@ vagrant ssh -c "rm -rf ~/daisy && cp -r /daisy/daisy ~/daisy"
 
 ---
 
+## 從 VM 抓 log 到本機
+
+從 5GC VM 複製 log 到伺服器（從 `5G_Infrastructure/5GC/` 目錄執行）：
+
+```bash
+# nwdaf.log
+scp -P 2222 -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/nwdaf.log ./
+
+# accuracy CSV log 目錄
+scp -rp -P 2222 -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/NWDAF/log/accuracy ./
+```
+
+再從伺服器複製到本機：
+
+```bash
+scp user@伺服器IP:/home/chingje/testbed/5G_Infrastructure/5GC/nwdaf.log ./
+scp -r user@伺服器IP:/home/chingje/testbed/5G_Infrastructure/5GC/accuracy/ ./
+```
+
+---
+
 ## 常見問題
 
 詳細內容見 [troubleshooting.md](troubleshooting.md)。
