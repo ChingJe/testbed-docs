@@ -20,6 +20,9 @@ shared folder name 誤解析成本地路徑，導致找不到。
 - `~/daisy` 存在（setup.sh 用到 `~/daisy/examples/`）→ `daisy` 掛載失敗
 - `~/adrf`、`~/config` 不存在 → 正常掛載
 
+> **2026-04-22 更新**：`~/adrf` 目錄後來被建立，導致 `adrf` 也開始失敗。
+> 已在 fstab 補上 `Adrf /adrf vboxsf uid=1000,gid=1000,_netdev,nofail 0 0`（見下方）。
+
 **為什麼之前沒遇到**：VM 自 provision 後從未重啟過，synced folder 一直維持開機時掛好的狀態。
 第一次執行 `vagrant reload`（例如新增 synced_folder 後）才會觸發此問題。
 
@@ -59,6 +62,44 @@ sudo /usr/sbin/VBoxControl sharedfolder list
 
 # 查看 fstab 中的 vboxsf 條目
 grep vboxsf /etc/fstab
+```
+
+## vagrant up 失敗後 /vagrant、/config 也沒掛載
+
+**症狀**：`vagrant up` 因 adrf（或其他 folder）掛載失敗而提前退出，SSH 進去後只看到三個 vboxsf mount，缺少 `/vagrant` 和 `/config`。
+
+**原因**：Vagrant 在第一個掛載失敗時就退出，後續的 `/vagrant`、`/config` 來不及處理。這兩個 folder 沒有衝突的 `~/` 目錄，fstab 裡雖然有條目，但時序問題導致開機時也沒掛上。
+
+**解法**：SSH 進去後手動補掛：
+
+```bash
+sudo mount -t vboxsf -o uid=1000,gid=1000,_netdev vagrant /vagrant
+sudo mount -t vboxsf -o uid=1000,gid=1000,_netdev config /config
+```
+
+確認全部 5 個都掛好：
+
+```bash
+mount | grep vboxsf
+```
+
+> **若 `/NWDAF`、`/daisy`、`/adrf` 也沒掛**：mount point 目錄可能不存在（fstab nofail 靜默失敗）。
+> 先建目錄再手動掛：
+> ```bash
+> sudo mkdir -p /NWDAF /daisy /adrf
+> sudo mount -t vboxsf -o uid=1000,gid=1000,_netdev nwdaf /NWDAF
+> sudo mount -t vboxsf -o uid=1000,gid=1000,_netdev Daisy /daisy
+> sudo mount -t vboxsf -o uid=1000,gid=1000,_netdev Adrf /adrf
+> ```
+
+目前 fstab 的完整狀態（5 個全部有 `nofail`）：
+
+```
+nwdaf   /NWDAF   vboxsf uid=1000,gid=1000,_netdev,nofail 0 0
+Daisy   /daisy   vboxsf uid=1000,gid=1000,_netdev,nofail 0 0
+Adrf    /adrf    vboxsf uid=1000,gid=1000,_netdev,nofail 0 0
+vagrant /vagrant vboxsf uid=1000,gid=1000,_netdev,nofail 0 0
+config  /config  vboxsf uid=1000,gid=1000,_netdev,nofail 0 0
 ```
 
 ---
