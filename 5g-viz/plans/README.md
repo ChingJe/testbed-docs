@@ -18,3 +18,7 @@
 ## 文件相關規劃
 
 - [`docs/5g-viz-restructure-plan.md`](./docs/5g-viz-restructure-plan.md)：第二階段文件重構藍圖，包含資訊架構、phase、mapping、驗收與交接方式
+
+## 近期規劃
+
+- [`architecture/nwdaf-accuracy-policy-migration.md`](./architecture/nwdaf-accuracy-policy-migration.md)：新版 NWDAF `Accuracy scope / Accuracy policy / Retrain trigger` 對齊方案，涵蓋 parser、metrics、topology、Grafana 與 replay
