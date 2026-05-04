@@ -1,0 +1,57 @@
+name: exp7_30s_wape_zscore
+description: >
+  30s granularity. Three targeted fixes over exp6:
+  1. seq_length=10 (reduces model history warmup from 15min to 5min, giving stable
+     CAT2 baseline by T=00:48 instead of T=01:01 which was already in CAT3)
+  2. primaryMetric=WAPE (normalized 0-inf ratio; eliminates the std≈0 z-score
+     explosion with raw MAE bytes; z-score now computes on dimensionless WAPE)
+  3. chronic_threshold=0.90 (initial model chronicValue ~0.95-0.98 triggers;
+     post-retrain p75 WAPE ~0.83 < 0.90 means chronic stays silent in CAT2)
+  Also: check_interval=60s for more rounds and better statistics.
+
+  Expected timeline:
+    T=00:30 live (CAT2) -> T=00:38 chronic trigger (initial model)
+    -> T=00:42 model activated (retrain-4f679df7)
+    -> T=00:47 model history stabilized (10 slots x 30s = 5min)
+    -> T=00:50 z-score baseline_ready (min_buf=8 x 60s after activation)
+    -> T=01:00 CAT3 starts -> z-score fires (WAPE spike detected)
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 60
+        recentBufferSize: 15
+        minBufferSamples: 8
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.01
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        fixedFloor: 0.05          # floor for WAPE degradation eligibility (WAPE > 0.05)
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.90         # initial model chronicValue ~0.95 triggers;
+                                  # post-retrain p75 WAPE ~0.83 should NOT trigger
+          minTrafficScale: 1024
+      task:
+        MODEL_META:
+          inference:
+            seq_length: 10        # 5min warmup (10 x 30s) instead of 15min
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

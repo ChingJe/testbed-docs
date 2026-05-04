@@ -1,0 +1,55 @@
+name: exp10_30s_ci150_buf3
+description: >
+  30s granularity. Critical fix over exp9: min_buffer_samples=3 (not 5).
+
+  Problem with exp9 (min_buf=5): The 1st eval round with enough pairs fires at T=01:00
+  (CAT3 boundary). So the buffer fills with 5 CAT3 rounds -> baseline IS CAT3.
+
+  Fix with min_buf=3: baseline fills at Round 4 -> T=01:00 (sample_count=3, baseline_ready
+  at NEXT round T=01:02:30). The buffer at that point contains:
+    [W@00:52:30, W@00:55:00, W@00:57:30]  <- 3 CAT2 predictions only!
+  (Round at T=01:00 evaluates targets <= 00:59, which are CAT2 predictions)
+  Then T=01:02:30 is the 1st baseline_ready round with PURE CAT2 baseline.
+  CAT3 WAPE (~0.85-1.0) vs CAT2 mean (~0.55) gives z ~2.0-3.0 -> fires!
+
+  Robustness note: even if training takes 7min (activation at T=00:52), the rounds
+  T=00:55, T=00:57:30, T=01:00 are still all CAT2 -> 3 rounds -> baseline_ready at T=01:02:30.
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 150
+        recentBufferSize: 12
+        minBufferSamples: 3       # CRITICAL: 3 not 5! baseline fills with pure CAT2
+        minSamples: 5
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.01
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        fixedFloor: 0.05
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.90
+          minTrafficScale: 1024
+      task:
+        MODEL_META:
+          inference:
+            seq_length: 10
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

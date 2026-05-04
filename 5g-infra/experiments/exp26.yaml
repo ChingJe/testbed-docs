@@ -1,0 +1,59 @@
+name: exp26_local_initial_ci120_buf4_nochronic
+description: >
+  A/B against exp25 for the local initial bundle.
+  Use a smoother monitor round while keeping enough margin for real testbed
+  jitter:
+  - checkInterval: 90s -> 120s
+  - minSamples: keep 2 (do not set too close to the 4-slot theoretical max)
+  - minBufferSamples: 4
+  - chronicPolicy.enabled: false
+  Goal:
+  - reduce per-round WAPE volatility in CAT1 tail
+  - keep transition-only degradation triggering behavior
+  - compare detection latency tradeoff versus exp25
+  Run with:
+    uv run run_experiment.py experiments/exp26.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v2/bundle
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 120
+        recentBufferSize: 12
+        minBufferSamples: 4
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

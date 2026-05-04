@@ -1,0 +1,49 @@
+name: exp15_ci60_minbuf2
+description: >
+  checkInterval=60s + minSamples=2 + minBufSamples=2. Combines faster rounds
+  with smaller baseline requirement. With 2 rounds needed and ~1 round/min,
+  baseline fills within 2min of model swap. Tests whether higher time-resolution
+  detection also works for the initial model chronic trigger.
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 60
+        recentBufferSize: 15
+        minBufferSamples: 2
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.01
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        fixedFloor: 0.05
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.90
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        MODEL_META:
+          inference:
+            seq_length: 10
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

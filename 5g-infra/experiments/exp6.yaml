@@ -1,0 +1,48 @@
+name: exp6_30s_zscore_hunt
+description: >
+  30s granularity. Goal: trigger chronic early in CAT2 phase (target ~T=00:40-00:43)
+  so the retrained model has ~15 min of stable CAT2 data for z-score baseline
+  before CAT3 hits at T=01:00.
+
+  Key changes:
+  - check_interval=120s: faster rounds (~15 per CAT phase)
+  - min_buffer_samples=3: baseline ready after 3 rounds (6 min)
+  - minSamples=3: adapted for 120s rounds at 30s period
+  - z_threshold=2.0: sensitive to CAT3 MAE spike
+  - recentBufferSize=15: large buffer; after retrain on CAT2, dilutes CAT3 bad rounds
+    so chronic doesn't re-trigger (z-score gets there first)
+  - chronic_threshold=0.75: initial model WAPE ~0.88-0.98 triggers it;
+    post-retrain WAPE target < 0.50 means chronic stays silent on CAT2
+
+  Timeline target:
+    T=00:30 live start (CAT2) -> T=00:42 chronic trigger -> T=00:46 model activated
+    -> T=00:52 z-score baseline_ready -> T=01:00 CAT3 starts -> z-score fires
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 120
+        recentBufferSize: 15
+        minBufferSamples: 3
+        minSamples: 3
+        zScoreThreshold: 2.0
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        fixedFloor: 1024
+        chronicPolicy:
+          enabled: true
+          threshold: 0.75
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

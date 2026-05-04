@@ -1,0 +1,49 @@
+name: exp13_minbuf2_zthresh2
+description: >
+  minBufSamples=2 + zScoreThreshold=2.0. Tests robustness of the minBufSamples=2
+  approach with a stricter z-score threshold to reduce false positives.
+  With pure CAT2 baseline (mean~0.534, std~0.049), CAT3 WAPE ~0.9-1.1 gives
+  z~7-11 >> 2.0, so detection should still fire reliably.
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 150
+        recentBufferSize: 12
+        minBufferSamples: 2
+        minSamples: 5
+        primaryMetric: WAPE
+        zScoreThreshold: 2.0
+        minStd: 0.01
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        fixedFloor: 0.05
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.90
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        MODEL_META:
+          inference:
+            seq_length: 10
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

@@ -1,0 +1,49 @@
+name: exp12_minbuf2
+description: >
+  minBufSamples=2: after model swap at ~T=00:57:30, the two pre-CAT3 rounds
+  (T=00:57:30, T=01:00:00) fill the reference with pure CAT2 data.
+  Baseline ready at T=01:02:30, which is the first CAT3 round.
+  Expected: 3 degradation hits at T=01:02:30, 01:05, 01:07:30.
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 150
+        recentBufferSize: 12
+        minBufferSamples: 2
+        minSamples: 5
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.01
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        fixedFloor: 0.05
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.90
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        MODEL_META:
+          inference:
+            seq_length: 10
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

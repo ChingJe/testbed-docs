@@ -1,0 +1,34 @@
+name: exp1_30s_window5_hits3
+description: >
+  30s granularity, window=5/hits=3 (3 triggers in last 5 rounds).
+  Conservative z-threshold=3.0, chronic threshold=1.0.
+  Baseline experiment to observe detection timing before tuning.
+
+# Deep-merged into nwdafcfg.yaml
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 150        # 5 slots per monitor round at 30s
+        recentBufferSize: 15      # retains ~15 rounds of metric history
+        minBufferSamples: 5       # z-score baseline ready after 5 rounds
+        zScoreThreshold: 3.0
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        chronicPolicy:
+          enabled: true
+          threshold: 1.0          # WAPE p75 > 1.0 to count as chronic hit
+
+# Deep-merged into replay_config.yaml
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60          # 2 × period
+  daisy:
+    reuse_existing: true          # Daisy master already running on :9887
+  report:
+    progress_every_slots: 20

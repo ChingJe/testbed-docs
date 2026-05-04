@@ -1,0 +1,51 @@
+name: exp19_ci60_buf4_rbuf8
+description: >
+  Fix exp18 double-retrain: recentBufferSize=8 (down from 15). With checkInterval=60s,
+  8 rounds = 8min. After model swap, high-WAPE pre-swap rounds flush within 8min,
+  so chronic p75 drops below 0.95 and stops firing during CAT2 settling.
+  All other params same as exp18. Target: single CAT2 retrain + CAT3 detection ~+3-4min.
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 60
+        recentBufferSize: 8
+        minBufferSamples: 4
+        minSamples: 1
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.01
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        fixedFloor: 0.05
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.95
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+        MODEL_META:
+          inference:
+            seq_length: 10
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

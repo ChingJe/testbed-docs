@@ -1,0 +1,33 @@
+name: exp2_30s_chronic088
+description: >
+  30s granularity, chronic threshold=0.88 (below exp1's min chronicValue=0.88).
+  Goal: trigger real Daisy retrain on both groups, then observe if WAPE
+  drops after the new model (trained on 30s data) is activated.
+  z-score kept at 3.0 (same as exp1, essentially inactive given high MAE variance).
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 150
+        recentBufferSize: 15
+        minBufferSamples: 5
+        zScoreThreshold: 3.0
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        chronicPolicy:
+          enabled: true
+          threshold: 0.88        # just below exp1 minimum chronicValue
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 20

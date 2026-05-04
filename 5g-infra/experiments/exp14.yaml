@@ -1,0 +1,49 @@
+name: exp14_ci60_minbuf3
+description: >
+  checkInterval=60s + minSamples=2 + minBufSamples=3. Faster rounds (1/min)
+  give 3+ pure CAT2 rounds in the ~2.5min window between model swap and CAT3.
+  With minSamples=2, each 60s round has ~2 mature pairs (maturityLag=60s).
+  Expected: pure CAT2 baseline with 3 samples, clean z-score at CAT3.
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 60
+        recentBufferSize: 15
+        minBufferSamples: 3
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.01
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        fixedFloor: 0.05
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.90
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        MODEL_META:
+          inference:
+            seq_length: 10
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

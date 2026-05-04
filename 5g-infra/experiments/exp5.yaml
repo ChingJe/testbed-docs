@@ -1,0 +1,38 @@
+name: exp5_60s_finer_check
+description: >
+  60s granularity, check_interval reduced from 300s to 180s (3 slots/round, ~20 rounds/group).
+  Key changes vs exp4:
+  - check_interval=180s: more rounds, higher chance of independent group triggering
+  - minSamples=3: at 180s/60s period, only ~2-3 mature pairs/group per round; reduce gate to 3
+  - min_buffer_samples=5: slightly more warmup than exp4's 4
+  Goal: allow group2 to trigger retrain independently before being blocked by group1.
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 60
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 180        # 3 slots/round at 60s -> ~20 rounds/group
+        recentBufferSize: 10
+        minBufferSamples: 5
+        minSamples: 3             # reduced: fewer mature pairs/round at 180s check_interval
+        zScoreThreshold: 3.0
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        chronicPolicy:
+          enabled: true
+          threshold: 0.88
+
+replay:
+  dataset:
+    report_period_sec: 60
+  monitor:
+    maturity_lag_sec: 120
+  retrain:
+    window_sec: 2700
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

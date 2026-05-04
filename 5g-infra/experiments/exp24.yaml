@@ -1,0 +1,56 @@
+name: exp24_local_initial_model_v2
+description: >
+  A/B test for the new centralized local initial model bundle
+  (out/initial_local_cat1_30s_v2/bundle).
+  Policy is kept identical to exp23_threshold_tuned so the only intended
+  experiment variable is the initial bundle quality, not the monitor policy.
+  Run with:
+    uv run run_experiment.py experiments/exp24.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v2/bundle
+  Goal:
+  - Check whether CAT1 false/early trigger is reduced versus exp23
+  - Keep CAT2→CAT3 degradation detection behavior comparable
+  - Measure whether group1 chronic/degradation behavior becomes cleaner
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 3
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

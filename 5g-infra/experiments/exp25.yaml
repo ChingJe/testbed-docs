@@ -1,0 +1,58 @@
+name: exp25_local_initial_buf5_nochronic
+description: >
+  Follow-up to exp24 using the local initial bundle.
+  Keep checkInterval=90s and minSamples=2 for testbed margin.
+  Change only the policy knobs most likely to suppress the early CAT1 false
+  trigger without relying on high traffic gates:
+  - chronicPolicy.enabled: false
+  - minBufferSamples: 3 -> 5
+  Goal:
+  - remove the late chronic re-trigger at ~01:19:30
+  - delay degradation baseline readiness so the early CAT1 hit sequence
+    (00:22:30, 00:24:00, 00:25:30) no longer immediately triggers
+  Run with:
+    uv run run_experiment.py experiments/exp25.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v2/bundle
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

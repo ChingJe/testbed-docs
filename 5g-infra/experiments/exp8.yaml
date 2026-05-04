@@ -1,0 +1,54 @@
+name: exp8_30s_wape_ci120
+description: >
+  30s granularity. Key fix over exp7: check_interval=120s (4 slots per round vs 2).
+  More predictions per round -> per-round WAPE is more stable (std / sqrt(4) reduction).
+  From exp7: CAT2 individual WAPE std ~0.33 -> per-round WAPE std ~0.165.
+  With CAT3 WAPE ~0.90 and CAT2 mean ~0.50:
+    zscore = (0.90 - 0.50) / 0.165 = 2.4 -> above z_threshold=1.5 -> z-score fires!
+
+  Expected timeline:
+    T=00:30 live (CAT2) -> T=00:42 chronic trigger
+    -> T=00:46 model activated (5min warmup -> stable T=00:51)
+    -> T=00:56 z-score baseline_ready (min_buf=5 x 120s after activation)
+    -> T=01:00 CAT3 starts -> first CAT3 round T=01:00
+    -> T=01:02, 01:04, 01:06 z-score fires (3 hits in window=5)
+    -> TRIGGER at T~01:06 (6min into CAT3)
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 120
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minSamples: 4             # 120s/30s: ~4 mature pairs per group per round
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.01
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        fixedFloor: 0.05
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.90
+          minTrafficScale: 1024
+      task:
+        MODEL_META:
+          inference:
+            seq_length: 10
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

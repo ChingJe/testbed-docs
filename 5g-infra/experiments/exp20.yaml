@@ -1,0 +1,53 @@
+name: exp20_window6
+description: >
+  Based on exp17 (best result so far). Single change: decisionWindowSize=6
+  (was 5). In exp17, the hit at T=00:55:30 fell just outside the window=5
+  at T=01:03:00. With window=6, the 3-hit sequence is:
+    T=00:55:30 (CAT2 spike z=2.09), T=00:58:30 (z=3.79), T=01:03:00 (z=1.88)
+  -> TRIGGER at T=01:03:00 (+3min from CAT3 start).
+  All other params same as exp17: ci=90s, buf=3, minSamples=2, chronic=0.95.
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 3
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.01
+        decisionWindowSize: 6
+        requiredHitsInWindow: 3
+        fixedFloor: 0.05
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.95
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+        MODEL_META:
+          inference:
+            seq_length: 10
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

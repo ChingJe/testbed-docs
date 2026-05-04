@@ -1,0 +1,50 @@
+name: exp23_threshold_tuned
+description: >
+  Threshold tuning based on exp22 analysis.
+  minStd 0.01→0.14: prevents CAT1 false positive (z floor raised so
+  post-spike WAPE=0.92 gives z=1.43<1.5, only 2 hits instead of 3).
+  chronicThreshold 0.95→0.97: prevents chronic re-trigger (p75≈0.967<0.97).
+  CAT3 detection expected at same +7.5min (z still >1.5 with new floor).
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 3
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

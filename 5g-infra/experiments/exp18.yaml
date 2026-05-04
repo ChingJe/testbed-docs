@@ -1,0 +1,52 @@
+name: exp18_ci60_buf4
+description: >
+  Push for +3min CAT3 detection: checkInterval=60s (1 round/min).
+  minSamples=1 (50% of 2-pair max, robust margin), minBufSamples=4 (4min
+  baseline after model swap, letting WAPE settle before locking baseline).
+  chronic threshold=0.95 kept from exp17. Expected: 3 consecutive CAT3
+  hits at T=01:01, 01:02, 01:03 -> TRIGGER at +3min.
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 60
+        recentBufferSize: 15
+        minBufferSamples: 4
+        minSamples: 1
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.01
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        fixedFloor: 0.05
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.95
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+        MODEL_META:
+          inference:
+            seq_length: 10
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

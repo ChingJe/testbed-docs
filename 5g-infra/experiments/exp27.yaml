@@ -1,0 +1,67 @@
+name: exp27_local_initial_buf5_nochronic_rwin1200
+description: >
+  Follow-up to exp25 using the same local initial bundle and the same
+  accuracyMonitor settings, but shorten retrain.window_sec from 1800s to 1200s.
+  Motivation:
+  - exp25 successfully removed the early group1 false trigger and late chronic
+    retrigger, but only produced one degradation retrain at ~00:34:30.
+  - The first retrain in exp25 used a 30-minute training window, which still
+    contains mostly CAT1 data and only a small fraction of early CAT2.
+  - Shortening the retrain window should bias the first retrain more toward the
+    transition-local distribution and improve CAT2 fit, increasing the chance
+    that CAT2→CAT3 becomes visible again as a second degradation event.
+  - 1200s is chosen instead of 900s because Daisy retraining needs enough
+    aggregated slots to produce non-empty client datasets with seq_length=30.
+  Keep unchanged from exp25:
+  - checkInterval=90s
+  - minSamples=2 (leave testbed margin; do not set near the 3-slot limit)
+  - minBufferSamples=5
+  - chronicPolicy.enabled=false
+  Run with:
+    uv run run_experiment.py experiments/exp27.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v2/bundle
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

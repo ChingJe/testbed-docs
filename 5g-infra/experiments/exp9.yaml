@@ -1,0 +1,60 @@
+name: exp9_30s_ci150_pure_baseline
+description: >
+  30s granularity. Key fix: check_interval=150s (5 slots/round).
+  Two effects:
+  1. Per-round WAPE std reduced: individual std ~0.33 -> round std ~0.33/sqrt(5)=0.148
+     With CAT2 mean ~0.50 and z_threshold=1.5: fire if WAPE > 0.50+1.5*0.148=0.72
+     CAT3 WAPE consistently ~0.85-1.0 -> should reliably fire!
+  2. PURE CAT2 baseline: with activation at ~T=00:47 and check_interval=150s,
+     rounds 1-5 cover T=00:50 to T=01:00. The round AT T=01:00 evaluates
+     predictions targeting slots <= T-60s=00:59, which are CAT2 predictions!
+     So min_buffer=5 fills ENTIRELY with CAT2 WAPE. When Round 6 (T=01:02:30)
+     arrives with first CAT3 predictions, the baseline mean is pure CAT2.
+
+  Expected timeline:
+    T=00:42 chronic trigger -> T=00:46 model activated
+    T=00:47-00:52 seq_length=10 warmup
+    Rounds at T=00:50, 00:52:30, 00:55, 00:57:30, 01:00 -> all CAT2 -> min_buf=5 filled
+    T=01:02:30 baseline_ready (Round 6), mean = pure CAT2 WAPE
+    T=01:05:00 Round 7 = first pure CAT3 predictions -> z spike -> dHits=1
+    T=01:07:30 Round 8 -> dHits=2
+    T=01:10:00 Round 9 -> dHits=3 -> TRIGGER via z-score!
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 150
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minSamples: 5             # 150s/30s: ~5+ mature pairs per round
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.01
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        fixedFloor: 0.05
+        chronicPolicy:
+          enabled: true
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.90
+          minTrafficScale: 1024
+      task:
+        MODEL_META:
+          inference:
+            seq_length: 10
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

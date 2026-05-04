@@ -1,0 +1,37 @@
+name: exp4_60s_baseline
+description: >
+  60s granularity (12x volume vs 5s baseline, 2x vs 30s).
+  Only 60 live slots -> 12 monitor rounds at check_interval=300s.
+  min_buffer_samples=4 (can't afford 10 at this resolution).
+  retrain_window_sec=2700 (45min) to give Daisy more diverse training data
+  and reduce the FL group-imbalance seen in exp3.
+  Same chronic threshold=0.88, window=5/hits=3 as exp2/3.
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 60
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 300        # 5 slots per round at 60s
+        recentBufferSize: 10      # max ~12 rounds, buffer <= total rounds
+        minBufferSamples: 4       # only 12 rounds total, keep warmup short
+        zScoreThreshold: 3.0
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        chronicPolicy:
+          enabled: true
+          threshold: 0.88
+
+replay:
+  dataset:
+    report_period_sec: 60
+  monitor:
+    maturity_lag_sec: 120         # 2 × period
+  retrain:
+    window_sec: 2700              # 45min: more diverse training data vs 1800s
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

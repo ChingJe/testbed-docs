@@ -1,0 +1,33 @@
+name: exp3_30s_bufwarmup10
+description: >
+  30s granularity, same chronic threshold=0.88 as exp2.
+  Key change: minBufferSamples raised from 5 to 10 (10 rounds * 150s = 25min warmup),
+  which exceeds the model's input_window fill time (30 slots * 30s = 15min).
+  Goal: avoid premature re-trigger while the retrained model is still warming up.
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 150
+        recentBufferSize: 15
+        minBufferSamples: 10      # raised from 5: must exceed model warmup (6 rounds)
+        zScoreThreshold: 3.0
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        chronicPolicy:
+          enabled: true
+          threshold: 0.88
+
+replay:
+  dataset:
+    report_period_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 20
