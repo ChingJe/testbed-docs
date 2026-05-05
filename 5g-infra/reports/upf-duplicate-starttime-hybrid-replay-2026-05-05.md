@@ -23,6 +23,15 @@
 這不是單純資料集 checksum 錯誤，也不是 `NWDAF` config 錯誤。  
 目前最強的推論是：**`go-upf` 的 hybrid mode 在 pseudo phase2 與 kernel URR 交錯時，讓相鄰兩輪 notify 對同一個 logical window 產生重疊。**
 
+更具體地說，這次問題不是「同一輪 notification 內有兩筆不同 slot 很正常」而已，而是：
+
+1. 某個 slot 已經在 notification `N` 被送出
+2. 約 `30s` 後，在 notification `N+1` 又再次出現相同的 `ip + startTime`
+3. `NWDAF` 入口目前不做 `ip + startTime` 去重，只是 append
+4. 到 inference 前，`analytics.go` 才發現同一個 30s slot center 內有兩筆，於是噴 `dedup collision`
+
+因此這份報告的核心目標不是討論 `NWDAF` 怎麼降低 warning，而是把 source-side 的重複上報條件、程式位置、可能原因整理給 `go-upf` 團隊。
+
 ---
 
 ## 本次分析範圍
@@ -46,6 +55,8 @@
 1. `go-upf` 是否重複推送同一個量測 window  
 2. 重複是在哪個時間段發生  
 3. 為什麼 `NWDAF` 會因此出現大量 dedup warning
+4. 在什麼條件下比較容易發生
+5. `go-upf` 哪些程式段落最值得優先檢查
 
 ---
 
@@ -79,6 +90,78 @@
 - `TickOnce()` 再把 buffer 裡所有 windows 一起送出
 
 這使得相鄰週期之間，存在同一 logical slot 被重複帶出的可能。
+
+### 結論 5
+
+本次現象不是每次都必現，原因很可能不是固定資料 bug，而是**時間邊界競態**：
+
+- `PseudoDriver` Phase 2 的 pacing 是跟 `Aggregator` tick 同步
+- kernel `URR` 的進入時機則受真實 session、perio timer、goroutine scheduling 影響
+- `TickOnce()` 在收到 `kernelReady` 後還會固定 sleep `50ms`
+- tick 本身又有 `time.Now()` / ticker 抖動與 `lastTickTime` 的週期校正
+
+因此只要某次「前一個 slot 的 measure 剛好在 tick 邊界前後跨輪」，就可能出現：
+
+- 第 `N` 輪送出一次
+- 第 `N+1` 輪又送一次
+
+這也解釋了為什麼現象「以前常看過，但不一定每次都發生」。
+
+---
+
+## 什麼情況下比較容易發生
+
+依本次程式碼與 log，這個現象最可能出現在以下條件同時成立時：
+
+### 條件 1：EES 以 hybrid mode 啟動
+
+在 `pkg/app/app.go` 中，只要：
+
+- `EES.Enabled = true`
+- `ParquetDir` 存在
+
+就會同時建立：
+
+- `PseudoDriver`
+- `Aggregator`
+- kernel report handler
+
+也就是不是 pure live，也不是 pure replay，而是兩者並行。
+
+### 條件 2：Pseudo replay 已進入 Phase 2
+
+`PseudoDriver.LoadAndReplay()` 會把 replay 切成：
+
+- `phase1`: `globalTS <= alignedBreakingTime`
+- `phase2`: `globalTS > alignedBreakingTime`
+
+Phase 1 是歷史 burst；真正會和 kernel 交錯的是 **Phase 2**。  
+本次 dedup 大量出現時，系統已經在 Phase 2 很久了。
+
+### 條件 3：同一 SUPI 已有 active session，kernel 也持續送 URR 2
+
+`Aggregator.PushReport()` 只吃：
+
+- `USAReport`
+- `URRID == 2`
+
+也就是只有當：
+
+- UE 真的上線
+- SMF/UPF session 存在
+- kernel 真的在送 URR 2
+
+時，live traffic 才會和 pseudo phase2 一起混進 buffer。
+
+### 條件 4：同一個 UE IP 在 pseudo 和 kernel 路徑上都落到同一個 30s grid
+
+本次是：
+
+- `samplingInterval = 30`
+- `UPF-EES periodSec = 30`
+
+而 `NWDAF` 端最後是以 `30s` grid 在 `alignAndZipInMemory()` 裡做 dedup。  
+只要 `go-upf` 連續兩輪把同一個 `startTime` 送出，`NWDAF` 就幾乎一定會撞到 dedup。
 
 ---
 
@@ -138,6 +221,9 @@ time="2026-05-05T10:00:55.489428482Z" ... UPF VOLUME: ip=10.100.0.1, startTime=2
 - 同一個 measurement window 不是只送一次
 - 而是至少被送了兩次
 
+這裡要特別強調：  
+這不是「同一個 notification 裡有兩個不同 startTime」而已，而是**相同的 `startTime` 被不同 log time 的兩輪通知各送一次**。
+
 ---
 
 ## 重複發生的整體時間區間
@@ -157,6 +243,8 @@ time="2026-05-05T10:00:55.489428482Z" ... UPF VOLUME: ip=10.100.0.1, startTime=2
 - 約 `2026-05-05T10:11:03Z`
 
 換句話說，從大約 `09:59:32/33` 開始，後面幾乎每個 `30s` slot 都會被重複送進 `NWDAF`。
+
+從 pattern 看，這不是少量偶發重複，而是進入某個狀態後，後續 slot 幾乎都開始受影響。
 
 ---
 
@@ -249,6 +337,149 @@ perIP[centerUnix] = dp
 
 所以 `dedup collision` 不是 root cause，而是 symptom。
 
+也就是說，`NWDAF` 在這裡只是最後一個看見問題的人。  
+真正值得追的是：`go-upf` 為什麼會讓相同 `ip + startTime` 穿過 notify 邊界重複出現。
+
+---
+
+## `go-upf` 內完整的資料路徑
+
+下面把本次相關程式路徑按實際執行順序串起來。
+
+### 1. app 啟動 EES hybrid mode
+
+檔案：
+
+- `pkg/app/app.go`
+
+流程：
+
+1. 建立 `SubscriptionStore`
+2. 建立 `Notifier`
+3. 若 `ParquetDir` 存在，建立 `PseudoDriver`
+4. 建立 `Aggregator`
+5. 把 `PseudoDriver` 注入 `Aggregator`
+6. 建立 `EES Handler`
+7. `Dispatcher.RegisterEESHandler(eesHandler, aggregator)`
+8. 啟動 `aggregator.Run(...)`
+9. 啟動 `EES API Server`
+
+這一步決定了：後面所有 pseudo data 與 kernel URR 都會匯入同一個 `Aggregator.reportBuffer`。
+
+### 2. SMF 建立 UPF 訂閱後，go-upf 建立 EES subscription
+
+檔案：
+
+- `internal/ees/api.go`
+
+`handleCreateSubscription()` 會：
+
+1. 驗證 request
+2. `subscriptionStore.CreateSubscription(...)`
+3. 若 `pseudoDriver != nil`
+   - `go pseudoDriver.LoadAndReplay(storedSub)`
+4. 若是 on-demand 才立即 tick
+
+也就是 **每個 EES subscription 建立後，PseudoDriver 會為該 subscription 啟動一條 replay goroutine**。
+
+### 3. PseudoDriver 讀 parquet，切成 Phase 1 / Phase 2
+
+檔案：
+
+- `internal/ees/pseudodriver.go`
+
+重點步驟：
+
+1. 從 `file.json` 讀 `breaking time`
+2. 用 `alignedBreakingTime := ceil(breakingTime / period) * period`
+3. 把 packet stream 依 `globalTS <= alignedBreakingTime` 分成：
+   - `phase1Accum`
+   - `phase2Accum`
+4. 等第一個 URR 到來後，用 URR time 建立 `GridAnchor`
+
+這裡決定了 Phase 2 的 pseudo window 時間軸會主動對齊 kernel 第一個 URR。
+
+### 4. Phase 1 / Phase 2 都不是直接送 HTTP，而是先進 shared buffer
+
+檔案：
+
+- `internal/ees/pseudodriver.go`
+- `internal/ees/aggregator.go`
+
+Phase 1：
+
+- `LoadAndReplay()` 內會呼叫 `aggregator.PushHistoricalMeasures(sub, measures, logicalTime)`
+- `PushHistoricalMeasures()` 只是：
+  - `reportBuffer[sub.ID] = append(reportBuffer[sub.ID], measures...)`
+
+Phase 2：
+
+- `simulateFutureRealTime()` 每輪先 `WaitForTick()`
+- 再把當前 pseudo window 透過 `PushLiveMeasures()` 丟進 `reportBuffer`
+
+因此 pseudo replay 不論 phase1 或 phase2，都不是直接 notify，而是**先進 buffer，等 TickOnce 送出**。
+
+### 5. kernel report 也進同一個 buffer
+
+檔案：
+
+- `internal/ees/handler.go`
+- `internal/ees/aggregator.go`
+
+流程：
+
+1. dispatcher 收到 kernel report
+2. `EES Handler.NotifySessReport(...)`
+3. `aggregator.PushReport(sessRpt)`
+
+而 `PushReport()`：
+
+- 只取 `URRID == 2`
+- 把 session 的 counters 轉成 `UsageMeasures`
+- 之後 append 進同一個 `reportBuffer[sub.ID]`
+
+也就是 pseudo 與 kernel 最後會在 **同一個 `reportBuffer`** 匯流。
+
+### 6. kernel 在 pseudo mode 下還會被強制對齊到 current phase2 window
+
+檔案：
+
+- `internal/ees/aggregator.go`
+- `internal/ees/pseudodriver.go`
+
+`PushReport()` 會透過 `pseudoDriver.GetPhase2Window()` 取得目前 Phase 2 的 logical window。  
+當 pseudo mode active 時，kernel report 的 `StartTime/EndTime` 會被改寫到這個 Phase 2 window 上。
+
+這一步非常關鍵，因為它代表：
+
+- kernel 不只是「自然帶自己的真實時間」
+- 而是主動被 snap 到 pseudo 的 window 語意
+
+因此只要 pseudo phase2 的 window publish 與 tick/flush 邊界有重疊，就更容易出現「上一個 logical slot 又被帶一次」。
+
+### 7. TickOnce 把 buffer 整包送出
+
+檔案：
+
+- `internal/ees/aggregator.go`
+- `internal/ees/notifier.go`
+
+`TickOnce()` 的流程：
+
+1. swap 出目前整個 `reportBuffer`
+2. 對每筆 measure 做 time snapping
+3. `consolidateReports()` 以：
+   - `key = ueIp + StartTime.Unix()`
+   做同輪內合併
+4. `notifier.Notify(...)` 發 HTTP
+
+注意：
+
+- `consolidateReports()` 只負責**同一輪 TickOnce 內**的合併
+- 它**無法處理「上一輪已送過、下一輪又來一次」**的情況
+
+這正是本次問題的核心。
+
 ---
 
 ## 為什麼問題源頭更像在 `go-upf`
@@ -282,6 +513,9 @@ UPF VOLUME: ip=10.100.0.1, startTime=2026-05-05T10:00:33Z ...
 
 - `NWDAF` 並不是把同一個 item 重複解析兩次
 - 而是 `UPF notify` 本身就把同一個 logical window 又送了一次
+
+換句話說，若只看 `NWDAF` 入口，問題已經太晚了。  
+在 `NWDAF` 看見重複之前，source notification 就已經重複。
 
 ---
 
@@ -349,6 +583,11 @@ phase2 也不直接送 HTTP，而是：
 
 在同一個 buffer 裡的混合結果。
 
+這個設計本身不是錯；真正可疑的是：
+
+- **混合是預期的**
+- **相鄰兩輪對相同 `startTime` 重複帶出不是預期的**
+
 ---
 
 ## 最可能的問題位置
@@ -367,6 +606,8 @@ phase2 也不直接送 HTTP，而是：
 - 相同 `ip + startTime`
 - 不同 log time
 
+這是本次最直接、也最已被 log 證實的異常型態。
+
 ### 2. hybrid phase2 與 kernel URR 的交錯邊界
 
 `go-upf` 現在是：
@@ -379,6 +620,21 @@ phase2 也不直接送 HTTP，而是：
 - 前一輪的 slot 尚未完全從 buffer 消化
 - 下一輪又再帶出一次
 
+這裡尤其要注意 `simulateFutureRealTime()` 的順序：
+
+- 先 `WaitForTick()`
+- 再 publish 新的 `phase2StartTime/phase2EndTime`
+- 再 `PushLiveMeasures()`
+
+而 `Run()` 的 tick loop 則是：
+
+- ticker 到
+- 等 `kernelReady` 或 timeout
+- `sleep 50ms`
+- `TickOnce()`
+
+這兩條 goroutine 的交錯時序，就是最值得檢查的競態區。
+
 ### 3. `items: 2` 的模式在後段穩定出現
 
 本次重複最明顯的時間段，恰好就是：
@@ -387,6 +643,11 @@ phase2 也不直接送 HTTP，而是：
 - 但 notify 仍規律帶兩個 item
 
 這讓「前一 slot + 當前 slot 一起送」的模式更容易被看見。
+
+換句話說，`items: 2` 本身不等於 bug；bug 在於：
+
+- 其中一個 item 的 `startTime`
+- 在前一輪其實已經送過了
 
 ---
 
@@ -401,6 +662,11 @@ phase2 也不直接送 HTTP，而是：
 ### 2. 不是 dataset 已經跑完
 
 本次異常開始時，整體 dataset 時間軸尚未走到尾端。
+
+### 3. 不是單純因為 `NWDAF` 去重策略太敏感
+
+即使 `NWDAF` 完全不做 dedup warning，source 側重複上報仍然存在。  
+`NWDAF` 只是把它顯性化。
 
 ---
 
@@ -428,6 +694,12 @@ phase2 也不直接送 HTTP，而是：
 
 共同造成的時間競態，而不是單一 deterministic bug。
 
+可以把它理解成：
+
+- `go-upf` 目前邏輯允許「多來源 measure 在同一輪 TickOnce 內合併」
+- 但在某些時序下，它還會讓「上一輪已送出的 slot」在下一輪又再次出現
+- 這不是 `consolidateReports()` 這種單輪內合併可以解的問題
+
 ---
 
 ## 建議優先檢查的點
@@ -440,6 +712,12 @@ phase2 也不直接送 HTTP，而是：
 
 - 這是否為預期行為
 - 如果不是，應在 `Aggregator` 哪一層避免重複送出
+
+建議直接在 `Notify()` 前加暫時性 debug：
+
+- dump 每輪 `subscriptionId`
+- dump 每個 item 的 `ueIp + startTime + endTime`
+- 比較相鄰兩輪是否有完全相同的 `startTime`
 
 ### 2. phase2 pseudo 與 kernel URR 的窗口邊界
 
@@ -456,6 +734,13 @@ phase2 也不直接送 HTTP，而是：
 - kernel report 何時被對齊到 phase2 window
 - 哪些 measure 會留到下一輪
 
+建議優先看：
+
+- `PseudoDriver.simulateFutureRealTime()`
+- `Aggregator.PushReport()`
+- `Aggregator.PushLiveMeasures()`
+- `Aggregator.TickOnce()`
+
 ### 3. buffer drain 後是否還會重新引入前一 window
 
 這次看起來很像：
@@ -467,6 +752,12 @@ phase2 也不直接送 HTTP，而是：
 
 - `reportBuffer` 在 tick 後是否確實只保留應保留的資料
 - pseudo / kernel 是否在下一輪又重新產生了同樣 `startTime` 的 measure
+
+這一點尤其可能出現在：
+
+- 前一輪 tick 已經把 slot `T` 送出
+- 下一輪 kernel report 又因 phase2 window 對齊規則，被映射回 `T`
+- 或 pseudo phase2 在 publish / push 時，又再次產生 `T`
 
 ### 4. 若這是預期設計，至少應在 source 端做去重
 
@@ -511,6 +802,19 @@ phase2 也不直接送 HTTP，而是：
 - `NWDAF` 端看到的 `dedup collision`，源頭不是純推論，而是 `go-upf` 確實送了重複的 `ip + startTime`
 - 重複發生在相鄰兩輪 notification 之間
 - 現象與 hybrid mode 的 pseudo phase2 + kernel URR 交錯高度相關
+
+若要讓 `go-upf` 團隊快速開始追，最值得先下手的位置是：
+
+1. `internal/ees/pseudodriver.go`
+   - `LoadAndReplay()`
+   - `simulateFutureRealTime()`
+2. `internal/ees/aggregator.go`
+   - `PushLiveMeasures()`
+   - `PushReport()`
+   - `TickOnce()`
+   - `consolidateReports()`
+3. `internal/ees/notifier.go`
+   - 在送 HTTP 前 dump item keys，確認相鄰兩輪重複是否已在 source 端形成
 
 如果後續要把問題真正解掉，最值得優先處理的是：
 
