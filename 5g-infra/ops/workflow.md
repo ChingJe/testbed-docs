@@ -64,6 +64,8 @@ for d in 5GC UPF-EES UPF-EES2 gNB gNB2; do cd $d && vagrant up && cd ..; done
 vagrant global-status
 ```
 
+> 不要假設 Vagrant SSH forwarded port 固定是 `2222`。本機同時有多台 VM 時，Vagrant 會自動改用其他可用 port（例如 `2203`）。所有非互動式 SSH / 外部工具設定，都應以各 VM 目錄內的 `vagrant ssh-config` 輸出為準。
+
 ---
 
 ## 啟動服務（依序）
@@ -73,6 +75,20 @@ vagrant global-status
 cd 5GC && vagrant ssh
 cd ~/free5gc && ./run.sh
 ```
+
+若需給外部工具（例如 `5g-viz`）使用 SSH 連線資訊，先查：
+
+```bash
+cd 5GC
+vagrant ssh-config
+```
+
+重點欄位：
+
+- `HostName`
+- `Port`
+- `User`
+- `IdentityFile`
 
 ### 2. UPF-EES / UPF-EES2（SMF 起來後）
 ```bash
@@ -286,7 +302,7 @@ make upf
 > ```
 > 編譯完後 VM 重啟 setup.sh 會自動還原。
 
-**Claude 用（從對應元件目錄執行）：**
+**非互動式（從對應元件目錄執行）：**
 
 ```bash
 vagrant ssh -c "pgrep -f 'bin/upf'"
@@ -342,7 +358,7 @@ make build
 ./run_nwdaf.sh
 ```
 
-**Claude 用（從 5GC 目錄）：**
+**非互動式（從 5GC 目錄）：**
 ```bash
 vagrant ssh -c "pgrep -f 'nwdaf'"
 vagrant ssh -c "pkill -f 'nwdaf'"   # 有輸出才執行
@@ -363,7 +379,7 @@ cp /config/nwdafMLcfg.yaml ~/NWDAF-ML-Service/config/config.yaml              # 
 # 重啟 ML Service
 ```
 
-**Claude 用（從 5GC 目錄）：**
+**非互動式（從 5GC 目錄）：**
 ```bash
 vagrant ssh -c "pgrep -f 'NWDAF-ML-Service'"
 vagrant ssh -c "pkill -f 'NWDAF-ML-Service'"   # 有輸出才執行
@@ -373,23 +389,25 @@ vagrant ssh -c "rm -rf ~/NWDAF-ML-Service && cp -r /NWDAF/NWDAF-ML-Service ~/NWD
 
 ---
 
-**nwdaf_uecomm_consumer**（Go binary，需重新編譯）：
+**nwdaf_uecomm_consumer**（Python，不需編譯）：
 ```bash
-pkill -f "nwdaf_uecomm_consumer" || true
+pkill -f "nwdaf_uecomm_consumer.py" || true
 rm -rf ~/nwdaf_uecomm_consumer
 cp -r /NWDAF/nwdaf_uecomm_consumer ~/nwdaf_uecomm_consumer
 cd ~/nwdaf_uecomm_consumer
-go build ./...   # 或依該目錄的 Makefile
-# 重啟
+chmod +x run.sh clean.sh nwdaf_uecomm_consumer.py
 ```
 
-**Claude 用（從 5GC 目錄）：**
+> `nwdaf_uecomm_consumer` 是 Python CLI，不是 Go binary；同步後依需求手動執行 `./run.sh` 或 `python3 ...`。
+
+**非互動式（從 5GC 目錄）：**
 ```bash
-vagrant ssh -c "pgrep -f 'nwdaf_uecomm_consumer'"
-vagrant ssh -c "pkill -f 'nwdaf_uecomm_consumer'"   # 有輸出才執行
+vagrant ssh -c "pgrep -af 'nwdaf_uecomm_consumer.py'"
+vagrant ssh -c "pkill -f 'nwdaf_uecomm_consumer.py'"   # 有輸出才執行
 vagrant ssh -c "rm -rf ~/nwdaf_uecomm_consumer && cp -r /NWDAF/nwdaf_uecomm_consumer ~/nwdaf_uecomm_consumer"
-vagrant ssh -c "PATH=/usr/local/go/bin:\$PATH cd ~/nwdaf_uecomm_consumer && go build ./..."
-# 重啟
+vagrant ssh -c "cd ~/nwdaf_uecomm_consumer && chmod +x run.sh clean.sh nwdaf_uecomm_consumer.py"
+# 需要時再手動執行：
+# vagrant ssh -c "cd ~/nwdaf_uecomm_consumer && ./run.sh"
 ```
 
 ---
@@ -402,7 +420,7 @@ cp -r /daisy/daisy ~/daisy
 # 重啟 daisy（例如 07 example）
 ```
 
-**Claude 用（從 5GC 目錄）：**
+**非互動式（從 5GC 目錄）：**
 ```bash
 vagrant ssh -c "pgrep -f 'python.*daisy'"
 vagrant ssh -c "pkill -f 'python.*daisy'"   # 有輸出才執行
@@ -418,12 +436,12 @@ vagrant ssh -c "rm -rf ~/daisy && cp -r /daisy/daisy ~/daisy"
 
 ```bash
 # nwdaf.log
-scp -P 2222 -i .vagrant/machines/default/virtualbox/private_key \
+scp -P 2203 -i .vagrant/machines/default/virtualbox/private_key \
     -o StrictHostKeyChecking=no \
     vagrant@127.0.0.1:~/nwdaf.log ./
 
 # accuracy CSV log 目錄
-scp -rp -P 2222 -i .vagrant/machines/default/virtualbox/private_key \
+scp -rp -P 2203 -i .vagrant/machines/default/virtualbox/private_key \
     -o StrictHostKeyChecking=no \
     vagrant@127.0.0.1:~/NWDAF/log/accuracy ./
 ```

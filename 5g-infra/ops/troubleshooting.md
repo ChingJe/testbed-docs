@@ -1,5 +1,83 @@
 # 5G Testbed Troubleshooting
 
+## 5g-viz 顯示 `PermissionDenied for user vagrant on host 127.0.0.1`
+
+**症狀**：`./start.sh` 啟動 `5g-viz` 後，stderr 持續出現：
+
+```text
+[collector] 5gc SSH error: PermissionDenied: Permission denied for user vagrant on host 127.0.0.1, retry in 5s
+```
+
+手動測試 `ssh -i ... -p 2222 vagrant@127.0.0.1` 也可能失敗。
+
+**根本原因**：`5g-viz` 的 `profiles/default/.env` 把 `SSH_5GC_PORT` 寫死成 `2222`，但 Vagrant 的 SSH forwarded port 並不固定。當本機同時有多台 Vagrant VM 運行時，`2222` 可能被其他 VM 先占用，5GC 這次實際被分配到其他 port（例如 `2203`）。
+
+也就是說，失敗原因通常不是 private key 錯，而是 **連到了錯的 VM port**。
+
+**確認方式**：
+
+```bash
+cd ~/testbed/5G_Infrastructure/5GC
+vagrant ssh-config
+```
+
+查看：
+
+- `HostName`
+- `Port`
+- `User`
+- `IdentityFile`
+
+例如：
+
+```text
+Host default
+  HostName 127.0.0.1
+  User vagrant
+  Port 2203
+  IdentityFile /home/chingje/testbed/5G_Infrastructure/5GC/.vagrant/machines/default/virtualbox/private_key
+```
+
+這表示 `5g-viz` 應該使用 `2203`，不是 `2222`。
+
+**手動驗證**：
+
+```bash
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  -i /home/chingje/testbed/5G_Infrastructure/5GC/.vagrant/machines/default/virtualbox/private_key \
+  -p 2203 vagrant@127.0.0.1
+```
+
+若能登入，代表 SSH key 沒問題，只是原本 port 設錯。
+
+**修正方式**：
+
+編輯 `5g-viz/profiles/default/.env`：
+
+```env
+SSH_5GC_HOST=127.0.0.1
+SSH_5GC_PORT=2203
+SSH_5GC_USER=vagrant
+SSH_5GC_KEY=/home/chingje/testbed/5G_Infrastructure/5GC/.vagrant/machines/default/virtualbox/private_key
+```
+
+之後重啟 `5g-viz`：
+
+```bash
+cd ~/testbed/5g-viz
+./start.sh
+```
+
+**補充**：
+
+- 若手動 `ssh` 顯示 `REMOTE HOST IDENTIFICATION HAS CHANGED!`，代表該 host port 對應的 VM host key 已變更，先移除舊紀錄：
+
+```bash
+ssh-keygen -f "/home/chingje/.ssh/known_hosts" -R "[127.0.0.1]:2203"
+```
+
+- `vagrant ssh` 通常不會受這個問題影響，因為它會自帶 `StrictHostKeyChecking no` 與正確的 `IdentityFile`。
+
 ## 5GC VM 重啟後 /NWDAF、/daisy 等 synced folder 沒有掛載
 
 **症狀**：`vagrant reload`（或任何重啟 5GC VM 的操作）結束後出現：
