@@ -109,6 +109,39 @@
 
 ---
 
+## 本文件的邊界
+
+這份文件聚焦的是：
+
+- `duplicate startTime`
+- `dedup collision`
+- 相鄰兩輪 notification 對同一個 `ip + startTime` 的重複上報
+
+也就是：
+
+- 為什麼 `NWDAF` 會看到同一個 slot 被送兩次
+- 為什麼 inference 前會需要 `keeping later`
+
+若要分析的是：
+
+- 某些 `UE IP` 在特定 slot 為什麼會出現異常大的 raw volume
+- 哪些 `UE IP` 在 `CAT2/CAT3` 的哪一段開始偏離 `pre_data`
+
+那應該看另一份更合適的文件：
+
+- [testbed-0505-22-vs-exp27-sharedscaler.md](testbed-0505-22-vs-exp27-sharedscaler.md)
+
+那份文件才是：
+
+- `live UPF raw`
+- `live NWDAF aggregated`
+- `exp27`
+- `pre_data`
+
+四者之間的對齊與異常流量分析報告。
+
+---
+
 ## 什麼情況下比較容易發生
 
 依本次程式碼與 log，這個現象最可能出現在以下條件同時成立時：
