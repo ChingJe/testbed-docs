@@ -30,6 +30,8 @@
   - `§3 Session 管理`
   - `§4 Prometheus Session 隔離`
   - `§5 Replay 時的 Prometheus 回填`
+- [offline-log-to-session-import.md](offline-log-to-session-import.md)
+  - 2026-05-07 後續新增實作規劃：原始 log 離線轉 session，涵蓋 CLI、artifact contract、複用邏輯、風險與驗證
 - [frontend-and-api.md](frontend-and-api.md)
   - `§6 操作模式`
   - `§7 前端模式識別與 Session 資訊`

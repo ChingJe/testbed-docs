@@ -22,3 +22,4 @@
 ## 近期規劃
 
 - [`architecture/nwdaf-accuracy-policy-migration.md`](./architecture/nwdaf-accuracy-policy-migration.md)：新版 NWDAF `Accuracy scope / Accuracy policy / Retrain trigger` 對齊方案，涵蓋 parser、metrics、topology、Grafana 與 replay
+- [`dvr/offline-log-to-session-import.md`](./dvr/offline-log-to-session-import.md)：2026-05-07 的後續新增實作規劃，離線將既有 `free5gc.log` / `nwdaf.log` 轉為可 replay session，重點在重用既有 parser、session artifact 與 replay/backfill 流程
