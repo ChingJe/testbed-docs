@@ -1,0 +1,82 @@
+name: exp29_local_initial_v3_fedscaler_rwin1200
+description: >
+  Follow-up to exp27_sharedscaler using the new initial_local_cat1_30s_v3
+  bundle and the in-progress scaler alignment toward the DLinear branch
+  lifecycle.
+  Motivation:
+  - Keep the exp27 monitor / retrain skeleton so the new line remains
+    comparable at a high level.
+  - Swap in the new initial local bundle generated after adjusting
+    train_initial_local.py scaler timing.
+  - Exercise the current Daisy scaler path after starting alignment toward
+    client-local-stats -> master-global-scaler aggregation.
+  Keep unchanged from exp27_sharedscaler:
+  - samplingInterval=30s
+  - checkInterval=90s
+  - primaryMetric=WAPE
+  - recentBufferSize=12
+  - minBufferSamples=5
+  - minSamples=2
+  - zScoreThreshold=1.5
+  - minStd=0.14
+  - fixedFloor=0.05
+  - decisionWindowSize=5
+  - requiredHitsInWindow=3
+  - chronicPolicy.enabled=false
+  - retrain.window_sec=1200
+  - ES_PATIENCE=5
+  - LR_PATIENCE=3
+  - local_epochs=3
+  Run with:
+    uv run run_experiment.py ../../../docs/5g-infra/experiments/exp29.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v3/bundle
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.5
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

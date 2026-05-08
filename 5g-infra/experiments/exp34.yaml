@@ -1,0 +1,79 @@
+name: exp34_local_initial_v4_fedscaler_rwin1200_z14
+description: >
+  Follow-up to exp33 with only one policy change: lower zScoreThreshold from
+  1.5 to 1.4 while keeping the v4 initial bundle and current federated-scaler
+  alignment path unchanged.
+  Motivation:
+  - exp33 successfully restored the first CAT1->CAT2 retrain trigger.
+  - The second CAT2->CAT3 trigger missed by a narrow margin within the
+    5-point decision window.
+  - Lowering zScoreThreshold is the smallest policy adjustment likely to
+    recover the second trigger without changing requiredHitsInWindow.
+  Keep unchanged from exp33:
+  - samplingInterval=30s
+  - checkInterval=90s
+  - recentBufferSize=12
+  - minBufferSamples=5
+  - minSamples=2
+  - minStd=0.14
+  - fixedFloor=0.05
+  - decisionWindowSize=5
+  - requiredHitsInWindow=3
+  - chronicPolicy.enabled=false
+  - retrain.window_sec=1200
+  - ES_PATIENCE=5
+  - LR_PATIENCE=3
+  - local_epochs=3
+  Run with:
+    uv run run_experiment.py ../../../docs/5g-infra/experiments/exp34.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v4/bundle
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.4
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: true
+  report:
+    progress_every_slots: 10

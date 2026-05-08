@@ -1,7 +1,7 @@
 # NWDAF Retrain Replay Current Setup
 
-**Date:** 2026-05-04
-**Scope:** 記錄目前 retrain replay 主線實驗的主要設置、testbed 依賴項、以及 Daisy / dataset 的本地修改點。
+**Date:** 2026-05-08
+**Scope:** 記錄目前 retrain replay 主線實驗的主要設置、testbed 依賴項、以及 Daisy / dataset / initial-local trainer 的本地修改點。
 
 ---
 
@@ -25,24 +25,41 @@ scaler 問題與修正方案另見：
 
 ### 目前最重要的兩組實驗
 
-目前主線比較基準是：
+目前需要同時記住兩條線：
 
-- `exp25_local_initial_buf5_nochronic_sharedscaler`
 - `exp27_local_initial_buf5_nochronic_rwin1200_sharedscaler`
+- `exp34_local_initial_v4_fedscaler_rwin1200_z14`
 
 其中：
 
-- `exp25_*_sharedscaler`
-  - 用來驗證 shared scaler 修正後，第一次 retrain 後的整體狀態是否變乾淨
 - `exp27_*_sharedscaler`
+  - 歷史上最重要的 shared-scaler baseline
   - 用來驗證 shared scaler + `retrain.window_sec=1200` 是否能把第二次 `CAT2→CAT3` trigger 拉回來
+- `exp34_*_fedscaler_*`
+  - 目前對齊 `origin/NWDAF-daisy-Dlinear` scaler lifecycle 後的主線
+  - 使用新的 `initial_local_cat1_30s_v4`
+  - Daisy retrain scaler 走 `client local stats -> master aggregation`
+  - 只在 policy 上做最小調整：`zScoreThreshold 1.5 -> 1.4`
 
-截至目前，`exp27_local_initial_buf5_nochronic_rwin1200_sharedscaler` 是最有資訊量的結果：
+兩者都能在兩次 CAT 切換時觸發 retrain，但語意不同：
 
-- 第一次 trigger：`00:34:30 group2 degradation`
-- 第二次 trigger：`01:06:00 group1 degradation`
+- `exp27`
+  - 第一次 trigger：`00:34:30 group2 degradation`
+  - 第二次 trigger：`01:06:00 group1 degradation`
+- `exp34`
+  - 第一次 trigger：`00:34:30 group2 degradation`
+  - 第二次 trigger：`01:07:30 group1 degradation`
 
-也就是 shared scaler 修正後，`CAT2→CAT3` 的第二次 degradation trigger 已重新出現。
+也就是：
+
+- `exp27` 仍是最重要的歷史 baseline
+- `exp34` 是目前較值得延續的「對齊 DLinear scaler 設計後」主線
+
+另外這次實驗已確認：
+
+- `exp29`（`v3 initial bundle`）不會觸發 retrain
+- `exp33`（`v4 initial bundle` + `zScoreThreshold=1.5`）可恢復第一次 trigger，但第二次只累積到 `2/5 hits`
+- `exp34` 只降低 `zScoreThreshold` 到 `1.4`，就在不改 `requiredHitsInWindow=3` 的前提下，把第二次 trigger 拉回來
 
 ---
 
@@ -52,9 +69,10 @@ scaler 問題與修正方案另見：
 
 目前主線不是用預設 initial bundle，而是用本地 supervised trainer 產生的：
 
-- `out/initial_local_cat1_30s_v2/bundle`
+- 歷史 baseline：`out/initial_local_cat1_30s_v2/bundle`
+- 目前主線：`out/initial_local_cat1_30s_v4/bundle`
 
-對應訓練思路：
+`v4` 延續 `v2` 的主要超參數，但把 scaler fit timing 改成與目前 Daisy federated scaler 語意更接近：
 
 - centralized local training
 - `CAT1 only`
@@ -64,50 +82,56 @@ scaler 問題與修正方案另見：
 - `train_ratio=0.9`
 - `batch_size=8`
 - `learning_rate=5e-4`
+- scaler：先用各 group 全部 CAT1 rows fit，再做 train/val split
 
 用途是提供較穩的 replay 起始模型，避免一開始就完全依賴 Daisy FL 訓練。
 
+`v4` 的本地 validation 明顯優於先前 exploratory 的 `v3`：
+
+- `best_epoch=18`
+- `final_val_loss=0.023509`
+- validation `WAPE=0.1837`
+- validation `NRMSE=0.2169`
+
 ### B. Accuracy monitor
 
-目前主線 monitor 設置大致如下：
+目前要區分兩組 monitor 設置：
 
-| 項目 | 目前值 |
-|---|---|
-| `samplingInterval` | `30s` |
-| `report_period_sec` | `30s` |
-| `checkInterval` | `90s` |
-| `maturity_lag_sec` | `60s` |
-| `recentBufferSize` | `12` |
-| `minBufferSamples` | `5` |
-| `minSamples` | `2` |
-| `primaryMetric` | `WAPE` |
-| `zScoreThreshold` | `1.5` |
-| `minStd` | `0.14` |
-| `fixedFloor` | `0.05` |
-| `decisionWindowSize` | `5` |
-| `requiredHitsInWindow` | `3` |
-| `chronicPolicy.enabled` | `false` |
-| `lowTrafficOverpredictionPolicy.enabled` | `false` |
+| 項目 | `exp27` | `exp34` |
+|---|---:|---:|
+| `samplingInterval` | `30s` | `30s` |
+| `report_period_sec` | `30s` | `30s` |
+| `checkInterval` | `90s` | `90s` |
+| `maturity_lag_sec` | `60s` | `60s` |
+| `recentBufferSize` | `12` | `12` |
+| `minBufferSamples` | `5` | `5` |
+| `minSamples` | `2` | `2` |
+| `primaryMetric` | `WAPE` | `WAPE` |
+| `zScoreThreshold` | `1.5` | `1.4` |
+| `minStd` | `0.14` | `0.14` |
+| `fixedFloor` | `0.05` | `0.05` |
+| `decisionWindowSize` | `5` | `5` |
+| `requiredHitsInWindow` | `3` | `3` |
+| `chronicPolicy.enabled` | `false` | `false` |
+| `lowTrafficOverpredictionPolicy.enabled` | `false` | `false` |
 
-這組設置的意圖是：
+這組設置的意圖仍然是：
 
 - 保留 `90s` 的偵測速度
 - 不讓 `minSamples` 貼近 `3 slots / round` 的理論上限，保留 testbed 誤差空間
 - 關掉 chronic，避免在目標之外的時間點重複 retrain
+- 對於目前 aligned line，優先透過微調 `zScoreThreshold`，而不是改 `requiredHitsInWindow`
 
 ### C. Retrain window
 
-目前主要比較兩組：
+目前主線實驗都使用：
 
-| 實驗 | `retrain.window_sec` |
-|---|---|
-| `exp25_*_sharedscaler` | `1800` |
-| `exp27_*_sharedscaler` | `1200` |
+- `retrain.window_sec = 1200`
 
-目前 `1200s` 是可用的較短窗口：
+目前 `1200s` 仍是可用的較短窗口：
 
 - `900s` 會讓 Daisy client dataset 樣本數不足
-- `1200s` 可正常訓練，且在 shared scaler 修正後能重新出現第二次 trigger
+- `1200s` 可正常訓練，且在 `exp27` / `exp34` 都能拉回第二次 trigger
 
 ### D. Daisy task
 
@@ -157,10 +181,22 @@ scaler 問題與修正方案另見：
 目前 Daisy example config 是：
 
 - `daisyconfig.json`
-- `MONGO_URI = mongodb://localhost:27018/`
+- `MONGO_URI = mongodb://127.0.0.1:27018`
 
 這表示 retrain training docs 並不是寫到預設 `27017`，而是 `27018`。  
-若另一套 testbed Daisy / Mongo 沒對齊，client 會找不到 training docs。
+這次已實際踩到：
+
+- 若 Daisy 端錯設成 `127.0.0.1:27017`
+- 或 VM-side config 仍指向錯的 host/port
+
+`/upload_data` 會直接回 `500`，Daisy retrain 無法開始。
+
+目前本地 / VM 的語意應記成：
+
+- 本地 replay / Daisy example：`127.0.0.1:27018`
+- VM 內 NAT 路徑：`10.0.2.2:27018`
+
+注意：repo 中有些 NWDAF `nwdafcfg.yaml` / 舊實驗輸出仍記著 `127.0.0.1:27017`，這不代表它是目前這台 testbed 的正確 Mongo port。
 
 ### 3. Replay 指向 Daisy example venv
 
@@ -229,27 +265,52 @@ scaler 問題與修正方案另見：
 會真正影響 Daisy client。  
 若沒有這個修改，client 會退回固定值，無法從 NWDAF config 控制。
 
-### 3. Shared scaler refit
+### 3. Scaler lifecycle 已往 DLinear branch 對齊
 
-這是目前最重要的 Daisy 本地修改，涉及：
+目前最重要的 Daisy 本地修改，涉及：
 
 - `dataset.py`
 - `server_api_handler.py`
+- `client.py`
+- `custom_strategy.py`
 
-目前行為：
+目前**有效行為**是：
 
-- master 在 `publish_task` 後、spawn clients 前
-- 先對同一個 `tid` 的所有 training docs 做一次全域 `log1p + StandardScaler.fit`
-- 產生單一 `model/{tid}/scaler.pkl`
-- 所有 client 都只讀這一份 scaler
-- client 不再各自 fit 並覆蓋 `scaler.pkl`
+- round 1 不做正式模型訓練，而是讓 client 各自計算 local scaler stats
+  - `mean / var / n`
+- master strategy 聚合 local stats，寫出單一 `model/{tid}/scaler.pkl`
+- round 2 之後 client 重新載入 dataloader，正式訓練
+- 所有 client 最終都使用同一份 shared scaler
+- 這個方向是往 `origin/NWDAF-daisy-Dlinear` 的 `client local stats -> master aggregation` 對齊
+
+這條線的工程背景要分清楚：
+
+- 舊的 master-side shared scaler refit 是暫時性止血方案
+- 但它會把不同 group 混在一起再按 timestamp 聚合，語意上不正確
+- 目前 aligned line 不再把那個 temporary mitigation 當正式方向
+- 仍可能保留部分 server-side 相容性邏輯，但最終有效 scaler 由 stats round 覆蓋
 
 這個修改對結果有明顯影響：
 
-- `exp25` shared scaler 版比舊版整體更乾淨
-- `exp27` shared scaler 版重新出現第二次 `CAT2→CAT3` degradation trigger
+- `exp29`（`v3 initial` + aligned scaler）不會觸發 retrain
+- `exp33`（`v4 initial` + aligned scaler + `z=1.5`）恢復第一次 trigger
+- `exp34`（`v4 initial` + aligned scaler + `z=1.4`）恢復兩次 trigger
 
 若另一套 Daisy 沒有這個修改，post-retrain 行為不應直接與目前結果比較。
+
+### 4. Daisy example Python 相容性修補
+
+這次 aligned line 另外確認到：
+
+- Daisy example venv 的 Python 比目前本地 shell 環境舊
+- `dataset.py` 若直接使用新版 annotation 語法，master 會在 import 階段失敗
+
+目前本地已做最小相容性修補：
+
+- `dataset.py` 加入 `from __future__ import annotations`
+- 避免 `str | None` / `list[...]` 這類 annotation 在舊 Python 下炸掉
+
+這不改變訓練邏輯，但若另一套環境 Python 版本不同，這個邊界要一起記住。
 
 ---
 
@@ -279,6 +340,25 @@ scaler 問題與修正方案另見：
 
 這些雖然不全是訓練邏輯本身，但都屬於目前 testbed 主線的一部分。
 
+### 3. `train_initial_local.py`
+
+目前 initial local trainer 本身也已經是主線依賴的一部分，因為：
+
+- 它不再只是產生 historical `v2` bundle 的工具
+- `v4` 已成為目前 aligned line 的主要 initial bundle
+
+目前要點：
+
+- 使用 `CAT1`、`group1 + group2`
+- `train_ratio=0.9`
+- `batch_size=8`
+- `learning_rate=5e-4`
+- scaler fit timing 已改成：
+  - 先以各 group 全部 CAT1 rows fit scaler
+  - 再做 train/val split
+
+若另一套環境沿用舊腳本邏輯，initial model 與目前 aligned line 不應直接比較。
+
 ---
 
 ## 目前可用的對照方式
@@ -290,6 +370,7 @@ scaler 問題與修正方案另見：
 - `git diff -- examples/07_MTLF_training/client.py`
 - `git diff -- examples/07_MTLF_training/custom_strategy.py`
 - `git diff -- examples/07_MTLF_training/dataset.py`
+- `git diff -- examples/07_MTLF_training/master.py`
 - `git diff -- src/py/daisyfl/common/task_launcher.py`
 - `git diff -- src/py/daisyfl/master/server_api_handler.py`
 - `git diff -- examples/07_MTLF_training/daisyconfig.json`
@@ -298,6 +379,7 @@ scaler 問題與修正方案另見：
 
 - `git diff -- config/nwdafcfg.yaml`
 - `git diff -- tools/retrain_replay/replay_config.yaml`
+- `git diff -- tools/retrain_replay/train_initial_local.py`
 
 ### Dataset
 
@@ -316,7 +398,8 @@ scaler 問題與修正方案另見：
 3. Daisy 是否包含：
    - task-config-driven custom strategy
    - task-config-driven `local_epochs`
-   - shared scaler refit
+   - client-local-stats -> master-global-scaler aggregation
+   - Python annotation compatibility fix
 4. NWDAF task config 是否帶入：
    - `ES_PATIENCE`
    - `LR_PATIENCE`
@@ -328,7 +411,10 @@ scaler 問題與修正方案另見：
    - `minBufferSamples=5`
    - `WAPE`
    - `chronic=false`
-6. initial bundle 是否使用 `initial_local_cat1_30s_v2`
+6. initial bundle 是否使用目前主線的 `initial_local_cat1_30s_v4`
+7. 若要重現 aligned line，policy 是否使用：
+   - `zScoreThreshold=1.4`
+   - `requiredHitsInWindow=3`
 
 ---
 
@@ -336,13 +422,32 @@ scaler 問題與修正方案另見：
 
 目前這條主線已經不是單純「調 monitor 參數」而已，而是依賴：
 
-- 特定 initial bundle
+- 特定 initial bundle（目前建議 `v4`）
 - 新的 `group2` sequential dataset
 - Daisy custom strategy / local epochs 改動
-- Daisy shared scaler refit
+- Daisy federated scaler aggregation path
+- Daisy / Mongo 27018 邊界
+- Daisy example Python 相容性修補
 
-其中最關鍵的本地修改是：
+其中最關鍵的本地修改現在要分成兩類看：
 
-- **shared scaler refit**
+- 歷史 baseline 關鍵：
+  - `exp27` 的 shared-scaler line
+- 目前 aligned line 關鍵：
+  - `v4 initial bundle`
+  - `client local stats -> master aggregation`
+  - `zScoreThreshold=1.4`
 
-因為它已經被證明會直接改變 retrain 後的模型狀態與後續 transition detectability。
+就表現來看：
+
+- `exp34` 已經把兩次 CAT 切換 retrain 都拉回來
+- 與 `exp27` 相比：
+  - `CAT1` 幾乎等價
+  - `CAT2` 略好，但更偏向低估
+  - `CAT3` 的整體 `WAPE/NRMSE` 稍好，極端爆點較少
+  - 但高流量段低估偏差更重
+
+因此目前更合理的定位是：
+
+- `exp27`：最重要的 historical best shared-scaler baseline
+- `exp34`：目前最值得延續的 aligned-line current setup

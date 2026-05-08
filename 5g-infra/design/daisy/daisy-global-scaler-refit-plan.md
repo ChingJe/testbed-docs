@@ -12,6 +12,149 @@
 
 ---
 
+## 定位
+
+本文件記錄的是 **暫時性快速緩解方案**，目的是先修正目前 retrain task 中各 client scaler 不一致、artifact scaler 與實際訓練 scaler 不一致的問題。
+
+此方案採用：
+
+- Daisy master 在 `publish_task` 時直接從 MongoDB 讀取同一個 `tid` 的全部 training docs
+- master-side 一次 fit 出共享 `scaler.pkl`
+- clients 全部讀取同一份 scaler 開始訓練
+
+這樣做的優點是修改面小、容易快速落地；但它不是團隊長期要維持的最終方案。
+
+### 長期方向
+
+後續應考慮收斂到團隊 branch `origin/NWDAF-daisy-Dlinear` 的方向：
+
+- 由各 client 先基於自己的本地資料計算 local scaler statistics
+- 將 `mean / var / n` 回傳給 master
+- 由 master 聚合出 global scaler
+- 再讓所有 clients 使用同一份 global scaler 進行正式訓練
+
+也就是說：
+
+- **現在這份文件**：master-side global refit，屬於 temporary mitigation
+- **長期設計方向**：federated statistics aggregation for scaler
+
+後續若要正式收斂設計，需重新評估：
+
+- scaler 建立流程應放在 training round 前的哪個 phase
+- client / strategy / master 間如何傳遞 scaler statistics
+- retrain 與 continue learning 是否共用同一套 scaler lifecycle
+- 是否要將 input scaler 與 target scaler 的更新策略分離
+
+### 目前方案的重要限制
+
+目前這份 temporary mitigation 還有一個需要明確標示的限制：
+
+若 master-side refit 直接將同一個 `tid` 下所有 groups 的 docs 混在一起，再交給只以 timestamp 聚合的 parser，則不同 group、但同一時間點的資料會被合成同一筆 row。
+
+在這種情況下：
+
+- `volume / packet count` 這類 sum 型 feature 會被直接加總
+- `throughput` 類 feature 會變成跨 group 的平均值
+- scaler 的統計量會對應到一條「混合後的大序列」，而不是各 group 各自的 row 聯集
+
+因此這不只是語意偏差，而是會實際改變：
+
+- normalized feature 的量級
+- target 所在的標準化座標系
+- model 訓練時的 loss landscape
+- retrain 後模型的實際行為
+
+若 group 是 client / 序列的基本單位，則「先混 group 再依 timestamp 聚合」會產生錯誤的 scaler。
+
+### 接下來的對齊方向
+
+基於上述限制，後續不建議繼續擴充 master-side global refit，而應逐步對齊 `origin/NWDAF-daisy-Dlinear` 的 federated scaler aggregation 設計。
+
+規劃上的目標是：
+
+- client 端先基於各自 `group_id` 資料計算 local scaler statistics
+- master 端只負責聚合 `mean / var / n`
+- 產出單一 `model/{tid}/scaler.pkl`
+- 正式訓練 rounds 全部使用該 global scaler
+
+也就是說，temporary mitigation 的角色應收斂為：
+
+- 先止血目前 scaler 不一致問題
+- 幫助釐清 multi-group row semantics
+- 為後續切換到 federated statistics 方案提供比對基準
+
+而不是再把更多長期行為疊加在這套 master-side refit 上。
+
+### 當前邊界
+
+由於本地 Daisy 目前已存在一些額外修改，對齊規劃需要明確控制變更面，避免誤動到無關路徑。
+
+目前已觀察到本地有修改的重點檔案包含：
+
+- `examples/07_MTLF_training/client.py`
+- `examples/07_MTLF_training/custom_strategy.py`
+- `examples/07_MTLF_training/daisyconfig.json`
+- `examples/07_MTLF_training/dataset.py`
+- `src/py/daisyfl/common/task_launcher.py`
+- `src/py/daisyfl/master/server_api_handler.py`
+
+其中可進一步分成三類：
+
+### A. task 參數彈性擴充
+
+這類修改應視為本地既有能力，後續 scaler 對齊時 **盡量不要動到**：
+
+- `src/py/daisyfl/common/task_launcher.py`
+  - 目前會在建立 strategy instance 時傳入 `task_config`
+- `examples/07_MTLF_training/custom_strategy.py`
+  - 目前可由 task config 控制：
+    - `NUM_CLIENTS_FIT`
+    - `NUM_CLIENTS_EVALUATE`
+    - `ES_PATIENCE`
+    - `LR_PATIENCE`
+    - `INITIAL_LR`
+- `examples/07_MTLF_training/client.py`
+  - 目前可由 `MODEL_META.training.local_epochs` 控制 local epochs
+
+這些修改主要是為了提高 task 參數彈性，與 scaler aggregation 本身不是同一個議題；後續若要對齊 DLinear branch，應以「保留這些能力」為前提。
+
+### B. 本地環境 / 連線配置
+
+- `examples/07_MTLF_training/daisyconfig.json`
+  - 目前調整了本地 MongoDB 連線位置
+
+這屬於環境配置，不應納入 scaler 對齊工作本身。
+
+### C. scaler temporary mitigation 路徑
+
+- `examples/07_MTLF_training/dataset.py`
+- `src/py/daisyfl/master/server_api_handler.py`
+
+這兩個檔案是目前 temporary mitigation 的主要承載點，也是之後最可能需要收斂或替換的部分。
+
+因此後續對齊建議採以下邊界：
+
+1. 優先在 `examples/07_MTLF_training/` 內完成 scaler 對齊。
+2. 優先修改與 scaler directly 相關的檔案：
+   - `dataset.py`
+   - `client.py`
+   - `custom_strategy.py`
+   - 視需要最小幅度調整 `master.py`
+3. 明確避免破壞 task 參數彈性擴充：
+   - `task_launcher.py` 傳遞 `task_config` 的能力要保留
+   - `custom_strategy.py` 對 task keys 的讀取能力要保留
+   - `client.py` 對 `MODEL_META.training.local_epochs` 的支援要保留
+4. 盡量不要再擴大修改 `src/py/daisyfl/master/server_api_handler.py` 與 `src/py/daisyfl/common/task_launcher.py`，除非只是為了維持現有相容性所必需。
+5. 不在同一波變更中混入以下主題：
+   - async callback / artifact packaging
+   - continue learning / warm-start
+   - NWDAF replay policy
+   - ML Service 載入行為
+
+換句話說，**接下來的對齊工作應聚焦在 scaler lifecycle 本身，並盡可能限制在 example 層處理**。
+
+---
+
 ## 背景
 
 目前 `07_MTLF_training` 在 `tid` 模式下：
@@ -48,6 +191,79 @@
 
 這個方案不需修改 NWDAF 與 replay 的 Daisy API 使用方式。
 
+但考慮到 multi-group 語意錯位與團隊長期方向，**此方案不建議再作為正式終點**；後續應以 federated statistics aggregation 取代。
+
+---
+
+## 對齊規劃
+
+### Phase A. 明確凍結 temporary mitigation 的責任邊界
+
+先將目前方案定義為：
+
+- 只負責解決「每個 client 各自 fit scaler」造成的不一致
+- 不再承擔長期 global scaler 設計責任
+- 不再作為 continue learning / dynamic scaler 的最終基礎
+
+### Phase B. 對齊 row semantics
+
+在切到 client local stats aggregation 前，需先明確統一「一筆 row 的定義」：
+
+- group 是基本單位
+- 同 timestamp 的不同 groups 應保留成不同 rows
+- global scaler 應 fit 在各 group rows 的聯集上
+
+若這一點不先固定，即使之後採用 federated aggregation，也會和實際訓練資料語意錯位。
+
+### Phase C. 導入 client local stats → master aggregation
+
+以 `origin/NWDAF-daisy-Dlinear` 為參考，逐步導入：
+
+1. `dataset.py` 提供 local scaler statistics helper
+2. `client.py` 支援 stats round
+3. `custom_strategy.py` 聚合 `mean / var / n`
+4. master 產出 `model/{tid}/scaler.pkl`
+5. 後續 training rounds reload 並使用 global scaler
+
+### Phase D. 驗證與替換
+
+完成 federated aggregation 後，需驗證：
+
+- 同一個 `tid` 下，多個 clients 最終使用的 scaler 完全一致
+- artifact 打包的 scaler 與訓練使用的 scaler 一致
+- 與 temporary mitigation 相比，多 group 場景下 row semantics 已正確保留
+
+若驗證通過，再逐步移除或停用 master-side direct refit 路徑。
+
+### Phase E. 對齊 initial model scaler lifecycle
+
+除了 retrain path，initial model 的 scaler 計算方式也需要和長期方案對齊。
+
+目前 `train_initial_local.py` 的做法是：
+
+- 先按時間順序切出 train / val
+- 再只用 train split 的 rows fit scaler
+
+若長期要以 `origin/NWDAF-daisy-Dlinear` 現有語意作為基準，則 initial local baseline 也應同步對齊為：
+
+- 先以各 group 的完整資料形成 feature rows
+- 先完成 scaler 統計量計算
+- 之後再做 train / val split
+
+也就是說，**若以現有 DLinear branch 作為 source of truth，`initial_local` 的 split 時機需要後移**。
+
+補充：
+
+- 這不是唯一可能的設計；理論上也可以反過來調整 DLinear branch 讓它只用 train split 算 scaler
+- 但若目前的團隊共識是「後續採用 DLinear branch 的寫法」，則規劃上應以對齊它為優先，而不是維持 `initial_local.py` 的現況
+
+因此接下來的對齊工作可拆成兩條：
+
+1. `initial_local.py` 對齊 DLinear branch 的 scaler fit 時機
+2. Daisy retrain path 對齊 DLinear branch 的 client local stats → master aggregation
+
+在這兩條都完成前，不應假設 initial model 與 retrain model 使用的是同一套 scaler lifecycle。
+
 ---
 
 ## 設計原則
@@ -68,6 +284,13 @@ global refit 使用的資料應與 retrain 實際使用的 docs 相同，也就�
 - 不額外擴大到其他 task
 - 不只看單一 group
 
+但這裡的「同一批資料」要更精確地理解為：
+
+- scaler 應 fit 在「各 group 各自產出的 feature rows 的聯集」上
+- 而不是先把不同 group 的 docs 混成單一 group-level 時序後再 fit
+
+也就是說，training docs 的範圍可以跨多個 groups，但 row construction 不能失去 `group_id` 邊界。
+
 ### 3. feature extraction 與 client dataset 保持一致
 
 master 計算 scaler 時，必須沿用與 `dataset.py` 相同的前處理邏輯：
@@ -75,6 +298,13 @@ master 計算 scaler 時，必須沿用與 `dataset.py` 相同的前處理邏輯
 - 相同的 notification parsing
 - 相同的 10 維 feature 定義
 - 相同的 `log1p`
+
+除此之外，還必須保留與 client 相同的 group 邊界：
+
+- client 端是對每個 `group_id` 各自解析、各自形成 row
+- master 若要做等價的 global refit，也應先對各 group 分開產 row，再將 row 聯集拿來 fit scaler
+
+若直接把所有 groups 的 docs 一次送進 parser，而 parser 的 key 只有 timestamp，則會導致 master 與 client 的 row construction 不一致。
 
 否則 master 計算出的 scaler 與 client dataset 仍可能不一致。
 
@@ -101,6 +331,12 @@ NWDAF / replay 維持現況：
 4. 對每列 feature 做 `log1p`
 5. 用所有 rows fit 一個 `StandardScaler`
 6. 將 scaler 存到 `model/{tid}/scaler.pkl`
+
+補充：
+
+- 第 3 步的 row 建立必須保留 `group_id` 邊界
+- 不能直接把多個 groups 混成單一 timestamp 聚合序列
+- 否則這裡 fit 出來的 scaler 會與 clients 實際資料分布不一致
 
 ### Phase 3. Spawn clients
 
@@ -143,6 +379,11 @@ clients 啟動後：
 接著在 `publish_task()` 內：
 
 - 在 spawn clients 前呼叫此 helper
+
+補充：
+
+- 這部分是 temporary mitigation 的核心修改點
+- 後續若切換到 federated statistics aggregation，應以「縮小責任」為方向，而不是再往這裡疊更多 scaler 邏輯
 
 ### 2. `dataset.py`
 
@@ -200,6 +441,19 @@ client 本身不需要新增新協定，但要確保：
 
 讓 master 與 client dataset 共用同一套邏輯。
 
+但需注意：
+
+- 不能只重用 parser 名稱
+- 必須同時重用正確的 row construction 邏輯
+
+若 parser 目前以 timestamp 為唯一聚合 key，則 master-side global refit 在多 group 場景下仍會產生錯誤 row。
+
+因此後續正式修正時，應優先將 helper 調整為：
+
+- 先按 `group_id` 分流
+- 對每個 group 各自產出 feature rows
+- 最後把所有 groups 的 rows 串接後再 fit scaler
+
 ### B. `tid` 模式預設禁止 client save scaler
 
 `tid` retrain 路徑下，client 不應再寫 scaler。
@@ -230,6 +484,8 @@ client 本身不需要新增新協定，但要確保：
 - 不再出現每個 client 各自覆蓋 `scaler.pkl` 的競態
 - retrain 後某一個 group 特別差的現象應有機會明顯改善
 
+但若未先修正多 group row construction，則上述效果只能視為止血，不應視為與長期 federated scaler aggregation 等價的正確結果。
+
 ---
 
 ## 非目標
@@ -242,3 +498,21 @@ client 本身不需要新增新協定，但要確保：
 - accuracy monitor / retrain policy 調整
 
 這些應等 scaler 一致性修正完成後再評估。
+
+---
+
+## 目前結論摘要
+
+若目標是與 `origin/NWDAF-daisy-Dlinear` 的 scaler 設計對齊，當前主要處理項目為：
+
+1. `initial_local` 的 scaler fit 時機需與 DLinear branch 一致。
+   - 也就是 split 順序應重新檢查，必要時改為先算 scaler、後做 split。
+2. Daisy retrain path 應收斂到 DLinear branch 的作法。
+   - client 計算 local stats
+   - master 聚合 global scaler
+   - 正式 training rounds 使用同一份 global scaler
+3. row semantics 必須先固定。
+   - group 是基本單位
+   - 不能把多個 groups 混成同一條 timestamp 聚合序列
+
+在這三點對齊前，目前本地 temporary mitigation 只能視為止血方案，不應直接視為最終正確設計。
