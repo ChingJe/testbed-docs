@@ -61,7 +61,8 @@ profiles/<PROFILE>/.env
 
 | 變數 | 格式 | 主要消費者 | 用途 |
 |---|---|---|---|
-| `GRAFANA_BASE` | URL | `config.py`、`main.py`、前端 iframe | 瀏覽器可達的 Grafana base URL |
+| `GRAFANA_BASE` | URL 或 path | `config.py`、`main.py`、前端 iframe | 瀏覽器可達的 Grafana base URL；same-origin proxy 模式下可設為 `/grafana` |
+| `GRAFANA_API_BASE` | URL | `grafana_setup.py`、`main.py` | backend 呼叫 Grafana admin API 與 proxy upstream 的 base URL；若 Grafana 啟用 `/grafana/` 子路徑，通常為 `http://localhost:3000/grafana` |
 | `GRAFANA_ADMIN_USER` | string | `grafana_setup.py` | 建 datasource / dashboard |
 | `GRAFANA_ADMIN_PASS` | string | `grafana_setup.py` | 同上 |
 | `GRAFANA_GROUPS` | `a,b,c` | `config.py`、`grafana_setup.py`、`main.py` | dashboard panel 群組與 session metadata |
@@ -69,20 +70,13 @@ profiles/<PROFILE>/.env
 | `GRAFANA_DEVIATION_UNIT` | string | `grafana_setup.py` | deviation panel y 軸標籤（選填，預設 `"sMAPE"`） |
 | `GRAFANA_DEVIATION_LEGEND_SUFFIX` | string | `grafana_setup.py` | deviation panel 曲線名稱後綴，格式為 `{{model}} <suffix>`；設為空字串時只顯示 model 名稱（選填，預設 `"sMAPE"`） |
 
-這裡有兩個重要限制：
+這裡有三個重要限制：
 
-- `GRAFANA_BASE` 必須是瀏覽器看得到的位址，不應盲目設成 `http://localhost:3000`
+- `GRAFANA_BASE` 必須是瀏覽器看得到的位址或 path；若採 same-origin proxy，建議直接設成 `/grafana`
+- `GRAFANA_API_BASE` 應該是 backend 真正打得到的 Grafana 位址；若 Grafana 與 5g-viz 同機且啟用 `/grafana/` 子路徑，通常是 `http://localhost:3000/grafana`
 - `GRAFANA_GROUPS` 會被解析成逗號分隔字串陣列，空白會被 `strip()`
 
 live session 建立時，`main.py` 也會把 `GRAFANA_GROUPS` 寫進 `meta.json`。replay 時若 `meta.json` 內有保存值，會優先使用 session 內保存的 groups。
-
-### Grafana 遺留變數
-
-`profiles/default/.env` 目前還留著：
-
-| 變數 | 現況 |
-|---|---|
-| `GRAFANA_PUBLIC_TOKEN` | 目前程式碼不讀取，也不參與 iframe 嵌入；屬於舊設計殘留 |
 
 ### Parser / metrics 用的 UPF 映射
 
@@ -179,5 +173,4 @@ key=value,key=value
 - `WS_PORT` 雖然存在於 `config.py`，但 `start.sh` 目前沒有用它來決定 uvicorn port
 - `.env.example` 目前列出 `PROMETHEUS_BASE`，但 `main.py` 實際讀的是 `PROMETHEUS_URL`
 - replay mode 不啟動 collector，因此 `SSH_5GC_*`、`LOG_*` 這類 collector 相關變數在 replay runtime 中通常不會被實際使用
-- `GRAFANA_PUBLIC_TOKEN` 目前仍可能出現在既有 `.env`，但程式碼不會讀它
 - replay 時主要依賴 session 內保存的 `meta.json` 與 `topology.yaml`；修改目前 profile `.env` 不會 retroactively 改變舊 session 的 topology 或 grafana groups metadata
