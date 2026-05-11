@@ -1,0 +1,87 @@
+name: exp40_local_initial_v6_freshinit_fedscaler_rwin1200_z14
+description: >
+  Validation run after the phase-1 / phase-2 code changes.
+  Goals:
+  - retrain a new initial bundle using the current train_initial_local.py code
+    but keep the old v4 semantics:
+    CAT1-trained model + CAT1-fitted scaler
+  - run replay with the old Daisy retrain behavior:
+    fresh-init per task + per-task federated aggregated scaler
+  - confirm recent fixed-scaler / continue-learning changes do not alter the
+    old retrain path when those flags are disabled
+  Expected behavior:
+  - initial bundle: out/initial_local_cat1_30s_v6/bundle
+  - replay.daisy.use_fixed_scaler is disabled
+  - replay.daisy.enable_continue_learning is disabled
+  - each retrain task seeds from MODEL_META fresh init rather than previous
+    Daisy local weights
+  Keep aligned with exp35:
+  - samplingInterval=30s
+  - checkInterval=90s
+  - recentBufferSize=12
+  - minBufferSamples=5
+  - minSamples=2
+  - primaryMetric=WAPE
+  - zScoreThreshold=1.4
+  - minStd=0.14
+  - fixedFloor=0.05
+  - decisionWindowSize=5
+  - requiredHitsInWindow=3
+  - chronicPolicy.enabled=false
+  - retrain.window_sec=1200
+  - ES_PATIENCE=5
+  - LR_PATIENCE=3
+  - local_epochs=3
+  Run with:
+    uv run run_experiment.py ../../../docs/5g-infra/experiments/exp40.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v6/bundle
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.4
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: false
+  report:
+    progress_every_slots: 10

@@ -1,0 +1,69 @@
+name: exp38_local_initial_v5_fixedscaler_continue_lr5e4_rwin1200_z14
+description: >
+  Phase-2 follow-up to exp37.
+  Keep fixed-scaler mode and continue learning enabled, but reduce Daisy
+  INITIAL_LR from the default 1e-3 to 5e-4.
+  Goal:
+  - test whether warm-start training is currently updating too aggressively
+  - keep local_epochs=3 so this run isolates learning-rate impact first
+  Expected runtime semantics:
+  - first retrain warm-starts from the v5 initial bundle model
+  - later retrains warm-start from the previous Daisy local model
+  - every retrain task reuses the fixed v5 scaler
+  Notes:
+  - replay.daisy.reuse_existing=false to avoid reusing an older Daisy master
+  - fixed-scaler mode still skips the old stats round, so effective training
+    rounds remain different from exp36
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.4
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        INITIAL_LR: 0.0005
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: false
+    use_fixed_scaler: true
+    enable_continue_learning: true
+  report:
+    progress_every_slots: 10

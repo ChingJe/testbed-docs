@@ -1,5 +1,7 @@
 # Daisy Global Scaler Refit Plan
 
+> 更新狀態：本文件最初記錄的是 master-side global refit temporary mitigation。依 2026-05-11 本地 Daisy 程式碼，預設 retrain path 已不再使用這條路徑作為正式 scaler lifecycle；目前本地主要流程已改為 round 1 local stats -> master aggregation -> round 2 reload shared scaler。本文件保留作為 temporary mitigation 的背景、限制與和後續對齊工作的比較基準。
+
 ## 目標
 
 修正 Daisy retrain 流程中的 scaler 不一致問題，使每次 retrain task：
@@ -37,6 +39,46 @@
 
 - **現在這份文件**：master-side global refit，屬於 temporary mitigation
 - **長期設計方向**：federated statistics aggregation for scaler
+
+### `origin/NWDAF-daisy-Dlinear` 的已知 fallback 問題
+
+雖然 `origin/NWDAF-daisy-Dlinear` 的方向是正確的，也就是：
+
+- round 1 由 clients 回傳 local scaler statistics
+- master 聚合出 global scaler
+- round 2 起正式訓練使用 shared scaler
+
+但就目前 branch 內容來看，還殘留一條不夠乾淨的 fallback path：
+
+- `dataset.py` 若發現 `model/{tid}/scaler.pkl` 不存在，會先以當前 client 的本地資料 fit 一份 scaler
+- 該 fallback 在 branch 內仍可能寫回 shared scaler 路徑
+- `client.py` 又是在模組載入時就先建 dataloader，不是等 stats round 完成後才建
+
+這會帶來兩個問題：
+
+1. 若多個 clients 幾乎同時啟動，誰先寫入 `model/{tid}/scaler.pkl` 會受到啟動時序影響。
+2. branch 內的 `get_local_stats()` 是透過再次呼叫 `get_dataloaders(save_scaler=False)` 取得 scaler；若 fallback 已先產生 shared scaler，這一步可能讀到 fallback scaler，而不是重新從 raw local rows 計算真正的 local statistics。
+
+因此，`origin/NWDAF-daisy-Dlinear` 比 master-side direct refit 更接近正確設計，但嚴格來說仍未完全封死 bootstrap fallback 對 stats round 的污染風險。
+
+對齊時應採納的是它的 **federated aggregation 設計方向**，而不是原樣保留這條 fallback。
+
+### 目前本地狀態
+
+本地 Daisy 目前已進一步做了兩個收斂：
+
+- `publish_task` 已移除「先用全部 `tid` docs direct refit scaler」的路徑
+- `tid` retrain path 已不再允許 client 將 local-fitted scaler 寫回 shared `model/{tid}/scaler.pkl`
+
+目前正式 retrain scaler lifecycle 可整理為：
+
+1. client 啟動時，若 shared scaler 尚未存在，可先用 local rows 在記憶體中建立 bootstrap dataset
+2. round 1 stats round 直接從 raw local rows 計算 `mean / var / n`
+3. master 聚合後寫出唯一的 `model/{tid}/scaler.pkl`
+4. round 2 reload dataloader，且要求 shared scaler 必須存在
+5. round 2 起的正式訓練全部使用同一份 shared scaler
+
+因此，以「正式 retrain 訓練 rounds 使用單一聚合後 shared scaler」這個目標來看，本地目前已經符合預期；剩下尚未處理的主題已轉為 warm-start / continue learning，而不是 global scaler lifecycle 本身。
 
 後續若要正式收斂設計，需重新評估：
 
@@ -225,6 +267,15 @@
 4. master 產出 `model/{tid}/scaler.pkl`
 5. 後續 training rounds reload 並使用 global scaler
 
+補充：
+
+- 若只「照抄」`origin/NWDAF-daisy-Dlinear`，仍可能把 bootstrap fallback 一起帶回來
+- 因此本地對齊的實際目標應是：
+  - 保留 federated stats aggregation
+  - 移除 `publish_task` direct refit
+  - 移除 shared-scaler fallback write
+  - 讓 round 2 正式訓練強制依賴聚合後的 shared scaler
+
 ### Phase D. 驗證與替換
 
 完成 federated aggregation 後，需驗證：
@@ -241,8 +292,9 @@
 
 目前 `train_initial_local.py` 的做法是：
 
-- 先按時間順序切出 train / val
-- 再只用 train split 的 rows fit scaler
+- 先收集各 group 的完整 feature rows
+- 先 fit scaler
+- 之後才按時間順序切出 train / val
 
 若長期要以 `origin/NWDAF-daisy-Dlinear` 現有語意作為基準，則 initial local baseline 也應同步對齊為：
 

@@ -1,0 +1,76 @@
+name: exp37_local_initial_v5_fixedscaler_continue_rwin1200_z14
+description: >
+  Phase-2 follow-up to exp36.
+  Enable Daisy fixed-scaler mode and continue learning while keeping the
+  current replay trigger policy unchanged.
+  Intended behavior:
+  - initial bundle remains v5:
+    CAT1-trained model + full-replay oracle scaler
+  - first Daisy retrain warm-starts from the v5 initial bundle
+  - later Daisy retrains warm-start from the previous Daisy local model
+  - every Daisy retrain task reuses the fixed v5 scaler instead of running
+    per-task federated scaler aggregation
+  Important setup notes:
+  - replay.daisy.reuse_existing=false so the run does not accidentally reuse
+    an older Daisy master process without the phase-2 code path
+  - fixed-scaler mode skips the old round-1 stats round, so with the same
+    NUM_ROUNDS setting the number of actual training rounds may be one higher
+    than exp36; compare results with that caveat in mind
+  - no manual pre-copy of the initial model is needed; the replay/Daisy bridge
+    now passes SEED_MODEL_PATH / SEED_SCALER_PATH and Daisy copies them into
+    model/<tid>/ at publish time
+  Run with:
+    uv run run_experiment.py ../../../docs/5g-infra/experiments/exp37.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v5/bundle
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.4
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 5
+        LR_PATIENCE: 3
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: false
+    use_fixed_scaler: true
+    enable_continue_learning: true
+  report:
+    progress_every_slots: 10
