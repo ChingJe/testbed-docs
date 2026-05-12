@@ -419,6 +419,152 @@ if true {
 
 - **`test-EES-with-pseudodriver` branch 的「data fusion」行為，破壞了「UPF notify 必須逐 slot exact 等於 `pre_data`」這個驗證前提**
 
+### Evidence level: what is directly confirmed vs what is still inferred
+
+這裡需要特別把「已確認」和「高可信度推論」分開，避免把目前結論講得太滿。
+
+#### A. 已經可以直接確認的事
+
+1. `pseudo-driver` 有正常讀到 `breaking time = 900`
+2. `pseudo-driver` phase1/phase2 anchor 沒有明顯跑錯
+3. `upf-ees` / `upf-ees2` 都有持續 `ees notify success`
+4. `dispatcher` 路徑的 report 在 phase2 前後都持續存在
+5. `test-EES-with-pseudodriver` 這個 branch 的 aggregator 會把同 slot 的多筆 measure 直接 `+=`
+6. 最終 `UPF notify` 的內容確實不是「全體 IP 都 exact 等於 `pre_data`」
+
+上面 1~6 都是直接來自：
+
+- code
+- `upf-ees.log`
+- `upf-ees2.log`
+- `nwdaf.log`
+- `pre_data` 對照結果
+
+#### B. 目前仍屬於高可信度推論的事
+
+目前**還沒有直接抓到**下面這種逐筆對帳證據：
+
+- `IP=10.10.0.3`
+- `slot=64`
+- `pseudo contribution = X`
+- `kernel contribution = Y`
+- `final notify = X + Y`
+
+也就是說，**「偏差值中的每一個多出來的 byte 都確定來自 kernel report」這件事，目前還沒有被逐筆印出來證明。**
+
+因此最精確的表述應該是：
+
+- **目前高度懷疑誤差來自 kernel/dispatcher 路徑的 usage contribution**
+- 但這仍然是依靠：
+  - `log 時序`
+  - `code merge semantics`
+  - `per-IP exact-match 型態`
+  綜合推論出來的
+
+而不是已經直接看到一份 kernel-side delta ledger。
+
+#### C. 為什麼這個推論可信度仍然很高
+
+雖然還沒到「逐筆對帳」程度，但目前推論強度已經不低，原因有三個：
+
+1. 如果是 `pseudo-driver` 自己播錯或 anchor 錯，通常會傾向全體 IP 一起偏掉，但這次不是。
+2. `dispatcher` report 在 phase2 前後確實持續存在，代表 phase2 不是純 pseudo-only 的靜態世界。
+3. code 已明確證實這個 branch 的設計就是 `data fusion`，不是 source priority overwrite。
+
+所以目前最合理的中間結論是：
+
+- **不是已經 100% 直接證明「怪流量一定來自 kernel」**
+- **但現有證據已足以把它列為首要嫌疑，且比「pseudo-driver 播錯」更符合全部現象**
+
+### Additional cross-check from `0513-01` gNB / UE logs
+
+為了確認「這些偏差是不是來自使用者真的主動送了大量 UE traffic」，又另外檢查了後續一次重跑 `0513-01` 的：
+
+- `gnb.log`
+- `gnb2.log`
+- `ue1.log` ~ `ue6.log`
+
+這批 log 的作用，不是拿來直接解釋 `0512-19` 的每個偏差 slot，而是用來判斷：
+
+- 在目前 testbed 使用方式下，UE / gNB 端是否本來就會主動送出明顯的 data-plane traffic
+
+#### `ue*.log` 實際顯示了什麼
+
+`ue1.log` ~ `ue5.log` 的主要內容都只有：
+
+- Initial Registration
+- PDU Session Establishment Request / Accept
+- `Connection setup ... TUN interface[...] is up`
+
+沒有看到：
+
+- ping
+- application-level traffic
+- 持續 data sending 的訊息
+
+`ue6.log` 則顯示：
+
+- `TUN allocation failure [ioctl(TUNSETIFF) Device or resource busy]`
+
+這代表：
+
+- 這次 `group2` 的 UE 啟動環境不夠乾淨
+- 但更重要的是，**UE log 沒有提供「使用者主動送流量」的證據**
+
+#### `gnb*.log` 實際顯示了什麼
+
+`gnb.log` / `gnb2.log` 主要內容也是：
+
+- SCTP connection established
+- NG Setup successful
+- RRC Setup
+- Initial NAS message
+- Initial Context Setup Request
+- PDU session resource setup
+
+同樣沒有看到任何類似：
+
+- 持續 data transfer
+- app traffic
+- 特定 user-plane payload activity
+
+#### 這批 gNB / UE log 的意義
+
+這些 log **不能直接證明 kernel contribution 的來源**，但它們確實讓下面這條路線變得不那麼可信：
+
+- 「是不是其實使用者在 gNB/UE 端送了很多額外流量，才讓 UPF notify 變大？」
+
+因為：
+
+- `ue*.log` 沒有顯示主動業務流量
+- `gnb*.log` 也沒有顯示 data-plane 活動
+- 現場 `tcpdump -i enp0s8 udp port 2152` 也沒有觀察到明顯 GTP-U 封包
+
+因此這批輔助證據比較支持：
+
+- **偏差值不是來自明確的人為業務流量測試**
+- **若有額外 usage，更可能是 kernel/URR/gtp5g 路徑本身的計數結果，而不是顯式的 UE data session traffic**
+
+### What would count as direct proof
+
+若要把這份報告從「高可信度推論」提升成「直接確認」，至少需要做到下列其中一項：
+
+1. 在 `PushReport()` 裡額外印出每筆 kernel report 的：
+   - `ueIp`
+   - `URRID`
+   - `ULBytesDelta`
+   - `DLBytesDelta`
+   - `StartTime`
+   - `EndTime`
+2. 同時在 pseudo-driver phase2 push 處印出每筆 pseudo window 的同樣欄位
+3. 再把最終 notify 對同一 `(ueIp, startTime)` slot 的數值對帳
+
+只要能看到：
+
+- `final notify = pseudo window + kernel window`
+
+這件事被逐筆對上，就能把目前的根因判斷升級成直接證據。
+
 ### Implication for future validation
 
 若後續目標仍然是驗證：
