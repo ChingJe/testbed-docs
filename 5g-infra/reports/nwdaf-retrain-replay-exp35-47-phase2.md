@@ -1,7 +1,7 @@
-# NWDAF Retrain Replay Exp35-40 Notes
+# NWDAF Retrain Replay Exp35-47 Notes
 
 **Date:** 2026-05-11  
-**Scope:** 記錄 `exp35` 到 `exp40` 的 scaler / continue-learning 實驗結果，並整理目前可成立的初步結論。
+**Scope:** 記錄 `exp35` 到 `exp47` 的 scaler / continue-learning 與 fresh-init 調參結果，並整理目前可成立的初步結論。
 
 ---
 
@@ -68,6 +68,39 @@
   - `enable_continue_learning = false`
   - 每次 task 都回到 fresh init + federated aggregated scaler
 - 用途：確認近期 phase 1 / phase 2 改動沒有污染舊 retrain 路線
+
+### `exp41` ~ `exp44`
+
+- fresh-init 調參探索，但沒有同時滿足：
+  - 保留兩次 CAT-switch retrain
+  - 改善部署後模型表現
+- `exp41`、`exp42`、`exp43`：
+  - 把 early stopping / LR decay 壓得太積極
+  - 雖然 retrain 更短，但會讓第二次 retrain trigger 消失
+- `exp44`：
+  - 單獨降低 `INITIAL_LR` 也會讓第二次 retrain 消失
+
+### `exp45`
+
+- 回到 `INITIAL_LR=1e-3`
+- 只把 `LR_PATIENCE: 3 -> 2`
+- 第一個在不破壞兩次 retrain 條件下，帶來明顯正向 trade-off 的版本
+
+### `exp46`
+
+- 在 `exp45` 基礎上，再把 `ES_PATIENCE: 5 -> 4`
+- 目前 fresh-init 主線下最平衡的版本：
+  - 保住兩次 retrain
+  - `CAT2` 表現接近 `exp40`
+  - `CAT3` second model 明顯優於 `exp40`
+  - 第二次 retrain wall time 也短於 `exp40` / `exp45`
+
+### `exp47`
+
+- 在 `exp46` 基礎上，再把 `ES_PATIENCE: 4 -> 3`
+- 兩次 retrain 仍存在
+- 但模型表現與第二次 retrain wall time 都退步
+- 結論：`exp46` 優於 `exp47`
 
 ---
 
@@ -213,6 +246,33 @@
   - flags 關閉時：fresh init + federated scaler
   - flags 開啟時：fixed scaler + continue learning
 
+### 6. `exp45` 到 `exp47` 顯示 fresh-init 調參已接近局部收斂
+
+從 `exp41` 到 `exp47` 的結果可以看到幾個明確邊界：
+
+- `INITIAL_LR` 降到 `5e-4`：
+  - 第二次 retrain 會消失
+- `ES_PATIENCE` 壓到 `2`：
+  - 第二次 retrain 也會消失
+- `ES_PATIENCE=3`：
+  - 兩次 retrain 還在，但模型表現與 second retrain wall time 不如 `exp46`
+- `LR_PATIENCE=2`：
+  - 是目前唯一穩定帶來正向 trade-off 的方向
+
+因此在目前這條線：
+
+- `v6 initial bundle`
+- `fresh init + federated scaler`
+- `retrain.window_sec = 1200`
+- `必須保留兩次 CAT-switch retrain`
+
+最佳已知設定應暫定為：
+
+- `INITIAL_LR = 1e-3`
+- `LR_PATIENCE = 2`
+- `ES_PATIENCE = 4`
+- `local_epochs = 3`
+
 ---
 
 ## 初步結論
@@ -256,13 +316,14 @@
 
 ### D. 目前較務實的結論
 
-截至 `exp40`：
+截至 `exp47`：
 
 - `v5` initial bundle 值得保留
 - `exp36` 是穩定的 oracle-scaler baseline
 - `exp37` 是 phase 2 可運行的主線，但尚未證明明確優於 `exp36`
 - `exp38`、`exp39` 不支持繼續只靠調整 `lr / local_epochs` 來救 phase 2
 - `exp40` 則確認目前程式仍可乾淨地跑回舊 fresh-init 路線
+- `exp46` 是目前 fresh-init 主線下最值得保留的訓練參數組合
 
 所以接下來若要繼續驗證，優先順序應該是：
 
@@ -304,3 +365,23 @@
 - `exp36` 仍可視為較穩的 baseline
 - `exp37` 保留作為可運行的 continue-learning reference
 - 不把 phase 2 直接升格為主線
+
+### 4. 將 `exp46` 視為目前 fresh-init 主線最佳設定
+
+若後續仍維持：
+
+- `CAT1-trained + CAT1 scaler`
+- `fresh init + federated aggregated scaler`
+- `retrain.window_sec = 1200`
+
+則目前應優先沿用 `exp46` 的 Daisy task 參數：
+
+- `INITIAL_LR = 1e-3`
+- `LR_PATIENCE = 2`
+- `ES_PATIENCE = 4`
+- `local_epochs = 3`
+
+接下來若要再提升結果，優先順序不應再是繼續微調這四個參數，而應先轉向：
+
+1. 重新改善 initial bundle
+2. 評估 Daisy 保存 best checkpoint，而不是只保留最後一輪權重

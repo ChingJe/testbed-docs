@@ -1,0 +1,83 @@
+name: exp41_local_initial_v6_freshinit_fedscaler_es2_lr1_le2_lr5e4
+description: >
+  Fresh-init follow-up to exp40.
+  Keep the current old-path retrain semantics unchanged:
+  - initial bundle uses the CAT1-trained + CAT1-scaled v6 bundle
+  - per-task Daisy retrain still uses fresh init + federated aggregated scaler
+  - replay trigger policy and retrain window remain unchanged
+  Only adjust training-side parameters to reduce the risk of ending with a
+  worse last-round checkpoint after validation has already started degrading.
+  Main changes from exp40:
+  - ES_PATIENCE: 5 -> 2
+  - LR_PATIENCE: 3 -> 1
+  - MODEL_META.training.local_epochs: 3 -> 2
+  - INITIAL_LR: 1e-3 -> 5e-4
+  Keep unchanged:
+  - initial bundle semantics: CAT1-trained + CAT1 scaler
+  - samplingInterval=30s
+  - checkInterval=90s
+  - recentBufferSize=12
+  - minBufferSamples=5
+  - minSamples=2
+  - primaryMetric=WAPE
+  - zScoreThreshold=1.4
+  - minStd=0.14
+  - fixedFloor=0.05
+  - decisionWindowSize=5
+  - requiredHitsInWindow=3
+  - chronicPolicy.enabled=false
+  - retrain.window_sec=1200
+  Run with:
+    uv run run_experiment.py ../../../docs/5g-infra/experiments/exp41.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v6/bundle
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.4
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 2
+        LR_PATIENCE: 1
+        INITIAL_LR: 0.0005
+        MODEL_META:
+          training:
+            local_epochs: 2
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: false
+  report:
+    progress_every_slots: 10

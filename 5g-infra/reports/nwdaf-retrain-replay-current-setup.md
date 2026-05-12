@@ -1,6 +1,6 @@
 # NWDAF Retrain Replay Current Setup
 
-**Date:** 2026-05-08
+**Date:** 2026-05-12
 **Scope:** 記錄目前 retrain replay 主線實驗的主要設置、testbed 依賴項、以及 Daisy / dataset / initial-local trainer 的本地修改點。
 
 ---
@@ -28,38 +28,48 @@ scaler 問題與修正方案另見：
 目前需要同時記住兩條線：
 
 - `exp27_local_initial_buf5_nochronic_rwin1200_sharedscaler`
-- `exp34_local_initial_v4_fedscaler_rwin1200_z14`
+- `exp46_local_initial_v6_freshinit_fedscaler_es4_lrpat2`
 
 其中：
 
 - `exp27_*_sharedscaler`
   - 歷史上最重要的 shared-scaler baseline
   - 用來驗證 shared scaler + `retrain.window_sec=1200` 是否能把第二次 `CAT2→CAT3` trigger 拉回來
-- `exp34_*_fedscaler_*`
-  - 目前對齊 `origin/NWDAF-daisy-Dlinear` scaler lifecycle 後的主線
-  - 使用新的 `initial_local_cat1_30s_v4`
-  - Daisy retrain scaler 走 `client local stats -> master aggregation`
-  - 只在 policy 上做最小調整：`zScoreThreshold 1.5 -> 1.4`
+- `exp46_*_freshinit_fedscaler_*`
+  - 目前最值得延續的 fresh-init 主線
+  - 初始模型使用目前重建的 `initial_local_cat1_30s_v6`
+    - 語意上維持 `CAT1-trained + CAT1 scaler`
+  - Daisy retrain 仍走舊主線：
+    - fresh init per task
+    - per-task federated aggregated scaler
+  - 在不破壞兩次 CAT-switch retrain 的前提下，對 Daisy task 參數做最小調整：
+    - `LR_PATIENCE 3 -> 2`
+    - `ES_PATIENCE 5 -> 4`
 
 兩者都能在兩次 CAT 切換時觸發 retrain，但語意不同：
 
 - `exp27`
   - 第一次 trigger：`00:34:30 group2 degradation`
   - 第二次 trigger：`01:06:00 group1 degradation`
-- `exp34`
+- `exp46`
   - 第一次 trigger：`00:34:30 group2 degradation`
   - 第二次 trigger：`01:07:30 group1 degradation`
 
 也就是：
 
 - `exp27` 仍是最重要的歷史 baseline
-- `exp34` 是目前較值得延續的「對齊 DLinear scaler 設計後」主線
+- `exp46` 是目前較值得延續的 fresh-init current setup
 
 另外這次實驗已確認：
 
 - `exp29`（`v3 initial bundle`）不會觸發 retrain
 - `exp33`（`v4 initial bundle` + `zScoreThreshold=1.5`）可恢復第一次 trigger，但第二次只累積到 `2/5 hits`
-- `exp34` 只降低 `zScoreThreshold` 到 `1.4`，就在不改 `requiredHitsInWindow=3` 的前提下，把第二次 trigger 拉回來
+- `exp36`（`v5 initial bundle + federated scaler`）證明 oracle-scaler baseline 有效，但不足以單獨改變 retrain 結構
+- `exp37`（`fixed scaler + continue learning`）技術路徑已可運作，但尚未穩定優於 fresh-init 路線
+- `exp41` ~ `exp44` 顯示：
+  - 過於激進的 early stopping / 降 learning rate 會讓第二次 retrain 消失
+- `exp45` 是第一個不破壞兩次 retrain 條件、且明顯改善 `CAT3` second-model 表現的 fresh-init 調整
+- `exp46` 進一步在 `CAT2` / `CAT3` 表現與 retrain wall time 之間取得較佳平衡
 
 ---
 
@@ -70,9 +80,10 @@ scaler 問題與修正方案另見：
 目前主線不是用預設 initial bundle，而是用本地 supervised trainer 產生的：
 
 - 歷史 baseline：`out/initial_local_cat1_30s_v2/bundle`
-- 目前主線：`out/initial_local_cat1_30s_v4/bundle`
+- 歷史 aligned-line 主線：`out/initial_local_cat1_30s_v4/bundle`
+- 目前 fresh-init 主線：`out/initial_local_cat1_30s_v6/bundle`
 
-`v4` 延續 `v2` 的主要超參數，但把 scaler fit timing 改成與目前 Daisy federated scaler 語意更接近：
+`v4` 延續 `v2` 的主要超參數，但把 scaler fit timing 改成與 Daisy federated scaler 語意更接近：
 
 - centralized local training
 - `CAT1 only`
@@ -84,7 +95,18 @@ scaler 問題與修正方案另見：
 - `learning_rate=5e-4`
 - scaler：先用各 group 全部 CAT1 rows fit，再做 train/val split
 
-用途是提供較穩的 replay 起始模型，避免一開始就完全依賴 Daisy FL 訓練。
+`v6` 則是在目前 `train_initial_local.py` 上，重新按 `v4` 語意訓練出的 bundle：
+
+- `CAT1-trained model`
+- `CAT1-fitted scaler`
+- `train_ratio=0.9`
+- `batch_size=8`
+- `learning_rate=5e-4`
+
+目前用途是：
+
+- 作為 fresh-init 調參線的穩定對照起點
+- 與 `v5`（oracle scaler）刻意分開，避免把 initial bundle 改善和 Daisy retrain 調參混在一起
 
 `v4` 的本地 validation 明顯優於先前 exploratory 的 `v3`：
 
@@ -95,9 +117,9 @@ scaler 問題與修正方案另見：
 
 ### B. Accuracy monitor
 
-目前要區分兩組 monitor 設置：
+目前主線 monitor 設置如下：
 
-| 項目 | `exp27` | `exp34` |
+| 項目 | `exp27` | `exp46` |
 |---|---:|---:|
 | `samplingInterval` | `30s` | `30s` |
 | `report_period_sec` | `30s` | `30s` |
@@ -434,20 +456,25 @@ scaler 問題與修正方案另見：
 - 歷史 baseline 關鍵：
   - `exp27` 的 shared-scaler line
 - 目前 aligned line 關鍵：
-  - `v4 initial bundle`
-  - `client local stats -> master aggregation`
+  - `v6 initial bundle`
+  - fresh init + federated aggregated scaler
   - `zScoreThreshold=1.4`
 
-就表現來看：
+就目前判斷來看：
 
 - `exp34` 已經把兩次 CAT 切換 retrain 都拉回來
-- 與 `exp27` 相比：
-  - `CAT1` 幾乎等價
-  - `CAT2` 略好，但更偏向低估
-  - `CAT3` 的整體 `WAPE/NRMSE` 稍好，極端爆點較少
-  - 但高流量段低估偏差更重
+- `exp46` 則是目前 fresh-init 線下最佳已知 Daisy task 設定
+  - `INITIAL_LR = 1e-3`
+  - `LR_PATIENCE = 2`
+  - `ES_PATIENCE = 4`
+  - `local_epochs = 3`
+  - 保住兩次 retrain
+  - `CAT2` 表現接近 `exp40`
+  - `CAT3` second-model 明顯優於 `exp40`
+  - retrain wall time 也優於 `exp45`
 
 因此目前更合理的定位是：
 
 - `exp27`：最重要的 historical best shared-scaler baseline
-- `exp34`：目前最值得延續的 aligned-line current setup
+- `exp36` / `exp37`：oracle-scaler / continue-learning 參考線
+- `exp46`：目前最值得延續的 fresh-init current setup

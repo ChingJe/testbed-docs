@@ -1,0 +1,92 @@
+name: exp46_local_initial_v6_freshinit_fedscaler_es4_lrpat2
+description: >
+  Fresh-init follow-up to exp45.
+  Keep the old retrain semantics unchanged:
+  - initial bundle uses the CAT1-trained + CAT1-scaled v6 bundle
+  - per-task Daisy retrain still uses fresh init + federated aggregated scaler
+  - replay trigger policy and retrain window remain unchanged
+  Motivation:
+  - exp45 preserved both CAT-switch retrains and substantially improved the
+    second deployed model on CAT3
+  - the remaining downside is longer second retrain wall time than exp40
+  This run keeps the exp45 learning-rate schedule change and adds a very small
+  early-stopping adjustment to see whether training can end earlier without
+  collapsing back to the exp41-44 failure mode.
+  Main changes from exp40:
+  - LR_PATIENCE: 3 -> 2
+  - ES_PATIENCE: 5 -> 4
+  Keep unchanged from exp40:
+  - INITIAL_LR: 1e-3
+  - MODEL_META.training.local_epochs: 3
+  - initial bundle semantics: CAT1-trained + CAT1 scaler
+  - samplingInterval=30s
+  - checkInterval=90s
+  - recentBufferSize=12
+  - minBufferSamples=5
+  - minSamples=2
+  - primaryMetric=WAPE
+  - zScoreThreshold=1.4
+  - minStd=0.14
+  - fixedFloor=0.05
+  - decisionWindowSize=5
+  - requiredHitsInWindow=3
+  - chronicPolicy.enabled=false
+  - retrain.window_sec=1200
+  Intended check:
+  - preserve two retrains, both after CAT switches
+  - keep most of exp45's CAT3 quality gain
+  - reduce second retrain wall time relative to exp45
+  Run with:
+    uv run run_experiment.py ../../../docs/5g-infra/experiments/exp46.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v6/bundle
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minSamples: 2
+        primaryMetric: WAPE
+        zScoreThreshold: 1.4
+        minStd: 0.14
+        fixedFloor: 0.05
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        ES_PATIENCE: 4
+        LR_PATIENCE: 2
+        INITIAL_LR: 0.001
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: false
+  report:
+    progress_every_slots: 10
