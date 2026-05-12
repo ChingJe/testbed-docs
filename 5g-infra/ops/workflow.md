@@ -119,6 +119,38 @@ cd ~/UERANSIM && ./run.sh
 
 gNB 起來 2 秒後自動啟動 ue1~3，gNB2 啟動 ue4~6。
 
+gNB / UE log 現在會固定寫到：
+
+```bash
+~/UERANSIM/logs/gnb.log
+~/UERANSIM/logs/ue1.log
+~/UERANSIM/logs/ue2.log
+~/UERANSIM/logs/ue3.log
+
+~/UERANSIM/logs/gnb2.log
+~/UERANSIM/logs/ue4.log
+~/UERANSIM/logs/ue5.log
+~/UERANSIM/logs/ue6.log
+```
+
+如果 host 端剛更新了 `5G_Infrastructure/gNB/run.sh` 或 `gNB2/run.sh`，要把新版本放進 VM，請在對應 VM 內重新同步：
+
+### 重新同步 gNB / UE 啟動腳本到 VM
+
+`gNB` VM：
+
+```bash
+cp /vagrant/run.sh ~/UERANSIM/run.sh
+chmod +x ~/UERANSIM/run.sh
+```
+
+`gNB2` VM：
+
+```bash
+cp /vagrant/run.sh ~/UERANSIM/run.sh
+chmod +x ~/UERANSIM/run.sh
+```
+
 ---
 
 ## 確認服務狀態
@@ -133,6 +165,10 @@ ps aux | grep nr-gnb
 # 看 log
 tail -f ~/free5gc/log/upf.log        # UPF
 tail -20 ~/free5gc/log/upf.log       # 最後幾行
+tail -f ~/UERANSIM/logs/gnb.log      # gNB1
+tail -f ~/UERANSIM/logs/ue1.log      # UE1
+tail -f ~/UERANSIM/logs/gnb2.log     # gNB2
+tail -f ~/UERANSIM/logs/ue4.log      # UE4
 ```
 
 ---
@@ -435,23 +471,159 @@ vagrant ssh -c "rm -rf ~/daisy && cp -r /daisy/daisy ~/daisy"
 從 5GC VM 複製 log 到伺服器（從 `5G_Infrastructure/5GC/` 目錄執行）：
 
 ```bash
+PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}')
+
 # nwdaf.log
-scp -P 2203 -i .vagrant/machines/default/virtualbox/private_key \
+scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
     -o StrictHostKeyChecking=no \
     vagrant@127.0.0.1:~/nwdaf.log ./
-
-# accuracy CSV log 目錄
-scp -rp -P 2203 -i .vagrant/machines/default/virtualbox/private_key \
-    -o StrictHostKeyChecking=no \
-    vagrant@127.0.0.1:~/NWDAF/log/accuracy ./
 ```
 
 再從伺服器複製到本機：
 
 ```bash
 scp user@伺服器IP:/home/chingje/testbed/5G_Infrastructure/5GC/nwdaf.log ./
-scp -r user@伺服器IP:/home/chingje/testbed/5G_Infrastructure/5GC/accuracy/ ./
 ```
+
+抓 UPF log 時，請從對應 VM 目錄執行，避免混到別台的 Vagrant SSH port。
+
+### UPF-EES
+
+從 `5G_Infrastructure/UPF-EES/` 目錄執行：
+
+```bash
+PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}')
+
+# free5gc UPF log
+scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/free5gc/log/upf.log ./upf-ees.log
+```
+
+再從伺服器複製到本機：
+
+```bash
+scp user@伺服器IP:/home/chingje/testbed/5G_Infrastructure/UPF-EES/upf-ees.log ./
+```
+
+### UPF-EES2
+
+從 `5G_Infrastructure/UPF-EES2/` 目錄執行：
+
+```bash
+PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}')
+
+# free5gc UPF log
+scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/free5gc/log/upf.log ./upf-ees2.log
+```
+
+再從伺服器複製到本機：
+
+```bash
+scp user@伺服器IP:/home/chingje/testbed/5G_Infrastructure/UPF-EES2/upf-ees2.log ./
+```
+
+### gNB
+
+從 `5G_Infrastructure/gNB/` 目錄執行：
+
+```bash
+PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}')
+
+scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/UERANSIM/logs/gnb.log ./gnb.log
+
+scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/UERANSIM/logs/ue1.log ./ue1.log
+
+scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/UERANSIM/logs/ue2.log ./ue2.log
+
+scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/UERANSIM/logs/ue3.log ./ue3.log
+```
+
+### gNB2
+
+從 `5G_Infrastructure/gNB2/` 目錄執行：
+
+```bash
+PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}')
+
+scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/UERANSIM/logs/gnb2.log ./gnb2.log
+
+scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/UERANSIM/logs/ue4.log ./ue4.log
+
+scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/UERANSIM/logs/ue5.log ./ue5.log
+
+scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1:~/UERANSIM/logs/ue6.log ./ue6.log
+```
+
+### 一次抓回 NWDAF + UPF + gNB / UE logs
+
+在 `/home/chingje/testbed/5G_Infrastructure` 執行：
+
+```bash
+(
+  cd 5GC &&
+  PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}') &&
+  scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      vagrant@127.0.0.1:~/nwdaf.log ./nwdaf.log
+)
+
+(
+  cd UPF-EES &&
+  PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}') &&
+  scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      vagrant@127.0.0.1:~/free5gc/log/upf.log ./upf-ees.log
+)
+
+(
+  cd UPF-EES2 &&
+  PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}') &&
+  scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      vagrant@127.0.0.1:~/free5gc/log/upf.log ./upf-ees2.log
+)
+
+(
+  cd gNB &&
+  PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}') &&
+  for f in gnb.log ue1.log ue2.log ue3.log; do
+    scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+        -o StrictHostKeyChecking=no \
+        "vagrant@127.0.0.1:~/UERANSIM/logs/${f}" "./${f}"
+  done
+)
+
+(
+  cd gNB2 &&
+  PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}') &&
+  for f in gnb2.log ue4.log ue5.log ue6.log; do
+    scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+        -o StrictHostKeyChecking=no \
+        "vagrant@127.0.0.1:~/UERANSIM/logs/${f}" "./${f}"
+  done
+)
+```
+
+> 不要假設 SSH forwarded port 固定。這幾台 VM 的 `Vagrantfile` 沒有把 SSH port 寫死，實際值應以當次 `vagrant ssh-config` 輸出的 `Port` 為準。
 
 ---
 
