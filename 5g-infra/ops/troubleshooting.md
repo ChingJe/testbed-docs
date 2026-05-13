@@ -288,6 +288,208 @@ make upf
 
 ---
 
+## Vagrant 顯示 `poweroff`，但既有 VM session 仍可操作
+
+**症狀**：
+
+- 進入某個 VM 目錄後執行 `vagrant status`，顯示：
+  - `poweroff`
+  - 或 `aborted`
+- 但原本已經開著的 VM terminal / SSH session 仍然可以操作
+- 有時 `vagrant ssh` / `vagrant status` 還會直接報錯，而不是正常列狀態
+
+典型錯誤包含：
+
+```text
+Read-only file system @ rb_sysopen - /home/chingje/.vagrant.d/perm_test_...
+```
+
+以及：
+
+```text
+WARNING: The character device /dev/vboxdrv does not exist.
+VBoxManage: error: Failed to create the VirtualBox object!
+VBoxManage: error: Most likely, the VirtualBox COM server is not running or failed to start.
+```
+
+**先講結論**：
+
+這種情況下，`vagrant status` 顯示的 `poweroff` **不應該直接當真**。  
+它通常不是單純某一台 VM metadata 漂移，而是 **host 端的 Vagrant / VirtualBox 管理層本身已經失效**。
+
+### 根本原因
+
+這次確認到的根因有兩層：
+
+1. **host 根 filesystem 被 remount 成 read-only**
+
+例如：
+
+```bash
+mount | grep ' / '
+```
+
+看到：
+
+```text
+/dev/nvme1n1p1 on / type ext4 (ro,...,errors=remount-ro)
+```
+
+且 `dmesg` 中出現：
+
+```text
+blk_update_request: critical medium error, dev nvme1n1, sector ...
+```
+
+這代表：
+
+- host 底層磁碟已經出現錯誤
+- kernel 為了保護資料，把 `/` remount 成 `ro`
+- `vagrant` 因此連自己的 `~/.vagrant.d/perm_test_*` 都無法建立
+
+2. **VirtualBox 管理層也失效**
+
+例如：
+
+```bash
+VBoxManage list runningvms
+```
+
+直接失敗，並回報：
+
+- `/dev/vboxdrv does not exist`
+- `VirtualBox COM server is not running`
+
+這代表：
+
+- Vagrant 也沒辦法正常向 VirtualBox 查詢「哪些 VM 目前在 running」
+
+### 為什麼還能操作既有 VM
+
+如果你先前已經有：
+
+- 開著的 terminal
+- 已建立的 SSH session
+- 或既有 `VBoxHeadless` process 尚未死亡
+
+那麼就算：
+
+- `vagrant status` 顯示 `poweroff`
+- `VBoxManage` 壞掉
+
+你仍然可能可以在舊 session 裡繼續操作 VM。
+
+也就是說：
+
+- **VM process 可能還活著**
+- 但 **Vagrant 已經失去管理它們的能力**
+
+這就是「看起來 poweroff，但其實還能操作」的根本原因。
+
+### 如何確認這是不是同一類問題
+
+先看 Vagrant 是否已經連自己的 metadata 都寫不進去：
+
+```bash
+cd ~/testbed/5G_Infrastructure/UPF-EES
+vagrant status
+```
+
+若出現：
+
+```text
+Read-only file system @ rb_sysopen - /home/chingje/.vagrant.d/perm_test_...
+```
+
+表示問題已經不是單台 VM，而是 host 層級。
+
+再看 host 根分割區是否已經是 `ro`：
+
+```bash
+mount | grep ' / '
+df -h /
+```
+
+再看是否有磁碟錯誤：
+
+```bash
+dmesg | tail -n 80
+```
+
+若出現：
+
+- `critical medium error`
+- `errors=remount-ro`
+
+就表示 host 底層磁碟有問題。
+
+最後再看 VirtualBox 是否也壞掉：
+
+```bash
+VBoxManage list runningvms
+```
+
+若出現：
+
+- `/dev/vboxdrv does not exist`
+- `COM server is not running`
+
+則表示 `vagrant status` 之後的所有結果都不再可信。
+
+### 暫時怎麼判讀目前 VM 狀態
+
+在這種狀況下：
+
+- **不要再把 `vagrant status` 當成 VM 真實狀態來源**
+
+可以暫時依賴：
+
+1. **既有 SSH / terminal session 是否還活著**
+2. **宿主機上是否還有對應 VM process**
+   - 例如 `ps aux | grep VBoxHeadless`
+3. **VM 內部是否仍能操作**
+   - `ip addr`
+   - `ps aux`
+   - `tail log`
+
+也就是說：
+
+- `status=poweroff` 在這個情境下，常常只代表 **Vagrant 已壞，不代表 VM 真死了**
+
+### 建議處理方式
+
+這類問題的真正修復順序，不是在單一 VM 目錄裡重試 `vagrant up`，而是：
+
+1. 先承認 host 已進入異常狀態
+2. 優先處理 host filesystem `ro`
+3. 再處理 VirtualBox driver / COM server
+4. 最後才讓 Vagrant 恢復正常接管
+
+若只是暫時要驗證既有實驗、且現成 VM session 還活著：
+
+- 可以先利用現有 session 進行最小限度操作
+- 但不要再相信 `vagrant status`
+- 也不要在這個狀態下進行大規模 VM lifecycle 操作
+
+### 補充
+
+這次同一時期也有看到 guest VM 自己的 ext4 journal 異常，例如：
+
+- `Detected aborted journal`
+- `Remounting filesystem read-only`
+
+所以 host 與 guest 兩層都可能同時不穩。
+
+一旦同時出現：
+
+- host `ro`
+- guest `ro`
+- `VBoxManage` 失效
+
+就應優先視為 **整體環境層級故障**，而不是單一 Vagrant project 的 metadata 問題。
+
+---
+
 ## WebConsole 前端 404 / yarn 版本錯誤
 
 **症狀**：`./run.sh` 出現 `packageManager yarn@4.1.0` 錯誤，前端 build 失敗，瀏覽器開 WebConsole 顯示 404。

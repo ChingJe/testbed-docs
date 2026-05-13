@@ -468,6 +468,77 @@ vagrant ssh -c "rm -rf ~/daisy && cp -r /daisy/daisy ~/daisy"
 
 ## 從 VM 抓 log 到本機
 
+如果 `vagrant status` / `vagrant ssh-config` 已不可信，但你**已經有活著的 VM shell**，可以改走 VM 內直接回推到 `/vagrant/out` 的方式。
+
+### 從既有 VM session 回推到 host 的 `/vagrant/out`
+
+先在 VM 內確認 `/vagrant` 是否還能寫：
+
+```bash
+touch /vagrant/test-write
+rm /vagrant/test-write
+```
+
+若成功，表示可以直接從 VM 把 log 複製回 host，不需要再依賴 host 端 `vagrant ssh-config`。
+
+建議先建立輸出目錄：
+
+```bash
+mkdir -p /vagrant/out
+```
+
+#### 5GC VM
+
+```bash
+mkdir -p /vagrant/out
+cp ~/nwdaf.log /vagrant/out/
+```
+
+#### UPF-EES / UPF-EES2 VM
+
+一般 log：
+
+```bash
+mkdir -p /vagrant/out
+cp ~/free5gc/log/upf.log /vagrant/out/
+```
+
+最新 trace 目錄：
+
+```bash
+mkdir -p /vagrant/out
+LATEST=$(find ~/free5gc/log -maxdepth 1 -type d -name 'trace-*' | sort | tail -n 1)
+cp -r "$LATEST" /vagrant/out/
+```
+
+#### gNB / gNB2 VM
+
+一般 log：
+
+```bash
+mkdir -p /vagrant/out
+cp ~/UERANSIM/logs/gnb*.log /vagrant/out/ 2>/dev/null || true
+cp ~/UERANSIM/logs/ue*.log /vagrant/out/ 2>/dev/null || true
+```
+
+最新 trace 目錄：
+
+```bash
+mkdir -p /vagrant/out
+LATEST=$(find ~/UERANSIM/logs -maxdepth 1 -type d -name 'trace-*' | sort | tail -n 1)
+cp -r "$LATEST" /vagrant/out/
+```
+
+複製完成後，host 端可直接在對應 VM 目錄看到：
+
+- `5G_Infrastructure/5GC/out/`
+- `5G_Infrastructure/UPF-EES/out/`
+- `5G_Infrastructure/UPF-EES2/out/`
+- `5G_Infrastructure/gNB/out/`
+- `5G_Infrastructure/gNB2/out/`
+
+> 這個方法依賴 VirtualBox synced folder `/vagrant` 仍可正常寫入。若 host filesystem 已被 remount 成 read-only，這裡也可能失敗。
+
 從 5GC VM 複製 log 到伺服器（從 `5G_Infrastructure/5GC/` 目錄執行）：
 
 ```bash
@@ -506,6 +577,29 @@ scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
 scp user@伺服器IP:/home/chingje/testbed/5G_Infrastructure/UPF-EES/upf-ees.log ./
 ```
 
+若這次是用 `run-trace.sh`，建議把最新 `trace-*` 目錄整包抓回來：
+
+```bash
+PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}')
+TRACE_DIR=$(ssh -p "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1 \
+    "find ~/free5gc/log -maxdepth 1 -type d -name 'trace-*' | sort | tail -n 1")
+
+scp -r -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    "vagrant@127.0.0.1:${TRACE_DIR}" ./
+```
+
+抓回後至少會包含：
+
+- `upf.log`
+- `tcpdump.log`
+- `n3.pcap`
+- `upf.pid`
+- `tcpdump.pid`
+- `tail.pid`
+
 ### UPF-EES2
 
 從 `5G_Infrastructure/UPF-EES2/` 目錄執行：
@@ -523,6 +617,20 @@ scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
 
 ```bash
 scp user@伺服器IP:/home/chingje/testbed/5G_Infrastructure/UPF-EES2/upf-ees2.log ./
+```
+
+若這次是用 `run-trace.sh`，抓最新 `trace-*` 目錄：
+
+```bash
+PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}')
+TRACE_DIR=$(ssh -p "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1 \
+    "find ~/free5gc/log -maxdepth 1 -type d -name 'trace-*' | sort | tail -n 1")
+
+scp -r -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    "vagrant@127.0.0.1:${TRACE_DIR}" ./
 ```
 
 ### gNB
@@ -549,6 +657,32 @@ scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
     vagrant@127.0.0.1:~/UERANSIM/logs/ue3.log ./ue3.log
 ```
 
+若這次是用 `run-trace.sh`，抓最新 `trace-*` 目錄：
+
+```bash
+PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}')
+TRACE_DIR=$(ssh -p "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1 \
+    "find ~/UERANSIM/logs -maxdepth 1 -type d -name 'trace-*' | sort | tail -n 1")
+
+scp -r -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    "vagrant@127.0.0.1:${TRACE_DIR}" ./
+```
+
+抓回後至少會包含：
+
+- `gnb.log`
+- `ue1.log`
+- `ue2.log`
+- `ue3.log`
+- `tcpdump.log`
+- `n3.pcap`
+- `gnb.pid`
+- `ue*.pid`
+- `tail.pid`
+
 ### gNB2
 
 從 `5G_Infrastructure/gNB2/` 目錄執行：
@@ -571,6 +705,20 @@ scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
 scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
     -o StrictHostKeyChecking=no \
     vagrant@127.0.0.1:~/UERANSIM/logs/ue6.log ./ue6.log
+```
+
+若這次是用 `run-trace.sh`，抓最新 `trace-*` 目錄：
+
+```bash
+PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}')
+TRACE_DIR=$(ssh -p "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    vagrant@127.0.0.1 \
+    "find ~/UERANSIM/logs -maxdepth 1 -type d -name 'trace-*' | sort | tail -n 1")
+
+scp -r -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+    -o StrictHostKeyChecking=no \
+    "vagrant@127.0.0.1:${TRACE_DIR}" ./
 ```
 
 ### 一次抓回 NWDAF + UPF + gNB / UE logs
@@ -620,6 +768,75 @@ scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
         -o StrictHostKeyChecking=no \
         "vagrant@127.0.0.1:~/UERANSIM/logs/${f}" "./${f}"
   done
+)
+```
+
+### 一次抓回 trace run 常用輸出
+
+如果這次是完整 trace run，通常除了 `nwdaf.log` 之外，還需要：
+
+- `UPF-EES` 最新 `trace-*`
+- `UPF-EES2` 最新 `trace-*`
+- `gNB` 最新 `trace-*`
+- `gNB2` 最新 `trace-*`
+
+在 `/home/chingje/testbed/5G_Infrastructure` 執行：
+
+```bash
+(
+  cd 5GC &&
+  PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}') &&
+  scp -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      vagrant@127.0.0.1:~/nwdaf.log ./nwdaf.log
+)
+
+(
+  cd UPF-EES &&
+  PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}') &&
+  TRACE_DIR=$(ssh -p "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      vagrant@127.0.0.1 \
+      "find ~/free5gc/log -maxdepth 1 -type d -name 'trace-*' | sort | tail -n 1") &&
+  scp -r -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      "vagrant@127.0.0.1:${TRACE_DIR}" ./
+)
+
+(
+  cd UPF-EES2 &&
+  PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}') &&
+  TRACE_DIR=$(ssh -p "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      vagrant@127.0.0.1 \
+      "find ~/free5gc/log -maxdepth 1 -type d -name 'trace-*' | sort | tail -n 1") &&
+  scp -r -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      "vagrant@127.0.0.1:${TRACE_DIR}" ./
+)
+
+(
+  cd gNB &&
+  PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}') &&
+  TRACE_DIR=$(ssh -p "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      vagrant@127.0.0.1 \
+      "find ~/UERANSIM/logs -maxdepth 1 -type d -name 'trace-*' | sort | tail -n 1") &&
+  scp -r -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      "vagrant@127.0.0.1:${TRACE_DIR}" ./
+)
+
+(
+  cd gNB2 &&
+  PORT=$(vagrant ssh-config | awk '/^\s*Port / {print $2}') &&
+  TRACE_DIR=$(ssh -p "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      vagrant@127.0.0.1 \
+      "find ~/UERANSIM/logs -maxdepth 1 -type d -name 'trace-*' | sort | tail -n 1") &&
+  scp -r -P "$PORT" -i .vagrant/machines/default/virtualbox/private_key \
+      -o StrictHostKeyChecking=no \
+      "vagrant@127.0.0.1:${TRACE_DIR}" ./
 )
 ```
 
