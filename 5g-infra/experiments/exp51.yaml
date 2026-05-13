@@ -1,0 +1,89 @@
+name: exp51_v7_initial_post_cat_switch_only_two_retrains_es2
+description: >
+  First replay run using the alignment-era v7 initial local bundle.
+  Goal:
+  - isolate the effect of replacing the pre-alignment v6 initial bundle with
+    the newly retrained v7 bundle
+  - keep the exp50 trigger policy and Daisy settings unchanged
+  Context:
+  - exp50 already confirmed that reducing ES_PATIENCE shortens the first retrain
+    wall time, but does not restore the second post-CAT2->CAT3 retrain
+  - v7 is the first CAT1-trained + CAT1-scaled initial bundle rebuilt after the
+    replay actual-aggregation alignment work
+  Main change from exp50:
+  - initial bundle: initial_local_cat1_30s_v6 -> initial_local_cat1_30s_v7
+  Keep unchanged from exp50:
+  - ES_PATIENCE: 2
+  - LR_PATIENCE: 2
+  - INITIAL_LR: 1e-3
+  - local_epochs: 3
+  - zScoreThreshold: 1.3
+  - requiredHitsInWindow: 2
+  Intended effect:
+  - check whether the refreshed initial bundle can improve pre-retrain
+    prediction quality enough to shift the first trigger earlier
+  - check whether the first retrained model no longer collapses CAT3 into a
+    flat high-WAPE regime
+  Run with:
+    uv run run_experiment.py ../../../docs/5g-infra/experiments/exp51.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v7/bundle
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+        inputWindow: 30
+        outputWindow: 1
+        lookbackBuffer: 15
+        ringBufferSize: 50
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        minSamples: 2
+        warmupDuration: 20
+        primaryMetric: WAPE
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minStd: 0.14
+        fixedFloor: 0.05
+        zScoreThreshold: 1.3
+        decisionWindowSize: 5
+        requiredHitsInWindow: 2
+        consecutiveBreaches: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        NUM_ROUNDS: 30
+        ES_PATIENCE: 2
+        LR_PATIENCE: 2
+        INITIAL_LR: 0.001
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+    use_pseudo_warmstart: true
+    subscription_to_first_urr_delay_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: false
+  report:
+    progress_every_slots: 10

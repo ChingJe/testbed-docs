@@ -1,0 +1,80 @@
+name: exp49_post_cat_switch_only_two_retrains
+description: >
+  First post-exp48 trigger-recovery run on the replay/testbed-aligned line.
+  Goal:
+  - restore retrain triggering after the aligned replay timing fixes
+  - require that retrains happen only after CAT switches
+  - do not optimize for earliest possible trigger yet
+  Base line:
+  - keep exp48 replay semantics and timing alignment unchanged
+  - keep current initial bundle semantics unchanged
+  - keep exp46 Daisy task settings unchanged
+  Main policy changes from exp48:
+  - lower zScoreThreshold from 1.4 to 1.3
+  - lower requiredHitsInWindow from 3 to 2
+  Expected effect:
+  - group2 should be able to convert the existing post-CAT1->CAT2 degradation
+    signals into one retrain
+  - group1 should be able to convert the existing post-CAT2->CAT3 degradation
+    signals into one retrain
+  - no retrain should happen before either CAT switch
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+        inputWindow: 30
+        outputWindow: 1
+        lookbackBuffer: 15
+        ringBufferSize: 50
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        minSamples: 2
+        warmupDuration: 20
+        primaryMetric: WAPE
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minStd: 0.14
+        fixedFloor: 0.05
+        zScoreThreshold: 1.3
+        decisionWindowSize: 5
+        requiredHitsInWindow: 2
+        consecutiveBreaches: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        NUM_ROUNDS: 30
+        ES_PATIENCE: 4
+        LR_PATIENCE: 2
+        INITIAL_LR: 0.001
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+    use_pseudo_warmstart: true
+    subscription_to_first_urr_delay_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: false
+  report:
+    progress_every_slots: 10

@@ -1,0 +1,87 @@
+name: exp59_v7_minscale_320k_daisy
+description: >
+  First full Daisy replay run after exp58 showed that
+  degradationPolicy.minDecisionTrafficScale=327680 can pull the first trigger
+  forward to early CAT2 without reintroducing the early group1 false positive.
+  Goal:
+  - keep the aligned v7 initial bundle fixed
+  - keep the exp58 policy change that improved first-trigger timing
+  - re-enable real Daisy retraining to verify actual swap timing and post-swap
+    behavior
+  Main change from exp51:
+  - degradationPolicy.minDecisionTrafficScale: 1024 -> 327680
+  Keep unchanged from exp51:
+  - initial bundle: initial_local_cat1_30s_v7
+  - ES_PATIENCE: 2
+  - LR_PATIENCE: 2
+  - INITIAL_LR: 1e-3
+  - local_epochs: 3
+  - zScoreThreshold: 1.3
+  - requiredHitsInWindow: 2
+  Intended effect:
+  - preserve the earlier CAT2 first trigger seen in exp58
+  - check whether the resulting real retrain remains meaningful once Daisy wall
+    time is included
+  Run with:
+    uv run run_experiment.py ../../../docs/5g-infra/experiments/exp59.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v7/bundle
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+        inputWindow: 30
+        outputWindow: 1
+        lookbackBuffer: 15
+        ringBufferSize: 50
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        minSamples: 2
+        warmupDuration: 20
+        primaryMetric: WAPE
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minStd: 0.14
+        fixedFloor: 0.05
+        zScoreThreshold: 1.3
+        decisionWindowSize: 5
+        requiredHitsInWindow: 2
+        consecutiveBreaches: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 327680
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        NUM_ROUNDS: 30
+        ES_PATIENCE: 2
+        LR_PATIENCE: 2
+        INITIAL_LR: 0.001
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+    use_pseudo_warmstart: true
+    subscription_to_first_urr_delay_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: false
+  report:
+    progress_every_slots: 10

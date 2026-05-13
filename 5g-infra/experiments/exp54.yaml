@@ -1,0 +1,85 @@
+name: exp54_v9_initial_skip_daisy_post_cat1_cat2_check
+description: >
+  Fast replay check using the v9 initial bundle, with Daisy skipped.
+  Goal:
+  - isolate whether the v9 larger-batch larger-lr initial bundle improves
+    pre-first-retrain prediction behavior around CAT1->CAT2
+  - quickly verify whether the first degradation trigger moves earlier than
+    the exp52/53 line before spending time on real Daisy retraining
+  Main change from exp53:
+  - initial bundle: initial_local_cat1_30s_v8 -> initial_local_cat1_30s_v9
+  Keep unchanged from exp53:
+  - ES_PATIENCE: 2
+  - LR_PATIENCE: 2
+  - INITIAL_LR: 1e-3
+  - local_epochs: 3
+  - zScoreThreshold: 1.3
+  - requiredHitsInWindow: 2
+  Run with:
+    uv run retrain_replay.py run \
+      --dataset-root ../../../go-upf-ess/go-upf/pre_data \
+      --config out/exp51_v7_initial_post_cat_switch_only_two_retrains_es2/config/nwdafcfg.yaml \
+      --replay-config out/exp51_v7_initial_post_cat_switch_only_two_retrains_es2/config/replay_config.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v9/bundle \
+      --out out/exp54_v9_initial_skip_daisy_post_cat1_cat2_check \
+      --skip-daisy
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+        inputWindow: 30
+        outputWindow: 1
+        lookbackBuffer: 15
+        ringBufferSize: 50
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        minSamples: 2
+        warmupDuration: 20
+        primaryMetric: WAPE
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minStd: 0.14
+        fixedFloor: 0.05
+        zScoreThreshold: 1.3
+        decisionWindowSize: 5
+        requiredHitsInWindow: 2
+        consecutiveBreaches: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        NUM_ROUNDS: 30
+        ES_PATIENCE: 2
+        LR_PATIENCE: 2
+        INITIAL_LR: 0.001
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+    use_pseudo_warmstart: true
+    subscription_to_first_urr_delay_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: false
+  report:
+    progress_every_slots: 10
