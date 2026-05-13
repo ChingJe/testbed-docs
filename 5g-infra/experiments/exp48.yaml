@@ -1,0 +1,76 @@
+name: exp48_replay_align_testbed_0513_13
+description: >
+  First replay run after aligning retrain_replay slot generation to testbed UPF EES semantics.
+  Goal:
+  - match 0513-13 testbed aggregation behavior as closely as possible
+  - specifically validate that replay group-level actual slots now follow
+    per-UE rebasing plus NWDAF-style group aggregation, instead of the old
+    group-level rebasing shortcut
+  Alignment target:
+  - same report period as 0513-13: 30s
+  - same breaking time as 0513-13/testbed pseudo-driver: 900s
+  - same NWDAF monitor / policy parameters as the captured 0513-13 nwdafcfg
+  Notes:
+  - this run is intended primarily as a data-path validation run
+  - comparison focus should be actual slot aggregation, not Daisy retrain quality
+  - use default initial bundle from NWDAF-ML-Service/artifacts/initial (currently v6)
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+        inputWindow: 30
+        outputWindow: 1
+        lookbackBuffer: 15
+        ringBufferSize: 50
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        minSamples: 2
+        warmupDuration: 20
+        primaryMetric: WAPE
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minStd: 0.14
+        fixedFloor: 0.05
+        zScoreThreshold: 1.4
+        decisionWindowSize: 5
+        requiredHitsInWindow: 3
+        consecutiveBreaches: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1024
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        NUM_ROUNDS: 30
+        ES_PATIENCE: 4
+        LR_PATIENCE: 2
+        INITIAL_LR: 0.001
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+    use_pseudo_warmstart: true
+    subscription_to_first_urr_delay_sec: 30
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: false
+  report:
+    progress_every_slots: 10
