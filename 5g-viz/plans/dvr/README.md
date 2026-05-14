@@ -53,6 +53,8 @@
 
 - [../grafana/chart-rendering.md](../grafana/chart-rendering.md)
   - Grafana 在小時間窗下的邊界裁切、右邊界缺線、over-fetch / dynamic epsilon 等時間窗渲染語意。
+- [../grafana/historical-relative-replay.md](../grafana/historical-relative-replay.md)
+  - 驗證是否可用 Grafana historical relative time range 取代 replay pseudo-live，並評估對 session availability 與 Prometheus retention 的依賴。
 - [replay-pseudo-live-consistency.md](replay-pseudo-live-consistency.md)
   - replay `pause/backfill` 與 `play/pseudo-live` 的圖表一致性問題，以及 pseudo-live timestamp remap 帶來的數值穩定性風險。
 - [../architecture/metric-event-modeling.md](../architecture/metric-event-modeling.md)
