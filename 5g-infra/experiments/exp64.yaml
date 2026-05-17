@@ -1,0 +1,84 @@
+name: exp64_v7_minscale_1m_skip_daisy_0514_22_alignment
+description: >
+  Fast replay check prepared to mirror the 2026-05-14 testbed run `0514-22`
+  under the current NWDAF working tree, with Daisy skipped.
+  Goal:
+  - replay the same monitor / policy settings captured in `0514-22`
+  - compare CAT1 and early-CAT2-before-first-retrain behavior against testbed
+  - focus on latest aggregated slot / inference / policy alignment before
+    Daisy training randomness becomes the dominant source of divergence
+  Relationship to prior runs:
+  - same main monitor / policy line as exp63
+  - unlike exp63, this run is intended as a skip-Daisy alignment baseline
+  Assumption:
+  - initial bundle should stay on the current v7 line
+    (`out/initial_local_cat1_30s_v7/bundle`)
+  Run with:
+    uv run run_experiment.py ../../../docs/5g-infra/experiments/exp64.yaml \
+      --initial-bundle out/initial_local_cat1_30s_v7/bundle \
+      --skip-daisy
+
+nwdaf:
+  configuration:
+    analytics:
+      ueCommunication:
+        samplingInterval: 30
+        inputWindow: 30
+        outputWindow: 1
+        lookbackBuffer: 15
+        ringBufferSize: 50
+    mtlf:
+      accuracyMonitor:
+        checkInterval: 90
+        minSamples: 2
+        warmupDuration: 20
+        primaryMetric: WAPE
+        recentBufferSize: 12
+        minBufferSamples: 5
+        minStd: 0.14
+        fixedFloor: 0.05
+        zScoreThreshold: 1.3
+        decisionWindowSize: 5
+        requiredHitsInWindow: 2
+        consecutiveBreaches: 3
+        degradationPolicy:
+          minDecisionTrafficScale: 1048576
+        chronicPolicy:
+          enabled: false
+          metric: WAPE
+          aggregator: percentile
+          percentile: 75
+          threshold: 0.97
+          minDecisionTrafficScale: 1024
+        lowTrafficOverpredictionPolicy:
+          enabled: false
+      task:
+        NUM_ROUNDS: 30
+        ES_PATIENCE: 2
+        LR_PATIENCE: 2
+        INITIAL_LR: 0.001
+        MODEL_META:
+          training:
+            local_epochs: 3
+    adrf:
+      retrainWindow: 1200
+
+replay:
+  dataset:
+    report_period_sec: 30
+    breaking_time_sec: 900
+    use_pseudo_warmstart: true
+    subscription_to_first_urr_delay_sec: 30
+  startup_timing:
+    mode: explicit_offsets
+    subscription_to_first_urr_signal_sec: 3
+    first_urr_signal_to_anchor_sec: 1
+    anchor_to_first_visible_inference_sec: 56
+  monitor:
+    maturity_lag_sec: 60
+  retrain:
+    window_sec: 1200
+  daisy:
+    reuse_existing: false
+  report:
+    progress_every_slots: 10
