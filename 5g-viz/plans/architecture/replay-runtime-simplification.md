@@ -663,6 +663,45 @@ Python control plane
 
 ## 7. 模組級改造規劃
 
+### 7.0 本輪模組化目標結構
+
+在不改核心邏輯的前提下，Python 程式目錄收斂成：
+
+```text
+5g-viz/
+├─ run.py                      # 主要 CLI 入口
+├─ import_logs.py              # log import CLI shim
+├─ config.py                   # 舊 constants 介面相容 shim
+├─ backend/
+│  ├─ app.py                   # FastAPI app 與 route / lifespan wiring
+│  └─ grafana_proxy.py         # Grafana HTTP / WS proxy helpers
+├─ runtime/
+│  ├─ profile_config.py        # profile schema / loader
+│  ├─ runtime_context.py       # process runtime context
+│  └─ state.py                 # topology runtime state
+├─ services/
+│  ├─ collector.py             # SSH log collector
+│  ├─ grafana_setup.py         # dashboard provisioning
+│  ├─ prometheus_service.py    # Prometheus admin / status helpers
+│  └─ replay_session_service.py
+├─ replay/
+│  ├─ parser.py                # line -> event parser
+│  ├─ session_io.py            # session/meta I/O helpers
+│  ├─ session_import.py        # log -> session importer
+│  └─ metrics_backfill.py      # replay metric backfill encoding / remote write
+├─ rules/
+├─ frontend/
+├─ profiles/
+└─ sessions/
+```
+
+收斂原則：
+
+- root 只保留真正的入口與相容 shim
+- route / UI server、Prometheus / Grafana / SSH 外部整合、replay/session utilities 分層放置
+- 不在本輪同時重寫核心行為；以搬移、抽出 helper、收斂 import 為主
+- `rules/` 先保留原位置，避免 parser 規則系統在同一輪再做更深遷移
+
 ## 7.1 `start.sh`
 
 現況問題：
@@ -1060,7 +1099,8 @@ uv run run.py replay sessions/20260513T033836881 --profile default --backfill=sk
 | 3 | Replay status / overwrite | session status、CLI backfill policy、overwrite flow | Done |
 | 4 | Remove pseudo-live | 刪除 pseudo-live API / runtime / cleanup | Done |
 | 5 | Visual FX controls | runtime effect config、panel、presets / reset | Done |
-| 6 | Docs convergence | 移除舊 mental model、更新操作文件 | Planned |
+| 6 | Modular structure refactor | backend / runtime / services / replay 分層與 root shim 收斂 | Done |
+| 7 | Docs convergence | 移除舊 mental model、更新操作文件 | Planned |
 
 狀態欄建議只用：
 
@@ -1321,7 +1361,53 @@ Phase 完成判準：
 - pulse duration 已收斂為 user-facing total duration，內部動畫再自動拆成兩段
 - timeline 已支援可設定秒數的左右方向鍵 step scrub
 
-### 11.8 Phase 6. Docs convergence
+### 11.8 Phase 6. Modular structure refactor
+
+建議順序：
+
+1. 先定義目標模組邊界與 root 保留入口
+2. 先搬 `profile_config` / `runtime_context` / `state` 到 `runtime/`
+3. 再搬 `collector`、`prometheus_service`、`replay_session_service`、`grafana_setup` 到 `services/`
+4. 再搬 `parser`、`session_io`、`session_import` 與 replay metrics backfill 到 `replay/`
+5. 最後把 server 入口直接切到 `backend/app.py`
+
+建議 commit 策略：
+
+- 預設整個 Phase 6 一個 commit
+- 可先在 working tree 內逐步搬動與驗證，再一次提交
+
+每次 commit 前至少驗證：
+
+- `python3 -m py_compile` 可通過所有搬動後的 Python 模組
+- `uv run run.py prom status --profile default` 正常
+- `uv run run.py live --profile default` 可啟動
+- `uv run run.py replay <existing-session> --profile default --backfill=auto` 可啟動
+- `uv run import_logs.py --help` 與 `uvicorn backend.app:app` 入口不壞
+
+Phase 完成判準：
+
+- root 不再堆放主要業務模組
+- `backend/`、`runtime/`、`services/`、`replay/` 責任邊界清楚
+- 舊入口僅作 shim 或正式入口，不再承載實際業務邏輯
+- 不改變 live / replay / Prometheus / importer 的對外行為
+
+目前已完成的實作進度：
+
+- `run.py` 已直接以 `backend.app:app` 啟動 uvicorn，`main.py` 不再保留
+- `import_logs.py` 已收斂為 CLI shim，實際 importer CLI 移至 `replay/import_logs_cli.py`
+- `profile_config` / `runtime_context` / `state` 已搬至 `runtime/`
+- `collector`、`grafana_setup`、`prometheus_service`、`replay_session_service` 已搬至 `services/`
+- `parser`、`session_io`、`session_import` 已搬至 `replay/`
+- `backend/grafana_proxy.py` 已從 server module 抽出 Grafana HTTP / WS proxy helper
+- root 現在只保留 `run.py`、`import_logs.py`、`config.py` 與專案設定檔
+- smoke validation 已完成：
+  - `python3 -m py_compile`
+  - `uv run run.py prom status --profile default`
+  - `uv run run.py replay sessions/20260517T125146187 --profile default --backfill=auto`
+  - `uv run run.py live --profile default`
+  - `uv run import_logs.py --help`
+
+### 11.9 Phase 7. Docs convergence
 
 建議順序：
 
@@ -1344,7 +1430,7 @@ Phase 完成判準：
 
 - 新讀者不需要知道 pseudo-live 歷史也能理解現在系統
 
-### 11.9 每次 commit 前的共用驗證清單
+### 11.10 每次 commit 前的共用驗證清單
 
 不論在哪個 phase，每次 commit 前都應至少做以下檢查：
 
@@ -1476,4 +1562,4 @@ UI 命名若不清楚，使用者會誤以為：
 
 目前 Phase 1 到 Phase 5 已完成，因此下一步應直接進入：
 
-1. Phase 6：收斂 README、操作文件與舊有心智模型
+1. Phase 7：收斂 README、操作文件與舊有心智模型
