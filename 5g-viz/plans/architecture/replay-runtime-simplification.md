@@ -1100,7 +1100,7 @@ uv run run.py replay sessions/20260513T033836881 --profile default --backfill=sk
 | 4 | Remove pseudo-live | 刪除 pseudo-live API / runtime / cleanup | Done |
 | 5 | Visual FX controls | runtime effect config、panel、presets / reset | Done |
 | 6 | Modular structure refactor | backend / runtime / services / replay 分層與 root shim 收斂 | Done |
-| 7 | Docs convergence / historical-doc cleanup | 收斂 canonical 文件並處理舊 mental model 文件分流 | In Progress |
+| 7 | Docs convergence / historical-doc cleanup | 現況技術文件重寫 + 舊技術文件降格分流 | In Progress |
 
 狀態欄建議只用：
 
@@ -1422,8 +1422,8 @@ Phase 完成判準：
 建議順序：
 
 1. 先確認 canonical user-facing docs
-2. 再收斂 docs repo 內仍作為正式入口的 guides / troubleshooting / mental model
-3. 最後處理歷史設計文件：能標記 historical 就不要全面重寫
+2. 再重寫目前仍應視為 canonical 的 technical design docs
+3. 最後把不值得重寫的舊技術文降格為 historical / pre-refactor reference
 
 建議 commit 策略：
 
@@ -1435,12 +1435,14 @@ Phase 完成判準：
 - canonical README / guides 已不再把 replay `playing` 描述為 pseudo-live
 - canonical 文件內 profile 設定來源與實作一致，不再把 `.env` / `start.sh` 當現行路徑
 - `run.py` / `backend.app:app` / managed Prometheus service 的操作方式能直接對照文件
+- `design/*` 中被視為現況 technical reference 的文件，內容本體已反映目前程式碼，而不只是加 warning
 - 歷史文件若仍描述舊架構，需被明確標記為 historical / pre-refactor，而不是與現況混用
 
 Phase 完成判準：
 
 - 新讀者不需要知道 pseudo-live 歷史也能理解現在系統
 - README、start-here、ui-workflows、mental-model、troubleshooting 等正式入口文件與現況一致
+- `design/overview/*`、`design/backend/{api,profiles,metrics}.md`、`design/frontend/{events-and-dvr,grafana-embed}.md`、`design/grafana/{setup,rendering}.md` 已可直接作為現況 technical reference
 - 舊的 pseudo-live / `.env` / `start.sh` / `main:app` 心智若仍保留，只存在於明確標示的歷史文件中
 
 目前判斷：
@@ -1456,13 +1458,17 @@ Phase 完成判準：
 - `docs/5g-viz/guides/ui-workflows/*`
 - `docs/5g-viz/guides/mental-model/*`
 - `docs/5g-viz/guides/troubleshooting/*`
+- `docs/5g-viz/design/overview/*`
+- `docs/5g-viz/design/backend/{api,profiles,metrics}.md`
+- `docs/5g-viz/design/frontend/{events-and-dvr,grafana-embed}.md`
+- `docs/5g-viz/design/grafana/{setup,rendering}.md`
 
 建議直接標記 historical / pre-refactor、而非全面重寫的文件族群：
 
 - `docs/5g-viz/design/dvr/*`
-- `docs/5g-viz/design/grafana/*`
-- `docs/5g-viz/design/frontend/*`
-- `docs/5g-viz/design/reference/*`
+- `docs/5g-viz/design/reference/env-config.md`
+- `docs/5g-viz/design/features/*` 中仍大量綁定舊 replay 模型的部分
+- `docs/5g-viz/notes/*`
 - `docs/5g-viz/notes/*`
 
 ### 11.10 每次 commit 前的共用驗證清單

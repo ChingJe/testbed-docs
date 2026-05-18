@@ -1,7 +1,5 @@
 # Grafana Embed
 
-> Historical note: this document still describes the old iframe switching model with `orig_session` and `pseudo_session`. The current runtime keeps a single original session in replay and changes only the query time semantics during playback.
-
 本文描述 `frontend/events.js` 目前如何把 Grafana dashboard 嵌進前端畫面，並隨 live / replay / DVR 狀態同步時間窗口。
 
 ## 1. 嵌入層的責任
@@ -10,36 +8,33 @@
 
 - 取得 dashboard base URL 與 UID
 - 建立單一 iframe
-- 根據目前 session、timeline 與播放狀態重算 iframe URL
-- 在 replay 播放期間切換 `orig_session` 與 `pseudo_session`
+- 根據目前 session、timeline 與 DVR 狀態重算 iframe URL
+- 在 live、replay paused、replay playing 之間切換不同的 query 時間語意
 
-圖表內容本身、Prometheus query 與 dashboard 結構不在這一層處理。
+它不負責：
+
+- 生成 PromQL
+- 建 dashboard schema
+- 決定 replay backfill policy
 
 ## 2. 設定來源
 
-前端啟動時會先讀：
+前端啟動時會讀：
 
 - `GET /api/grafana-config`
 - `GET /api/session-info`
 
-之後維護三個和 iframe 有關的識別值：
+之後維護幾個關鍵值：
 
 - `_grafanaBase`
 - `_dashboardUid`
 - `_grafanaSessionId`
+- `_replayGrafanaMode`
+- `_chartWindowMin`
 
-`_grafanaSessionId` 預設等於目前 session 的 `session_id`，只有 replay 播放期間才會暫時切到 `pseudo_session`。
+注意：`_grafanaSessionId` 在目前系統中通常始終等於原始 session。replay 播放不再切到 `_live_*` pseudo session。
 
-## 3. Iframe 生命週期
-
-圖表容器是 `#charts`。`ensureChart()` 只會建立一次 iframe：
-
-- 若 `_dashboardUid` 為空，不建立
-- 若 `_chartMounted` 已為 `true`，不重複建立
-
-這代表前端不會在每次狀態切換時重建 DOM，而是盡量只更新現有 iframe 的 `src`。
-
-## 4. URL 組合方式
+## 3. URL 組合方式
 
 Grafana URL 由 `_grafanaUrl(from, to, refresh)` 組出，固定包含：
 
@@ -49,46 +44,35 @@ Grafana URL 由 `_grafanaUrl(from, to, refresh)` 組出，固定包含：
 - `theme=dark`
 - `var-session=<session>`
 
-其中：
+主要參數意義如下：
 
-- `var-session` 由 `_grafanaSessionId` 決定
-- `refresh=5s` 只在需要「追著 now 跑」的模式下打開
-- `from` / `to` 可能是相對時間，也可能是絕對毫秒時間戳
-
-主要參數可整理成：
-
-| 參數 | 目前值 / 來源 | 用途 |
+| 參數 | 來源 | 用途 |
 |---|---|---|
-| 路徑 | `/d/<dashboardUid>` | 指向既有 dashboard UID |
-| `orgId` | 固定 `1` | 指向 Grafana 組織 |
-| `kiosk` | 固定帶上 | 隱藏 Grafana 頂部導覽列，讓 iframe 更像內嵌圖表 |
-| `theme` | 固定 `dark` | 使用深色主題 |
 | `var-session` | `_grafanaSessionId` | 指定 dashboard template variable `session` |
-| `refresh` | `5s` 或省略 | 只在 live now-window / replay pseudo-live 下啟用自動刷新 |
-| `from` | 相對或絕對時間 | 查詢起點 |
-| `to` | 相對或絕對時間 | 查詢終點 |
+| `from` / `to` | 模式相關 | 絕對時間或 relative time range |
+| `refresh` | `cfg.grafana.refresh` 或省略 | 是否自動刷新 |
 
-## 5. 四種主要顯示模式
+## 4. 主要顯示模式
 
 ### Live 即時模式
 
-當前端處於：
+條件：
 
 - `sessionMode = live`
 - `dvrState = LIVE`
 
-iframe 會使用：
+iframe 會用：
 
 ```text
 from=now-<window>m
 to=now
-refresh=5s
+refresh=on
 var-session=<orig_session>
 ```
 
 ### Live DVR 靜態模式
 
-當 live 使用者已 paused / scrubbed 離開即時點時，iframe 改成 trailing absolute range：
+live pause / scrub 時，iframe 會切成：
 
 ```text
 from=<timelinePos - window>
@@ -97,9 +81,9 @@ refresh=off
 var-session=<orig_session>
 ```
 
-### Replay Backfill 模式
+### Replay backfill 模式
 
-replay 預設也是 trailing absolute range，但資料來源仍是原始錄製 session：
+replay paused / scrubbed 時，iframe 同樣使用：
 
 ```text
 from=<timelinePos - window>
@@ -108,67 +92,57 @@ refresh=off
 var-session=<orig_session>
 ```
 
-若 timeline 還沒建立出可用 trailing window，前端才退回整段 session range。
+### Replay historical-relative play 模式
 
-### Replay Pseudo-Live 模式
-
-當 replay 進入播放狀態，且 pseudo-live 已啟動後，iframe 會切成：
+replay `PLAYING` 時，iframe 會改成：
 
 ```text
-from=now-<window>m
-to=now
-refresh=5s
-var-session=<pseudo_session>
+from=now-<offset+window>
+to=now-<offset>
+refresh=on
+var-session=<orig_session>
 ```
 
-從前端體感來看，這一段和 live Grafana 行為相同，但實際資料是 backend 重新 emit 的 pseudo-live metrics。
+也就是：
 
-## 6. Chart Window 控制
+- session 不變
+- query time range 改成隨 `now` 滑動的歷史相對窗口
 
-前端目前把圖表窗口寬度視為 DVR 控制列的一部分：
+## 5. `Chart Window` 控制
+
+前端把圖表窗口寬度視為 DVR 控制列的一部分：
 
 - 預設 `3` 分鐘
-- 最小 `1` 分鐘
-- 最大 `15` 分鐘
+- 最小 `1`
+- 最大 `15`
 
-### 一般變更
+一般情況下，改動 `Chart Window` 就是重算 iframe URL。
 
-若只是 live 或 paused 狀態改變窗口寬度，前端直接重算 iframe URL。
+在 replay `PLAYING` 時，它的效果是：
 
-### Replay 播放中變更
+- 重新計算 historical relative `from/to`
+- 讓 iframe 重新同步到新的相對寬度
 
-若 replay 正在 `PLAYING`，改變窗口寬度不只是 reload iframe，而是會：
+這仍可能導致可見的 reload，但不再需要重建 pseudo-live metric session。
 
-1. 暫時進入 `RESUMING`
-2. 停掉目前 pseudo-live
-3. 以目前 playhead 與新 window 重新呼叫 `/api/replay/play`
-4. 切回 `PLAYING`
-
-這是因為 pseudo-live metrics 需要根據新的 trailing window 重新 pre-seed。
-
-### Reset Chart
-
-`Reset Chart` 只是把 window 重設為預設值 `3`，並強制同步一次目前模式對應的 iframe URL。
-
-## 7. Reload 抑制
+## 6. Reload 抑制
 
 前端用 `_lastGrafanaUrl` 避免不必要的 iframe reload。
 
 只有在：
 
-- URL 確實改變
-- 或呼叫端明確要求 `force = true`
+- URL 真的改變
+- 或呼叫端明確要求 `force`
 
 時，才會真正改寫 `iframe.src`。
 
-這對下列情境特別重要：
+這對下列情境很重要：
 
-- live mode 持續收到事件時，不必每筆 event 都重設 iframe
-- replay play / pause / chart reset 時，可以在真正切模式時才 reload
+- live 持續收事件時，不需要每筆事件都重設 iframe
+- replay `PLAYING` 時，只有 query 視窗真正改變才更新
 
-## 8. 目前限制
+## 7. 目前限制
 
-- iframe URL 目前固定寫死 `theme=dark` 與 `/d/<uid>` 路徑，沒有 per-profile 或 per-dashboard 的前端覆寫層
-- 模式切換本質上仍靠 iframe reload，Grafana panel 內部互動狀態不會被保留
-- `var-session` 被視為 dashboard 已存在的 template variable；若 dashboard schema 改變，前端不會自動檢查相容性
-- 這層只控制時間窗與 session，不理解 panel 級別的縮放或 legend 狀態，因此 Grafana 內部互動不會回寫到 5g-viz 控制列
+- `theme=dark` 與 `/d/<uid>` 目前仍是固定組法
+- iframe reload 仍會丟失 Grafana 內部互動狀態
+- 這層只控制 session 與時間窗，不理解 panel 級別互動狀態

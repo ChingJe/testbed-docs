@@ -1,6 +1,6 @@
 # Frontend
 
-> 注意：本子目錄中的部分文件仍描述 pre-refactor 的 header FX controls、舊 replay chart 路徑或舊 API。現況請先對照 `guides/ui-workflows/*` 與 `5g-viz/README.md`。
+> 注意：本子目錄已先重寫 `events-and-dvr.md` 與 `grafana-embed.md`，但 `topology.md` 仍可能保留較舊的 UI 細節。現況請優先對照這兩份與 `guides/ui-workflows/*`。
 
 本目錄收錄 `5g-viz` 前端行為的技術文件，聚焦於拓樸渲染、事件播放控制與 Grafana 嵌入。
 
@@ -15,6 +15,6 @@
 
 主要文件：
 
-- [topology.md](topology.md)：`topology.js` 的拓樸初始化、`event_reactions` 解讀、filter 與靜態快照重建
-- [events-and-dvr.md](events-and-dvr.md)：`events.js` 的 session bootstrap、事件來源、timeline、scrub 與播放控制
-- [grafana-embed.md](grafana-embed.md)：Grafana iframe 的 URL 組合、session 切換與時間窗口同步
+- [events-and-dvr.md](events-and-dvr.md)：目前 `events.js` 的 session bootstrap、事件來源、timeline、scrub 與播放控制
+- [grafana-embed.md](grafana-embed.md)：目前 Grafana iframe 的 URL 組合、session 與時間窗口同步
+- [topology.md](topology.md)：`topology.js` 的拓樸初始化、`event_reactions` 解讀與靜態快照重建

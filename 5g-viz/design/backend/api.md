@@ -1,50 +1,65 @@
 # API
 
-> Historical note: this document still describes the pre-refactor API surface. The current server entrypoint is `backend.app:app`, replay mutation APIs such as `/api/replay/*` have been removed, and replay/backfill orchestration is now CLI-driven via `uv run run.py ...`.
-
-本文整理 `5g-viz` backend 的 HTTP API、WebSocket 與 session 查詢行為，但部分段落反映的是 pre-refactor runtime。
+本文整理 `5g-viz` 目前提供的 HTTP API、WebSocket 與 Grafana proxy 行為。內容以 `backend/app.py` 為準。
 
 ## 1. 整體結構
 
-`5g-viz` 的 backend 是一個單一 FastAPI app，對外主要分成四類介面：
+目前 `5g-viz` 對外主要分成五類介面：
 
 - 觀測輸出：`/metrics`
-- 設定與 session 查詢：`/api/*`
-- replay 控制：`/api/replay/*`
+- session / topology / state 查詢：`/api/*`
 - live 事件推播：`/ws`
+- Grafana 同源代理：`/grafana/*`
+- 前端靜態頁面：`/`
 
-此外，前端靜態檔案掛在：
+注意：
 
-- `/`
+- 舊的 `/api/replay/play`、`/api/replay/pause`、`/api/replay/speed` 已移除
+- replay orchestration 現在由 CLI `uv run run.py ...` 與 runtime context 決定，而不是靠 browser-facing mutation API
 
 ## 2. `GET /metrics`
 
-`/metrics` 直接回傳 `prometheus_client.generate_latest()` 的內容，是 Prometheus 的 scrape endpoint。
+`/metrics` 直接回傳 `prometheus_client.generate_latest()`，是 Prometheus scrape endpoint。
 
 特性：
 
-- 沒有額外 query 參數
-- 不區分 live / replay；只要程序內已有 metric series，就能被 scrape
-- replay mode 的圖表資料不是靠這個 endpoint 回補歷史時間戳，而是靠 remote write；`/metrics` 主要承接 live 寫入的 gauges / counters
+- 無 query 參數
+- live 與 replay 都可存在，但主要承接 live exporter metrics
+- replay 的歷史樣本不是靠這個 endpoint 補回，而是靠 app 啟動時的 remote write backfill
 
-## 3. 設定與 session 查詢 API
+## 3. Grafana 相關 API
 
 ### `GET /api/grafana-config`
 
-回傳：
+回傳前端嵌入 Grafana 所需的最小資訊：
 
 ```json
 {
-  "base": "<GRAFANA_BASE>",
-  "uid": "<dashboard_uid>"
+  "base": "/grafana",
+  "uid": "nwdaf-traffic"
 }
 ```
 
-前端用它組合 Grafana iframe URL。
+前端用它來組 iframe URL。
+
+### `/grafana` 與 `/grafana/{path:path}`
+
+這兩條是 HTTP proxy，會把同源 `/grafana/*` 請求轉發到真正的 Grafana upstream。
+
+用途：
+
+- 讓前端能透過 `8765` 同源載入 Grafana iframe
+- 支援 iframe 裡的後續 API / asset 請求
+
+### `WS /grafana/{path:path}`
+
+Grafana 的 websocket 路徑也透過 backend proxy。
+
+## 4. Session 與 topology 查詢 API
 
 ### `GET /api/session-info`
 
-回傳目前程序載入的 session 資訊：
+回傳目前程序載入的 session 狀態：
 
 ```json
 {
@@ -57,21 +72,36 @@
 
 差異：
 
-- live mode：`end_time` 固定為 `null`
-- replay mode：`end_time` 會回傳錄製 session 的結束時間
+- live：`end_time = null`
+- replay：`end_time` 來自 session `meta.json`
+
+### `GET /api/sessions`
+
+列出 `sessions/` 目錄中的 session 清單，主要來自各 session `meta.json`。
+
+目前會回傳的主要欄位包括：
+
+- `session_id`
+- `start_time`
+- `end_time`
+- `event_count`
+- `profile`
+- `corrupted`
+
+若目前程序正在 live 錄製，API 會直接用記憶體中的最新 metadata 與事件數更新正在錄製中的 session 條目。
 
 ### `GET /api/topology-config`
 
-直接回傳目前載入的 `_topo_config`。這份 payload 同時被：
+回傳目前前端應使用的 topology config。
 
-- `frontend/topology.js`
-- backend `state.py`
+來源：
 
-視為共同設定來源。
+- live：目前 profile 的 `profiles/<profile>/topology.yaml`
+- replay：目前 session 目錄內保存的 `topology.yaml`
 
 ### `GET /api/state`
 
-直接回傳 `state.snapshot()`，形式是：
+回傳目前 `state.snapshot()`，格式類似：
 
 ```json
 {
@@ -81,33 +111,22 @@
 }
 ```
 
-## 4. Session 清單與事件查詢
+主要用於：
 
-### `GET /api/sessions`
+- live 新 client 連線後的初始畫面
+- `Go Live` 回到目前權威狀態
 
-列出 `sessions/` 目錄中的所有 session。
+## 5. `GET /api/events`
 
-回傳元素主要來自各 session 的 `meta.json`，必要時會補算：
-
-- `session_id`
-- `start_time`
-- `end_time`
-- `event_count`
-
-特別行為：
-
-- 若目前程序在 live mode，且遍歷到的 session 正是正在錄製中的 `_current_session_dir`，API 會直接用記憶體中的 `_current_session_meta` 與 `_events` 生成最新狀態
-- 若錄製中已被標記為 `corrupted`，回傳結果也會反映這個旗標
-
-### `GET /api/events`
+`/api/events` 是 live / replay 共用的事件查詢 API。
 
 支援參數：
 
-- `session`：要查詢的 session ID；省略時使用目前 active session
-- `from`：起始時間，ISO 8601
-- `to`：結束時間，ISO 8601
-- `limit`：單次最多回傳 50000 筆
-- `offset`：分頁偏移
+- `session`
+- `from`
+- `to`
+- `limit`
+- `offset`
 
 回傳格式：
 
@@ -121,139 +140,41 @@
 
 實作特性：
 
-- 若 `session` 是目前 active session，直接讀記憶體中的 `_events`
-- 若是舊 session，會從 `sessions/<session>/events.jsonl` 載入並放進 `_session_events_cache`
-- `from` / `to` 會逐筆比對 event 的 `time`
-- 時間戳格式錯誤時回 `400`
-- session 不存在時回 `404`
+- 若查的是目前 active session，優先使用記憶體中的 `_events`
+- 若查的是舊 session，從 `sessions/<id>/events.jsonl` 載入並快取
+- `from/to` 逐筆比對 event `time`
+- 時間格式錯誤回 `400`
+- session 不存在回 `404`
 
-## 5. Replay 控制 API
+這條 API 在兩種情境下都很重要：
 
-這組 API 只有在 replay mode 且 `_metric_player` 已建立時才可用，否則會回 `404`。
+- replay bootstrap：前端一次載入 session events
+- live scrub：若本地 `_events` 不夠早，前端會補抓較早歷史
 
-**目前限制**：
+## 6. `WS /ws`
 
-- replay playback 目前是**單一使用者 / 單一 active player**設計，不是多人隔離架構
-- backend 只維護一份 active `MetricPlayer` stream；若第二個瀏覽器呼叫 `/api/replay/play`，會先停止前一個 pseudo-live stream，再切到新的 `pseudo_session`
-- 因此多個使用者可以同時看 live 頁面，但**不應同時操作同一個 replay backend**
-
-### `POST /api/replay/play`
-
-request body：
-
-```json
-{
-  "from_time": "<ISO 8601>",
-  "speed": 1.0,
-  "window": 3
-}
-```
-
-行為：
-
-- 啟動新的 pseudo-live metric stream
-- 回傳新建立的 `pseudo_session`
-
-response：
-
-```json
-{
-  "pseudo_session": "_live_<session_id>__<token>"
-}
-```
-
-若 `from_time` 不合法、`speed <= 0` 或 `window < 1`，回 `400`。
-
-### `POST /api/replay/pause`
-
-request body：
-
-```json
-{
-  "pseudo_session": "..."
-}
-```
-
-行為：
-
-- 若 pseudo session 正在播放，停止它並回 `{"status": "paused"}`
-- backend 會接著透過 Prometheus admin API 刪掉該 `pseudo_session` 的 `nwdaf_*` series，避免 Grafana
-  session 下拉選單累積舊的 `_live_...` 項目
-- 若找不到對應的 active pseudo session，回 `204 No Content`
-
-### `POST /api/replay/speed`
-
-request body：
-
-```json
-{
-  "pseudo_session": "...",
-  "speed": 2.0,
-  "current_time": "<ISO 8601>"
-}
-```
-
-行為：
-
-- 取消目前 emit loop
-- 以新的速度與 playhead 位置重建 loop
-
-若 pseudo session 不存在，回 `204 No Content`；若參數不合法，回 `400`。
-
-## 6. WebSocket：`/ws`
-
-`/ws` 是目前唯一的事件推播通道。
+`/ws` 是目前唯一的 live 事件推播通道。
 
 連線建立後，server 會：
 
 1. `accept()`
 2. 把 websocket 放進 `_clients`
 3. 立刻送一份 `state.snapshot()`
-4. 進入 `receive_text()` loop，主要用來維持連線
+4. 進入 keep-alive receive loop
 
-當 live pipeline 有新事件時，`_broadcast(event)` 會：
+當 live pipeline 有新事件時，backend 會：
 
 1. 先 `state.apply_event(event)`
 2. 再把 event JSON 廣播給所有 client
 
-目前特性如下：
+注意：
 
-- 實際上只有 live mode 會持續產生新事件並推送到 `/ws`
-- replay mode 雖然 endpoint 仍存在，但 backend 不會重跑 `_process_queue()`，因此一般不作為 replay 前端資料來源
-- 若某個 client 發送失敗，server 會把它從 `_clients` 集合移除
+- replay 一般事件不依賴這條 WebSocket
+- `state_snapshot` 是 live 初始同步與 `Go Live` 的權威狀態來源，不是完整歷史回放
 
-## 7. 靜態前端：`/`
+## 7. 錯誤邊界與目前限制
 
-FastAPI 最後會：
-
-```python
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
-```
-
-因此：
-
-- `/` 會提供 `frontend/index.html`
-- 這個 mount 放在最後，避免攔截 `/ws`
-
-這也是目前前端與 API 部署在同一個 process、同一個 origin 下的原因。
-
-## 8. Session 快取與記憶體模型
-
-API 層目前同時依賴兩種記憶體資料：
-
-- `_events`：目前 active session 的完整事件列表
-- `_session_events_cache`：查詢過的舊 session 事件快取
-
-這帶來的效果是：
-
-- active session 的事件查詢不需要重讀磁碟
-- 同一個舊 session 被查多次時，也不必重複 parse JSONL
-
-但也代表長時間查詢多個 session 時，程序記憶體會累積更多 cached event list。
-
-## 9. 目前限制
-
-- 目前所有 API 都沒有認證與授權機制
-- `/api/events` 的篩選是在 Python 迴圈中逐筆處理，沒有更進一步的索引
-- `/ws` 目前沒有 server-side 主動 ping/pong 機制，只靠 `receive_text()` 維持連線
-- replay 控制 API 只處理 metrics 播放，不會回放原始事件到 WebSocket
+- `session-status`、`overwrite`、`skip` 等 replay decision flow 不走 HTTP，而走 CLI
+- `GET /api/events` 對舊 session 會依賴磁碟 `events.jsonl`；若檔案缺失，前端無法補歷史
+- backend 目前不提供 browser-facing Prometheus mutation API
+- Grafana proxy 只負責轉發，不解讀 dashboard query 語意

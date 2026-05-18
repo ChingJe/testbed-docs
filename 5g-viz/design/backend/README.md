@@ -1,6 +1,6 @@
 # Backend
 
-> 注意：本子目錄仍混有 pre-refactor 文件，部分內容會提到 replay control API、pseudo-live remote write、profile `.env` 與 `main.py`。現況請先對照 `5g-viz/README.md` 與 `guides/*`。
+> 注意：本子目錄已先重寫 `api.md`，但其他文件仍混有 pre-refactor 背景。現況請優先對照 `api.md`、`5g-viz/README.md` 與 `guides/*`。
 
 本目錄收錄 `5g-viz` 後端行為的技術文件，聚焦於事件收集、解析、狀態管理、API 與 metrics。
 
@@ -16,9 +16,9 @@
 
 主要文件：
 
-- [collector.md](collector.md)：live 模式下的 SSH log 收集器、queue contract 與 reconnect 行為
-- [parser.md](parser.md)：logrus log 解析流程、rule registry 與事件產生方式
-- [state.md](state.md)：`state_snapshot` 的資料模型，以及它如何重用 `event_reactions`
-- [api.md](api.md)：HTTP API、WebSocket、session 查詢與歷史 replay 介面
-- [metrics.md](metrics.md)：live metrics、replay backfill 與歷史 remote-write 模型
-- [profiles.md](profiles.md)：歷史 profile `.env` / `topology.yaml` 模型，以及目前 topology config 背景
+- [api.md](api.md)：目前 HTTP API、WebSocket、Grafana proxy 與 session 查詢介面
+- [profiles.md](profiles.md)：目前 `config.yaml` / `topology.yaml` profile 模型
+- [collector.md](collector.md)：SSH log 收集器；仍含部分 historical wiring 描述
+- [parser.md](parser.md)：logrus log 解析流程；事件語意仍有效
+- [state.md](state.md)：`state_snapshot` 模型；模組路徑敘述略帶 historical 背景
+- [metrics.md](metrics.md)：metrics / replay backfill；仍保留較多 historical remote-write 模型背景
