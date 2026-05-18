@@ -1,5 +1,7 @@
 # Overview
 
+> Historical note: parts of this document still assume replay pseudo-live, `MetricPlayer`, and replay speed. The current runtime has removed pseudo-live and fixed replay playback to the original session plus historical relative Grafana queries.
+
 本文從功能層描述 `5g-viz` 的 DVR。這裡的 DVR 不只是前端控制列，而是一組跨越 session 錄製、事件重建、Grafana 視窗切換與 replay metric pipeline 的整體機制。
 
 ## 1. DVR 的定位

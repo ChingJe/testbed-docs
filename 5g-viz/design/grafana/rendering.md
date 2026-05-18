@@ -1,5 +1,7 @@
 # Rendering
 
+> Historical note: this document still uses the old live / replay / pseudo-live rendering model. The current system no longer creates pseudo-live replay sessions; replay playback now queries the original session with a historical relative time range.
+
 本文描述 `5g-viz` 目前的 Grafana dashboard 如何查 Prometheus、切換 session，並呈現 live、replay 與 pseudo-live 三種圖表語意。
 
 ## 1. Dashboard 結構

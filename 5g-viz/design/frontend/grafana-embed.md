@@ -1,5 +1,7 @@
 # Grafana Embed
 
+> Historical note: this document still describes the old iframe switching model with `orig_session` and `pseudo_session`. The current runtime keeps a single original session in replay and changes only the query time semantics during playback.
+
 本文描述 `frontend/events.js` 目前如何把 Grafana dashboard 嵌進前端畫面，並隨 live / replay / DVR 狀態同步時間窗口。
 
 ## 1. 嵌入層的責任

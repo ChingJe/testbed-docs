@@ -1,6 +1,8 @@
 # API
 
-本文整理 `main.py` 目前提供的 HTTP API、WebSocket 與 session 查詢行為。
+> Historical note: this document still describes the pre-refactor API surface. The current server entrypoint is `backend.app:app`, replay mutation APIs such as `/api/replay/*` have been removed, and replay/backfill orchestration is now CLI-driven via `uv run run.py ...`.
+
+本文整理 `5g-viz` backend 的 HTTP API、WebSocket 與 session 查詢行為，但部分段落反映的是 pre-refactor runtime。
 
 ## 1. 整體結構
 

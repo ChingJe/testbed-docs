@@ -1,5 +1,7 @@
 # 5g-viz 系統概觀
 
+> Historical note: this document still includes the old pseudo-live replay description. The current runtime uses the same overall live/replay concept, but replay chart playback now stays on the original session with historical relative Grafana queries.
+
 本文描述目前 `5g-viz` 的系統組成、執行模式與主要對外介面。內容以目前程式碼實作為準。
 
 ## 1. 系統目的
@@ -10,7 +12,7 @@
 - 將原始 log 解析成結構化事件
 - 把事件同步送到瀏覽器拓樸圖與事件列表
 - 將特定事件轉成 Prometheus metrics，供 Grafana 呈現
-- 在 replay 模式下重播歷史 session，並以 pseudo-live 方式重建圖表體驗
+- 在 replay 模式下重播歷史 session，並以 historical relative Grafana query 重建圖表播放體驗
 
 目前系統同時支援 `live` 與 `replay` 兩種執行模式。
 

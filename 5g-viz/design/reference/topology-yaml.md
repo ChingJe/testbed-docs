@@ -1,11 +1,12 @@
 # topology.yaml
 
+> Historical note: this document still includes parts of the older schema where `topology.yaml` also carried collector SSH/log source definitions. The current runtime keeps topology, event reactions, and frontend-facing behavior here, while collector sources now live in `config.yaml.collector.sources`.
+
 本文定義 `5g-viz` 目前 `topology.yaml` 的 canonical schema 與 cross-layer 契約。
 
-`topology.yaml` 不是純前端設定檔。它同時影響：
+`topology.yaml` 不是純前端設定檔。它目前主要影響：
 
 - frontend 如何建立 Cytoscape 拓樸、filter 與 event reaction
-- backend collector 要連哪些 SSH 來源、tail 哪些 log
 - backend state 如何從同一份 `event_reactions` 重建 `state_snapshot`
 - live session 錄製時要複製哪一份 topology config 進 session 目錄
 

@@ -1,5 +1,7 @@
 # Events And DVR
 
+> Historical note: this document still reflects the old frontend control plane, including pseudo-live chart coordination and older replay states. The current runtime keeps the same general event/timeline responsibilities, but replay chart behavior and topology controls have changed materially.
+
 本文描述 `frontend/events.js` 目前如何管理 session、事件來源、timeline 與 DVR 控制。
 
 ## 1. 這層的責任

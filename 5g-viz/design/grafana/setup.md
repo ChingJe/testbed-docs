@@ -1,5 +1,7 @@
 # Setup
 
+> Historical note: this document still describes the old `setup.sh + start.sh` startup split and disposable replay TSDB assumptions. The current runtime uses `config.yaml`, `run.py`, a managed Prometheus config, and a long-running Prometheus user service model.
+
 本文描述 `5g-viz` 目前如何準備 Grafana 與 Prometheus，使前端能嵌入可查詢的 dashboard。
 
 ## 1. 這層的責任

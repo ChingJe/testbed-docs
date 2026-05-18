@@ -1,5 +1,7 @@
 # 5g-viz 資料流
 
+> Historical note: this document still uses the older module names (`main.py`, root-level services) and replay model. The current runtime keeps the same broad live/replay split, but the module boundaries and replay chart path have changed.
+
 本文描述 `5g-viz` 目前兩條主要資料路徑：
 
 - live：從遠端 VM log 即時進入瀏覽器與 Grafana

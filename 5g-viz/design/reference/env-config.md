@@ -1,5 +1,7 @@
 # env-config
 
+> Historical note: this document is retained mainly for the old `.env` / runtime-env model. The current runtime has removed `.env` and now uses `profiles/<profile>/config.yaml` with `--profile`.
+
 本文整理 `5g-viz` 目前與 profile `.env` 相關的環境變數契約，以及少數不屬於 profile 檔、但會一起影響啟動模式的 runtime env。
 
 > 重要：目前若要覆寫 Prometheus 位址，應設定的是 `PROMETHEUS_URL`。`.env.example` 內的 `PROMETHEUS_BASE` 目前只是範本殘留，程式不會讀這個名稱。

@@ -1,5 +1,7 @@
 # Replay
 
+> Historical note: this document is primarily a pre-refactor replay runtime reference. It still describes `start.sh`, replay cleanup on startup, pseudo-live, `MetricPlayer`, and replay control APIs that are no longer part of the current system.
+
 本文描述 `5g-viz` 的 replay runtime，以及它如何把同一份 session 同時重建為 topology 播放與 Grafana 圖表。
 
 ## 1. Replay 啟動做了什麼

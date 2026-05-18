@@ -1,5 +1,7 @@
 # 5g-viz 架構圖
 
+> Historical note: this overview was written before the runtime was reorganized into `backend/`, `runtime/`, `services/`, and `replay/`, and before pseudo-live removal. Read it as a high-level historical architecture map, not a precise current module map.
+
 本文用圖示呈現系統整體組件與兩條主要資料路徑。  
 組件細節見 [system.md](system.md)；完整資料流說明見 [data-flow.md](data-flow.md)。
 

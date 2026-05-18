@@ -1,5 +1,7 @@
 # 5g-viz 事件與 Metric Schema
 
+> Historical note: the schema descriptions here are still useful, but file/module references may reflect the pre-refactor layout.
+
 本文整理目前 `5g-viz` 使用的核心事件型別、欄位，以及它們與 Prometheus metrics 的對應關係。
 
 ## 1. 基本原則

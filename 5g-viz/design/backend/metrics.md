@@ -1,5 +1,7 @@
 # Metrics
 
+> Historical note: this document still contains the old three-path mental model (`live` / `replay backfill` / `pseudo-live`). The current runtime keeps `live` and `replay backfill`, while replay playback now uses the original session with historical relative Grafana queries instead of pseudo-live remap.
+
 本文描述 `5g-viz` 目前的 metrics 生成方式，以及 live、replay、pseudo-live 三條資料路徑之間的差異。
 
 ## 1. 定位
