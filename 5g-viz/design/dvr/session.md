@@ -1,5 +1,7 @@
 # Session
 
+> Historical note: this document still references the older root-level runtime (`main.py`, `start.sh`) in examples and lifecycle descriptions. The session artifact model itself remains current, but the startup/orchestration path has changed to `run.py`.
+
 本文描述 `5g-viz` 目前如何建立、保存、列舉與載入 DVR session。
 
 ## 1. Session 的角色

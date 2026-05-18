@@ -1,5 +1,7 @@
 # State
 
+> Historical note: the state model is still relevant, but this document may reference the older module layout and root-level app wiring.
+
 本文描述 `state.py` 如何從 topology config 與事件流推導出目前的 `state_snapshot`。
 
 ## 1. 定位

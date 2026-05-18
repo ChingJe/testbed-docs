@@ -1,6 +1,8 @@
 # Collector
 
-本文描述 `collector.py` 在 `5g-viz` 中的責任、輸入設定與失敗處理方式。內容以目前 `collector.py` 與 `main.py` 的實作為準。
+> Historical note: this document still reflects the older collector wiring through `main.py` and `topology.yaml` `ssh_sources`. The current runtime routes orchestration through the modular backend/services layout, and collector source definitions now live in `config.yaml.collector.sources`.
+
+本文描述 `collector.py` 在 `5g-viz` 中的責任、輸入設定與失敗處理方式，但部分段落反映的是 pre-refactor wiring。
 
 ## 1. 定位
 

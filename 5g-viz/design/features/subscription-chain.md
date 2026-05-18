@@ -1,5 +1,7 @@
 # Subscription Chain
 
+> Historical note: this document still references the old profile `.env` mapping model. The control-path feature flow is still relevant, but the current runtime stores these environment-specific mappings in `config.yaml`.
+
 本文從功能視角描述 `5g-viz` 目前如何把「Consumer 訂閱 NWDAF analytics，並一路串到 SMF、UPF，再回到 Consumer」這條鏈路轉成可觀察的事件與拓樸反應。
 
 若要看各子系統細節，可再對照：

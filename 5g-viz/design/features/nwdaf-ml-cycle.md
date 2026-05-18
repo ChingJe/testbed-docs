@@ -1,5 +1,7 @@
 # NWDAF ML Cycle
 
+> Historical note: this feature flow still references the older replay pseudo-live mental model in later sections. The event/metric relationships remain useful, but replay playback now stays on the original session with historical relative Grafana queries.
+
 本文從功能視角描述 `5g-viz` 目前如何把 NWDAF 的資料聚合、推論、準確度檢查、重訓、ADRF 取數與模型切換這條循環轉成可觀察的事件、拓樸狀態與圖表。
 
 若要看各子系統細節，可再對照：

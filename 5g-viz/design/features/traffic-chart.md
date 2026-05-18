@@ -1,5 +1,7 @@
 # Traffic Chart
 
+> Historical note: this document still includes the old pseudo-live replay chart model and `.env`-based Grafana config vocabulary. The overall traffic-chart flow is still useful, but current replay playback stays on the original session with historical relative queries, and configuration now lives in `config.yaml`.
+
 本文從功能視角描述 `5g-viz` 目前的流量圖表如何跨越 parser、metrics、Prometheus、Grafana 與前端 iframe。
 
 若要看各子系統的細部契約，可再對照：

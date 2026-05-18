@@ -1,5 +1,7 @@
 # Parser
 
+> Historical note: the event semantics described here remain useful, but file/module references may still point to the older pre-refactor backend layout.
+
 本文描述 `parser.py` 與 `rules/` 如何把原始 log 行轉成 `5g-viz` 的事件資料模型。
 
 ## 1. 定位
