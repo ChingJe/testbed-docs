@@ -1059,7 +1059,7 @@ uv run run.py replay sessions/20260513T033836881 --profile default --backfill=sk
 | 2 | Prometheus lifecycle | persistent TSDB、retention / `out_of_order_time_window`、delete helper | Done |
 | 3 | Replay status / overwrite | session status、CLI backfill policy、overwrite flow | Done |
 | 4 | Remove pseudo-live | 刪除 pseudo-live API / runtime / cleanup | Done |
-| 5 | Visual FX controls | runtime effect config、panel、presets / reset | Planned |
+| 5 | Visual FX controls | runtime effect config、panel、presets / reset | Done |
 | 6 | Docs convergence | 移除舊 mental model、更新操作文件 | Planned |
 
 狀態欄建議只用：
@@ -1250,6 +1250,47 @@ Phase 完成判準：
 3. 補 advanced inputs
 4. 接 `localStorage`
 
+目前 scope 收斂：
+
+- 將現有 `Speed` 控制正式改造成 `Visual FX` 控制，不再承載 replay / live timeline speed 語意
+- 視覺效果調校需與 playback semantics 完全解耦；replay 仍固定 `1x + pause + scrub + resume`
+- 第一輪以 frontend runtime 設定為主，不先擴張 profile schema 或 backend config surface
+- presets 至少提供 `0.5x / 1x / 2x`
+- advanced inputs 應以細項 duration 為主，而不是全域 window：
+  - per-edge flash duration
+  - pulse default duration
+  - pulse explicit override duration
+- pulse duration 的使用者語意應是「總可見時間」，而不是動畫單段時間
+- 實作上可將 pulse animation 拆成兩段，但使用者輸入值與 topology default 都應代表 total duration
+- paused / scrubbed static snapshot 不應再使用全域 `static window`
+- static snapshot 顯示判斷應改成 per-event active range：
+  - edge event 在 `eventMs <= targetMs <= eventMs + edgeDuration` 時可見
+  - pulse event 在 `eventMs <= targetMs <= eventMs + pulseDuration` 時可見
+- `pause -> play` 恢復時，若當前時間點已有 active edge / pulse，播放不應直接清空畫面
+- resumed playback 必須延續當前 active effects 的剩餘時間：
+  - edge / pulse 需能計算 `remainingMs`
+  - resumed playback 先播完 residual effects，再接續未來事件
+- static snapshot、paused view、resumed playback 三者必須共享同一套 active-range 定義
+- 需提供 `Reset` 回到預設值
+- 設定需在 live 與 replay 都即時生效
+- 設定需寫入 `localStorage`，重整後保留使用者偏好
+- timeline 需支援鍵盤左右方向鍵 step scrub
+- step scrub 秒數需可在頁面上調整，不限定為 5 秒
+
+目前實作收斂重點：
+
+- `frontend/index.html` 已將舊的 `Speed` dropdown 收斂為 `FX` controls 與 `Step` 控制
+- `frontend/events.js` 已移除 replay speed 對 timeline 的影響，改由 per-edge / per-pulse duration 與 keyboard step 控制處理前端互動
+- `frontend/topology.js` 已移除 `_playbackSpeed` 依賴，改成獨立的 visual FX runtime config
+- scrub / paused static snapshot 與 resumed playback 已共用 per-event active range 判斷
+
+這個 phase 不處理：
+
+- 不恢復 replay speed
+- 不改 replay timeline / Grafana window 語意
+- 不改 Prometheus lifecycle、session overwrite / reuse、或 replay backfill policy
+- 不先把 visual defaults 移入新的後端設定來源；若需要 profile-based defaults，留待後續獨立處理
+
 建議 commit 策略：
 
 - 預設整個 Phase 5 一個 commit
@@ -1258,13 +1299,27 @@ Phase 完成判準：
 每次 commit 前至少驗證：
 
 - `0.5x / 1x / 2x / reset` 只影響 visual effect，不影響 replay timeline
-- edge / pulse / static window 調整後立即生效
+- edge / pulse duration 調整後立即生效
+- paused / scrubbed snapshot 與播放中的 effect 可見範圍語意一致
+- paused 當下可見的 edge / pulse，在按下 `Play` 後會延續剩餘時間，而不是瞬間消失
+- 左右方向鍵可依設定步長移動 timeline，且不會在輸入欄位 focus 時誤觸
 - live mode 與 replay mode 都能使用
 - 重整頁面後設定行為符合預期
 
 Phase 完成判準：
 
 - visual tuning 與 playback semantics 完全解耦
+
+目前進度：
+
+- frontend 已將舊 `Speed` dropdown 改為 `FX` controls
+- replay / live timeline 已不再受 visual effect preset 影響
+- `0.5x / 1x / 2x` presets、`Reset`、`localStorage` persistence 已落地
+- `topology.js` 已改為使用獨立的 visual FX runtime config，而不是 `_playbackSpeed`
+- advanced inputs 已收斂為 per-edge / per-pulse duration
+- static snapshot 已改為 per-event active range 判斷，而不是全域對稱 window
+- pulse duration 已收斂為 user-facing total duration，內部動畫再自動拆成兩段
+- timeline 已支援可設定秒數的左右方向鍵 step scrub
 
 ### 11.8 Phase 6. Docs convergence
 
@@ -1419,7 +1474,6 @@ UI 命名若不清楚，使用者會誤以為：
 5. 臨時測試差異透過複製新 profile 處理，不靠 env 覆蓋
 6. session overwrite / reuse 決策採 CLI-only，未來也不規劃前端 UI
 
-目前 Phase 1 到 Phase 4 已完成，因此下一步應直接進入：
+目前 Phase 1 到 Phase 5 已完成，因此下一步應直接進入：
 
-1. Phase 5：加入 runtime visual effect controls
-2. Phase 6：收斂 README、操作文件與舊有心智模型
+1. Phase 6：收斂 README、操作文件與舊有心智模型
