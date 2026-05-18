@@ -1100,7 +1100,7 @@ uv run run.py replay sessions/20260513T033836881 --profile default --backfill=sk
 | 4 | Remove pseudo-live | 刪除 pseudo-live API / runtime / cleanup | Done |
 | 5 | Visual FX controls | runtime effect config、panel、presets / reset | Done |
 | 6 | Modular structure refactor | backend / runtime / services / replay 分層與 root shim 收斂 | Done |
-| 7 | Docs convergence | 移除舊 mental model、更新操作文件 | Planned |
+| 7 | Docs convergence / historical-doc cleanup | 收斂 canonical 文件並處理舊 mental model 文件分流 | Planned |
 
 狀態欄建議只用：
 
@@ -1421,24 +1421,49 @@ Phase 完成判準：
 
 建議順序：
 
-1. 先改 start / setup / profile config 文件
-2. 再改 replay / Grafana mental model
-3. 最後補 troubleshooting
+1. 先確認 canonical user-facing docs
+2. 再收斂 docs repo 內仍作為正式入口的 guides / troubleshooting / mental model
+3. 最後處理歷史設計文件：能標記 historical 就不要全面重寫
 
 建議 commit 策略：
 
-- 預設整個 Phase 6 一個 commit
+- 預設整個 Phase 7 一個 commit
 - 若文件量過大，可視情況拆成少數文件 commit，但不是預設要求
 
 每次 commit 前至少驗證：
 
-- 文件內已不再把 replay `playing` 描述為 pseudo-live
-- 文件內 profile 設定來源與實作一致
-- 新 CLI / 啟動方式能直接對照文件操作
+- canonical README / guides 已不再把 replay `playing` 描述為 pseudo-live
+- canonical 文件內 profile 設定來源與實作一致，不再把 `.env` / `start.sh` 當現行路徑
+- `run.py` / `backend.app:app` / managed Prometheus service 的操作方式能直接對照文件
+- 歷史文件若仍描述舊架構，需被明確標記為 historical / pre-refactor，而不是與現況混用
 
 Phase 完成判準：
 
 - 新讀者不需要知道 pseudo-live 歷史也能理解現在系統
+- README、start-here、ui-workflows、mental-model、troubleshooting 等正式入口文件與現況一致
+- 舊的 pseudo-live / `.env` / `start.sh` / `main:app` 心智若仍保留，只存在於明確標示的歷史文件中
+
+目前判斷：
+
+- `5g-viz/README.md` 與 `setup.sh` 已大致對齊現況
+- Phase 7 的主要工作已不在主專案程式，而在 `docs/5g-viz/` 內大量仍描述舊架構的文件
+- 因此 Phase 7 應視為 documentation convergence，不再是產品功能 phase
+
+建議優先處理的文件族群：
+
+- `docs/5g-viz/README.md`
+- `docs/5g-viz/guides/start-here/*`
+- `docs/5g-viz/guides/ui-workflows/*`
+- `docs/5g-viz/guides/mental-model/*`
+- `docs/5g-viz/guides/troubleshooting/*`
+
+建議直接標記 historical / pre-refactor、而非全面重寫的文件族群：
+
+- `docs/5g-viz/design/dvr/*`
+- `docs/5g-viz/design/grafana/*`
+- `docs/5g-viz/design/frontend/*`
+- `docs/5g-viz/design/reference/*`
+- `docs/5g-viz/notes/*`
 
 ### 11.10 每次 commit 前的共用驗證清單
 
@@ -1570,6 +1595,8 @@ UI 命名若不清楚，使用者會誤以為：
 5. 臨時測試差異透過複製新 profile 處理，不靠 env 覆蓋
 6. session overwrite / reuse 決策採 CLI-only，未來也不規劃前端 UI
 
-目前 Phase 1 到 Phase 5 已完成，因此下一步應直接進入：
+目前 Phase 1 到 Phase 6 已完成，因此下一步不再是主程式重構，而是文件收斂：
 
-1. Phase 7：收斂 README、操作文件與舊有心智模型
+1. Phase 7：收斂 canonical README / guides / troubleshooting
+2. 將仍描述 pseudo-live、`.env`、`start.sh`、`main:app` 的舊設計文件改為明確 historical / pre-refactor
+3. 只有在文件收斂過程中發現新的實作落差時，才回頭補主專案
