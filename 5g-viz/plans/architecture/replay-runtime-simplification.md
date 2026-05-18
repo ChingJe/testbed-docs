@@ -12,7 +12,7 @@
 effect duration 抽出成獨立控制面板。另一方面，當 Python control plane 取代 `start.sh` 成為主要入口後，
 設定模型也不應再只停留在 shell-friendly `.env`。
 
-> 狀態：architecture plan；`config.yaml + run.py + shared loader` groundwork 已落地並完成 smoke validation，其餘 phases 尚未開始。
+> 狀態：`config.yaml + run.py + shared loader` groundwork 與 Prometheus lifecycle groundwork 已落地；後續 phases 尚未開始。
 
 ---
 
@@ -49,7 +49,7 @@ live 的平滑體驗，不再需要 pseudo-live remap。
   - `delete_series match[]={__name__=~"nwdaf_.+"}`
   - `clean_tombstones`
 
-對應實作見 [5g-viz/start.sh](/home/chingje/testbed/5g-viz/start.sh)。
+對應實作現況見 [5g-viz/run.py](/home/chingje/testbed/5g-viz/run.py)。
 
 這代表：
 
@@ -141,7 +141,7 @@ session 仍是 replay 的 canonical artifact：
 
 ### 2.3 Prometheus / Grafana 啟動現況
 
-啟動腳本目前仍把 Prometheus 視為由 `5g-viz` 直接控制的本地 companion service：
+在本計畫開始時，Prometheus 一直被視為由 `5g-viz` 直接控制的本地 companion service：
 
 - 啟動時 `pkill` 舊 Prometheus
 - 重新起一個本地 Prometheus
@@ -1056,7 +1056,7 @@ uv run run.py replay sessions/20260513T033836881 --profile default --backfill=sk
 | Phase | 主題 | 主要產出 | 狀態 |
 |---|---|---|---|
 | 1 | Config loader + CLI skeleton | `config.yaml` schema、shared loader、`run.py` 入口骨架 | Done |
-| 2 | Prometheus lifecycle | persistent TSDB、retention / `out_of_order_time_window`、delete helper | Planned |
+| 2 | Prometheus lifecycle | persistent TSDB、retention / `out_of_order_time_window`、delete helper | Done |
 | 3 | Replay status / overwrite | session status、CLI backfill policy、overwrite flow | Planned |
 | 4 | Remove pseudo-live | 刪除 pseudo-live API / runtime / cleanup | Planned |
 | 5 | Visual FX controls | runtime effect config、panel、presets / reset | Planned |
@@ -1100,7 +1100,7 @@ uv run run.py replay sessions/20260513T033836881 --profile default --backfill=sk
 實作前確認的現況落差：
 
 - [5g-viz/config.py](/home/chingje/testbed/5g-viz/config.py) 目前在 import time 直接載入 `profiles/<profile>/.env`，並以 module-level constants 形式提供設定；[5g-viz/main.py](/home/chingje/testbed/5g-viz/main.py)、[5g-viz/grafana_setup.py](/home/chingje/testbed/5g-viz/grafana_setup.py)、[5g-viz/metric_player.py](/home/chingje/testbed/5g-viz/metric_player.py)、[5g-viz/rules/*.py](/home/chingje/testbed/5g-viz/rules) 都已直接依賴這組介面。
-- [5g-viz/start.sh](/home/chingje/testbed/5g-viz/start.sh) 目前不只負責啟動，還會解析 `PROFILE` / `SESSION_MODE` / `SESSION_PATH` / `FORCE_BACKFILL`、決定 Prometheus data dir、啟動 flags、以及全域清除 metrics；Phase 1 只能先把 orchestration 收進 `run.py`，不能同時改掉所有 Prometheus policy。
+- 原本由 `start.sh` 承擔的啟動責任已收斂進 [5g-viz/run.py](/home/chingje/testbed/5g-viz/run.py)；Phase 1 完成時仍保留 wrapper，相依的 Prometheus policy 則留到 Phase 2 再處理。
 - [5g-viz/main.py](/home/chingje/testbed/5g-viz/main.py) 目前仍直接讀 `PROFILE`、`SESSION_MODE`、`SESSION_PATH`、`FORCE_BACKFILL`、`PROMETHEUS_URL` 等 env；Phase 1 應先讓 `run.py` 成為唯一正常入口，再決定 app process 內部是改吃 structured settings，還是暫時由 `run.py` 建立最小相容層。
 - [5g-viz/collector.py](/home/chingje/testbed/5g-viz/collector.py) 目前只理解 `topology.yaml` 中的 `ssh_sources + host_env/path_env` indirection；因此 `config.yaml.collector.sources` 上線時，第一刀應先由 loader 轉成 collector 可消費的結構，再決定是否連 collector 內部格式一起清掉。
 - [5g-viz/import_logs.py](/home/chingje/testbed/5g-viz/import_logs.py) 目前透過 `os.environ[\"PROFILE\"]` 後設載入 [5g-viz/config.py](/home/chingje/testbed/5g-viz/config.py)；[5g-viz/session_import.py](/home/chingje/testbed/5g-viz/session_import.py) 則直接複製 profile `topology.yaml` 並從呼叫端取得 `grafana_groups`。Phase 1 需同步讓 importer 改成顯式載入 profile config，而不是繼續依賴 env side effect。
@@ -1110,13 +1110,13 @@ Phase 1 的相容策略建議：
 
 - 不保留 runtime fallback 到 `.env`，但允許提供一次性的 profile migration helper，將舊 `profiles/<profile>/.env` 轉成 `config.yaml`。
 - `config.py` 第一刀可以保留為 thin compatibility module，但其資料來源必須改成 shared YAML loader，而不是再直接 `load_dotenv`。
-- `run.py` 應成為 `live` / `replay` / `prom ...` 的唯一正式入口；`start.sh` 僅轉呼叫 `uv run run.py ...`。
+- `run.py` 應成為 `live` / `replay` / `prom ...` 的唯一正式入口。
 - `collector`、`import_logs.py`、`main.py` 在 Phase 1 內至少都要切到 shared config loader，避免新舊設定來源並存。
 
 建議 commit 策略：
 
 - 預設整個 Phase 1 一個 commit
-- commit 內容可同時包含 `config.yaml` 範本、shared loader、`run.py` skeleton、`start.sh` wrapper 化
+- commit 內容可同時包含 `config.yaml` 範本、shared loader、`run.py` skeleton、入口收斂
 
 每次 commit 前至少驗證：
 
@@ -1127,7 +1127,7 @@ Phase 1 的相容策略建議：
 Phase 完成判準：
 
 - 同一份 profile 設定可被 backend 與 CLI 共用
-- `start.sh` 不再自己解析整套主要設定，只負責轉呼叫
+- `run.py` 已成為唯一正式入口
 - `collector` 不再依賴 `topology.yaml + env indirection` 取得 source 定義
 
 目前已完成的實作進度：
@@ -1135,11 +1135,10 @@ Phase 完成判準：
 - `profiles/<profile>/config.yaml` 與 root `config.example.yaml` 已建立
 - shared YAML loader 已落地，並由 `config.py` 作為相容薄層提供既有 constants
 - `uv run run.py live|replay|prom status --profile ...` 已可實際執行
-- `start.sh` 已降格成 wrapper，`setup.sh` 與 `README` 已改成 `config.yaml` workflow
+- `setup.sh` 與 `README` 已改成 `config.yaml` workflow
 - `main.py`、`collector.py`、`import_logs.py` 已接到 shared config flow
 - smoke validation 已完成：
   - `python3 -m py_compile`
-  - `bash -n start.sh`
   - `bash -n setup.sh`
   - `uv run run.py prom status --profile default`
   - `uv run run.py live --profile default`
@@ -1171,6 +1170,17 @@ Phase 完成判準：
 
 - Prometheus 不再把自己當 disposable cache
 - 單一 persistent TSDB 可跨重啟保留 replay session
+
+目前已完成的實作進度：
+
+- `run.py` 啟動 Prometheus 時已固定使用 persistent `~/prometheus/data`，不再為 replay 建立 `/tmp/prometheus-replay-*`
+- Prometheus 啟動時不再全域刪除 `nwdaf_*`
+- retention 仍由啟動 flags 顯式設定，`out_of_order_time_window` 則由 `run.py` 寫入 managed `~/prometheus/prometheus.yml`
+- session-scoped delete helper 已落地為 shared service，並提供 `uv run run.py prom delete-session <session_id> --profile ...`
+- `main.py` 的 replay backfill presence check 已改成 TSDB series existence，而不是對歷史 session 不可靠的 instant query
+- `start.sh` 已移除，`run.py` 成為唯一正式入口
+- `run.py` 會在啟動前同步 managed `prometheus.yml`，因此當前本機 Prometheus `3.5.1` 也能透過 YAML config 接受較舊 replay session 的 backfill
+- `run.py` 支援產生 `systemctl --user` 用的 `5g-viz-prometheus.service`，並已收斂成「Prometheus 需先常駐啟動；5g-viz 只做 reuse + config sync + reload，不再提供本地 fallback spawn」
 
 ### 11.5 Phase 3. Replay status / overwrite model
 
@@ -1346,6 +1356,7 @@ UI 命名若不清楚，使用者會誤以為：
 若從 `.env` 轉成 `config.yaml`，需要注意：
 
 - 舊 profile 目錄的遷移
+- `config.yaml` 欄位與內容要對照 `profiles/default/.env` 的實際使用值，而不只對照 `.env.example`
 - README / setup 指令同步更新
 - 是否提供一次性的 migration helper，把舊 `.env` profile 轉成 `config.yaml`
 
@@ -1362,7 +1373,8 @@ UI 命名若不清楚，使用者會誤以為：
 
 ### 程式
 
-- [5g-viz/start.sh](/home/chingje/testbed/5g-viz/start.sh)
+- `5g-viz/run.py`
+- [5g-viz/prometheus_service.py](/home/chingje/testbed/5g-viz/prometheus_service.py)
 - `5g-viz/run.py`
 - [5g-viz/main.py](/home/chingje/testbed/5g-viz/main.py)
 - [5g-viz/metric_player.py](/home/chingje/testbed/5g-viz/metric_player.py)
