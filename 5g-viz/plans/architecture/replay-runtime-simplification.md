@@ -1058,7 +1058,7 @@ uv run run.py replay sessions/20260513T033836881 --profile default --backfill=sk
 | 1 | Config loader + CLI skeleton | `config.yaml` schema、shared loader、`run.py` 入口骨架 | Done |
 | 2 | Prometheus lifecycle | persistent TSDB、retention / `out_of_order_time_window`、delete helper | Done |
 | 3 | Replay status / overwrite | session status、CLI backfill policy、overwrite flow | Done |
-| 4 | Remove pseudo-live | 刪除 pseudo-live API / runtime / cleanup | Planned |
+| 4 | Remove pseudo-live | 刪除 pseudo-live API / runtime / cleanup | Done |
 | 5 | Visual FX controls | runtime effect config、panel、presets / reset | Planned |
 | 6 | Docs convergence | 移除舊 mental model、更新操作文件 | Planned |
 
@@ -1233,6 +1233,13 @@ Phase 完成判準：
 Phase 完成判準：
 
 - pseudo-live 只存在於 git history，不再存在於 runtime 與主要文件中
+
+目前進度：
+
+- frontend replay 已只走 original session + historical relative Grafana window
+- backend 已刪除 `/api/replay/play|pause|speed`
+- `MetricPlayer` 與 pseudo-session cleanup 已從 runtime 移除
+- README 已改成以 original session replay model 說明
 
 ### 11.7 Phase 5. Visual FX controls
 
@@ -1412,8 +1419,7 @@ UI 命名若不清楚，使用者會誤以為：
 5. 臨時測試差異透過複製新 profile 處理，不靠 env 覆蓋
 6. session overwrite / reuse 決策採 CLI-only，未來也不規劃前端 UI
 
-目前 Phase 1 到 Phase 3 已完成，因此下一步應直接進入：
+目前 Phase 1 到 Phase 4 已完成，因此下一步應直接進入：
 
-1. Phase 4：移除 pseudo-live runtime 與 `/api/replay/play|pause|speed`
-2. Phase 5：加入 runtime visual effect controls
-3. Phase 6：收斂 README、操作文件與舊有心智模型
+1. Phase 5：加入 runtime visual effect controls
+2. Phase 6：收斂 README、操作文件與舊有心智模型
