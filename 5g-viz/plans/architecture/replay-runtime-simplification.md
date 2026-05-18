@@ -1295,7 +1295,11 @@ Phase 完成判準：
 - 將現有 `Speed` 控制正式改造成 `Visual FX` 控制，不再承載 replay / live timeline speed 語意
 - 視覺效果調校需與 playback semantics 完全解耦；replay 仍固定 `1x + pause + scrub + resume`
 - 第一輪以 frontend runtime 設定為主，不先擴張 profile schema 或 backend config surface
-- presets 至少提供 `0.5x / 1x / 2x`
+- effects panel 需提供批次縮放與重設操作：
+  - `0.5x`
+  - `2x`
+  - `Reset to Default`
+- `0.5x` / `2x` 的語意是將目前已填入的 duration 值整體縮放，不代表播放倍速
 - advanced inputs 應以細項 duration 為主，而不是全域 window：
   - per-edge flash duration
   - pulse default duration
@@ -1319,7 +1323,7 @@ Phase 完成判準：
 
 目前實作收斂重點：
 
-- `frontend/index.html` 已將舊的 `Speed` dropdown 收斂為 `FX` controls 與 `Step` 控制
+- `frontend/index.html` 已將 header 中舊的 `Speed` / `FX` controls 收斂為 topology 左側整合 controls panel，header 只保留 timeline 與 chart controls
 - `frontend/events.js` 已移除 replay speed 對 timeline 的影響，改由 per-edge / per-pulse duration 與 keyboard step 控制處理前端互動
 - `frontend/topology.js` 已移除 `_playbackSpeed` 依賴，改成獨立的 visual FX runtime config
 - scrub / paused static snapshot 與 resumed playback 已共用 per-event active range 判斷
@@ -1354,12 +1358,18 @@ Phase 完成判準：
 
 - frontend 已將舊 `Speed` dropdown 改為 `FX` controls
 - replay / live timeline 已不再受 visual effect preset 影響
-- `0.5x / 1x / 2x` presets、`Reset`、`localStorage` persistence 已落地
+- effect controls 已整合進 topology 左側 sidebar，與 node / edge filter 共用同一個 `Topology Controls` 區塊
+- 後續 UI 收斂方向：移除獨立 `edge filter` 開關，避免和 `edge effect enabled` 重複；edge 是否顯示應由 `Effects` 統一控制
+- `0.5x` / `2x` / `Reset`、`localStorage` persistence 已落地
 - `topology.js` 已改為使用獨立的 visual FX runtime config，而不是 `_playbackSpeed`
 - advanced inputs 已收斂為 per-edge / per-pulse duration
+- effect item 已支援「是否顯示」與「duration」同列調整
 - static snapshot 已改為 per-event active range 判斷，而不是全域對稱 window
 - pulse duration 已收斂為 user-facing total duration，內部動畫再自動拆成兩段
-- timeline 已支援可設定秒數的左右方向鍵 step scrub
+- timeline 已支援可設定秒數的左右方向鍵 step scrub，且 `Step`、`Chart`、`Effects` 已補充 inline `?` help 說明
+- keyboard step scrub 需補一個 timeline-slider 例外：
+  - 一般文字 / 數字 input focus 時，左右鍵不應誤觸 timeline
+  - 但當 focus 落在 replay timeline range slider 本身時，左右鍵仍應走 5g-viz 的 step scrub 邏輯，而不是只觸發原生 slider 單步移動
 
 ### 11.8 Phase 6. Modular structure refactor
 
