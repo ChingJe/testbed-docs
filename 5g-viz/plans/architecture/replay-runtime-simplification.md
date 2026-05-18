@@ -416,10 +416,10 @@ timestamp 合法的前提下，這是最接近「讓它照單全收」的實務�
 
 ```text
 uv run run.py live --profile <profile>
+uv run run.py session-status <session_ref> --profile <profile>
 uv run run.py replay <session_dir> --profile <profile> --backfill=auto
 uv run run.py replay <session_dir> --profile <profile> --backfill=overwrite
 uv run run.py replay <session_dir> --profile <profile> --backfill=skip
-uv run run.py prom session-status <session_id> --profile <profile>
 uv run run.py prom delete-session <session_id> --profile <profile>
 uv run run.py prom backfill-session <session_dir> --profile <profile> --overwrite
 ```
@@ -1057,7 +1057,7 @@ uv run run.py replay sessions/20260513T033836881 --profile default --backfill=sk
 |---|---|---|---|
 | 1 | Config loader + CLI skeleton | `config.yaml` schema、shared loader、`run.py` 入口骨架 | Done |
 | 2 | Prometheus lifecycle | persistent TSDB、retention / `out_of_order_time_window`、delete helper | Done |
-| 3 | Replay status / overwrite | session status、CLI backfill policy、overwrite flow | Planned |
+| 3 | Replay status / overwrite | session status、CLI backfill policy、overwrite flow | Done |
 | 4 | Remove pseudo-live | 刪除 pseudo-live API / runtime / cleanup | Planned |
 | 5 | Visual FX controls | runtime effect config、panel、presets / reset | Planned |
 | 6 | Docs convergence | 移除舊 mental model、更新操作文件 | Planned |
@@ -1206,6 +1206,8 @@ Phase 完成判準：
 Phase 完成判準：
 
 - 使用者可不靠手動 Prometheus API 操作就完成 replay reuse / overwrite 決策
+- 已實作 `uv run run.py session-status <session_ref> --profile ...`
+- 已實作 `uv run run.py replay <session_dir> --profile ... --backfill=auto|overwrite|skip`
 
 ### 11.6 Phase 4. Remove pseudo-live runtime
 
@@ -1410,8 +1412,8 @@ UI 命名若不清楚，使用者會誤以為：
 5. 臨時測試差異透過複製新 profile 處理，不靠 env 覆蓋
 6. session overwrite / reuse 決策採 CLI-only，未來也不規劃前端 UI
 
-因此下一步可直接進入 Phase 1，重點是：
+目前 Phase 1 到 Phase 3 已完成，因此下一步應直接進入：
 
-1. 定義 `config.yaml` schema 與 `config.example.yaml`
-2. 建立 `run.py` skeleton
-3. 收斂 shared config loader 與 shared service layer
+1. Phase 4：移除 pseudo-live runtime 與 `/api/replay/play|pause|speed`
+2. Phase 5：加入 runtime visual effect controls
+3. Phase 6：收斂 README、操作文件與舊有心智模型
