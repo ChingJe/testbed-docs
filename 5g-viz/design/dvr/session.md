@@ -1,30 +1,26 @@
 # Session
 
-> Historical note: this document still references the older root-level runtime (`main.py`, `start.sh`) in examples and lifecycle descriptions. The session artifact model itself remains current, but the startup/orchestration path has changed to `run.py`.
-
 本文描述 `5g-viz` 目前如何建立、保存、列舉與載入 DVR session。
 
 ## 1. Session 的角色
 
 在目前架構中，一個 session 代表一次可錄製、可重播的實驗執行個體。
 
-session 的保存內容不是畫面快照，而是三個檔案：
+session 保存的不是畫面快照，而是三個核心檔案：
 
 - `meta.json`
 - `events.jsonl`
 - `topology.yaml`
 
-其中 `events.jsonl` 是 replay 的核心來源；另外兩個檔案則提供 metadata 與渲染所需的配置快照。
+其中：
+
+- `events.jsonl` 是 replay 的核心事件來源
+- `meta.json` 提供 session metadata
+- `topology.yaml` 提供當時的 topology / reaction snapshot
 
 ## 2. 目錄結構
 
-live mode 啟動後，`main.py` 會在：
-
-```text
-5g-viz/sessions/<session_id>/
-```
-
-建立新的 session 目錄。實際內容如下：
+目前 session 目錄長成：
 
 ```text
 sessions/<session_id>/
@@ -35,17 +31,17 @@ sessions/<session_id>/
 
 ### `session_id`
 
-session ID 由 `_new_session_id_utc()` 產生，格式是：
+session id 由 UTC 時間產生，格式近似：
 
 ```text
 YYYYMMDDTHHMMSSmmm
 ```
 
-使用 UTC 時間與毫秒尾碼，避免同秒啟動撞名。
+用來避免同秒啟動撞名。
 
 ## 3. Live 錄製流程
 
-live mode 進入 lifespan 後，`main.py` 會：
+live mode 啟動後，backend 會：
 
 1. 載入目前 profile 的 `topology.yaml`
 2. 建立新的 session 目錄
@@ -53,14 +49,14 @@ live mode 進入 lifespan 後，`main.py` 會：
 4. 寫入初始 `meta.json`
 5. 以 append mode 開啟 `events.jsonl`
 
-之後 `_process_queue()` 每成功 parse 一筆 event，就會依序：
+之後每成功 parse 一筆 event，就會依序：
 
 1. append 到記憶體 `_events`
 2. append 到 `events.jsonl`
 3. 更新 metrics
 4. broadcast 到 WebSocket clients
 
-這表示檔案寫入發生在 metrics 更新與 WebSocket broadcast 之前。
+也就是說，錄製寫檔發生在 metrics 更新與前端廣播之前。
 
 ## 4. `meta.json` 目前保存什麼
 
@@ -71,40 +67,32 @@ session 建立時，`meta.json` 至少包含：
 - `grafana_groups`
 - `start_time`
 
-live 正常結束時，`_finalize_live_session()` 會再補上：
+live 正常結束時，backend 會再補上：
 
 - `end_time`
 - `event_count`
 
-若錄製期間發生 JSONL 寫入失敗，也會補上：
+若錄製期間發生 JSONL 寫入失敗，也會標記：
 
 - `corrupted: true`
 
-這些欄位不是 schema 驗證過的正式契約，但目前 `/api/sessions` 與 replay 初始化都依賴它們。
+目前 `/api/sessions` 與 replay session status 都會利用這些欄位。
 
 ## 5. `events.jsonl` 的語意
 
 `events.jsonl` 每行是一個 JSON object，內容與前端一般事件 payload 對齊。
 
-特性：
+它的特性是：
 
-- 使用 append-only 寫入
+- append-only
 - 每筆事件都 `write + flush`
-- `ensure_ascii=False`，保留原始 UTF-8 輸出
-- 保持 `_process_queue()` 成功 parse 的先後順序，不做額外排序
+- 保持 live parse 成功的先後順序
 
-這個檔案目前被視為 replay 的唯一權威事件來源。Prometheus replay backfill 與 topology replay 都是從這份事件流衍生，不另外依賴 live 時的 Prometheus TSDB。
+這份檔案目前被視為 replay 的唯一權威事件來源。Prometheus replay backfill 與 topology replay 都是從它衍生，不另外依賴 live 時的 Prometheus TSDB。
 
-也就是說，`events.jsonl` 的順序語意是：
+## 6. 為什麼 `topology.yaml` 也要保存進 session
 
-- live 錄製時：先寫檔，再更新 metrics / broadcast
-- replay 載入時：先依檔案行序讀回事件
-
-前端若要依時間戳做 scrub 或播放，會在自己的 `_events` 緩衝中再做排序；session 檔本身不會在載入時重排。
-
-## 6. `topology.yaml` 為什麼也要複製進 session
-
-replay mode 並不讀現在 profile 下的 `topology.yaml`，而是優先讀 session 目錄內保存的那一份。
+replay mode 並不優先讀現在 profile 下的 `topology.yaml`，而是優先讀 session 目錄內保存的那一份。
 
 原因是：
 
@@ -115,12 +103,11 @@ replay mode 並不讀現在 profile 下的 `topology.yaml`，而是優先讀 ses
 
 ## 7. 錄製失敗時的降級
 
-`_append_event_jsonl()` 目前採保守策略：
+目前 JSONL 寫入採保守策略：
 
-- 每筆事件最多重試 2 次
-- 失敗就增加 `_write_fail_streak`
-- 第一次失敗時立刻把 session 標成 `corrupted`
-- 連續失敗超過 10 次後，直接停用錄製
+- 每筆事件有限次重試
+- 第一次明確失敗時就把 session 標成 `corrupted`
+- 若連續失敗過多，會停用後續錄製
 
 但即使錄製停用：
 
@@ -132,68 +119,74 @@ replay mode 並不讀現在 profile 下的 `topology.yaml`，而是優先讀 ses
 
 ## 8. Replay 載入流程
 
-replay mode 啟動時，`_init_replay_session()` 會：
+replay mode 啟動時，backend 會：
 
-1. 解析 `SESSION_PATH`
-2. 驗證目錄存在
-3. 驗證 `events.jsonl` 存在
-4. 載入 `meta.json`
-5. 載入 `events.jsonl`
+1. 解析 session 目錄
+2. 驗證 `events.jsonl` 存在
+3. 載入 `meta.json`
+4. 載入 `events.jsonl`
+5. 載入 session 自帶的 `topology.yaml`
 6. 推導 `session_id`、`start_time`、`end_time`
-
-之後 lifespan 還會再呼叫 `_load_replay_topo_config()`，驗證 session 目錄中的 `topology.yaml` 也存在。缺少這份檔案時，replay 會直接失敗，因為前端與 state 重建都需要它。
 
 其中：
 
-- `session_id` 優先取 `meta.json["session_id"]`，否則退回目錄名
-- `start_time` / `end_time` 若缺失，會用第一筆 / 最後一筆 event 的 `time` 補
+- `session_id` 優先取 `meta.json["session_id"]`
+- `start_time` / `end_time` 若缺失，會用第一筆 / 最後一筆 event 補
 
-這也是為什麼非正常中止的 live session 仍可被 replay。
+所以即使 live 非正常中止，只要 `events.jsonl` 還在，多數情況下仍可 replay。
 
-## 9. Session 查詢 API
+## 9. Session 查詢與狀態
 
 ### `GET /api/sessions`
 
-`/api/sessions` 會掃描 `sessions/` 目錄，回傳所有可見 session 的 metadata。
-
-特性：
-
-- live mode 下，正在錄製中的 current session 會直接從記憶體狀態生成最新回傳值
-- 舊 session 則讀 `meta.json`，必要時回推 `start_time`、`end_time`、`event_count`
-- 已載入的事件會放進 `_session_events_cache`
+`/api/sessions` 會掃描 `sessions/` 目錄，回傳可見 session 的 metadata。
 
 ### `GET /api/events`
 
 `/api/events` 是前端 timeline、scrub 與 replay 初始化的主要資料來源。
 
-特性：
+它支援：
 
-- `session` 省略時預設取 current / active session
-- 支援 `from`、`to`、`limit`、`offset`
-- 上限固定 `50000`
-- 若 session 尚未快取，會從 `events.jsonl` 載入
+- `session`
+- `from`
+- `to`
+- `limit`
+- `offset`
 
-目前這條 API 直接回傳完整 event objects，不做額外投影。
+目前直接回傳完整 event objects，不做額外投影。
+
+### CLI `session-status`
+
+目前更正式的 diagnostics 入口是：
+
+```bash
+uv run run.py session-status <session_ref> --profile <profile>
+```
+
+它會同時檢查：
+
+- 本地 session 是否存在
+- 是否 replayable
+- event count / time range
+- Prometheus 中是否已有這個 session
 
 ## 10. 可攜性現況
 
-從實作上看，一個 session 目錄已經具備基本可攜性，因為它同時保存：
+從實作上看，一個 session 目錄已具備基本可攜性，因為它同時保存：
 
 - event log
-- topology config snapshot
-- grafana groups 與 profile metadata
+- topology snapshot
+- session metadata
 
-但目前 repo 內還沒有正式的 export / import CLI。現況仍是手動複製或打包 `sessions/<id>/` 目錄，再用：
+目前 repo 也已提供：
 
-```text
-./start.sh --replay sessions/<id>
-```
+- `replay/import_logs_cli.py`
 
-讀取。
+可從原始 log 匯入生成新 session。
 
 ## 11. 目前限制
 
-- `events.jsonl` 只做 append 與全量載入，沒有索引檔；長 session 的隨機區間查詢效率有限
-- `_session_events_cache` 目前沒有 eviction 機制，查過的 session 會留在程序記憶體中
-- 錄製失敗時雖會標記 `corrupted`，但沒有更細緻地標出從哪一筆事件開始不可信
-- export / import 仍停留在「手動複製 session 目錄」階段，沒有額外驗證或版本檢查
+- `events.jsonl` 仍以 append 與全量載入為主，沒有索引檔
+- `_session_events_cache` 沒有 eviction 機制
+- `corrupted` 只標示「此 session 可能不完整」，不標出從哪一筆開始不可信
+- session artifact 與 Prometheus metrics 仍是兩份不同資產；Prometheus 既有資料不能單獨取代本地 session directory

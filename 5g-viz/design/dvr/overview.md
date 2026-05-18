@@ -1,14 +1,12 @@
-# Overview
+# DVR Overview
 
-> Historical note: parts of this document still assume replay pseudo-live, `MetricPlayer`, and replay speed. The current runtime has removed pseudo-live and fixed replay playback to the original session plus historical relative Grafana queries.
+本文從功能層描述目前 `5g-viz` 的 DVR。這裡的 DVR 不只是前端控制列，而是一組跨越 session 錄製、事件重建、Grafana 視窗切換與 replay session management 的整體機制。
 
-本文從功能層描述 `5g-viz` 的 DVR。這裡的 DVR 不只是前端控制列，而是一組跨越 session 錄製、事件重建、Grafana 視窗切換與 replay metric pipeline 的整體機制。
+## 1. DVR 的目標
 
-## 1. DVR 的定位
+目前 DVR 的目標是讓使用者能在同一套 UI 中做三件事：
 
-`5g-viz` 的 DVR 目標是讓使用者能在同一套 UI 中做三件事：
-
-- 在 live 實驗進行中暫停、拖曳與回放既有事件
+- 在 live 實驗進行中暫停、拖曳與回看既有事件
 - 將一次實驗錄成可重播的 session
 - 事後以 replay 模式重看 topology、event log 與 Grafana 曲線
 
@@ -20,39 +18,39 @@
 
 ## 2. 兩種執行模式
 
-### Live
+### live
 
-live mode 仍維持 collector -> parser -> broadcast 的即時管線，但額外多了：
+live mode 維持 collector -> parser -> backend -> frontend 的即時管線，同時：
 
-- 寫入 `events.jsonl`
-- 寫入 `meta.json`
-- 複製當前 `topology.yaml` 到 session 目錄
+- 持續寫入 `events.jsonl`
+- 更新 live session `meta.json`
+- 持續把 metrics 暴露到 `/metrics`
 
-使用者進入 pause / scrub / play 時，backend 不會停下來；只是前端暫停直接消費最新事件。
+使用者進入 pause / scrub 時，backend 不會停下來；只是前端暫時停止即時消費最新事件。
 
-### Replay
+### replay
 
-replay mode 不啟動 collector，也不依賴 WebSocket 來取得新事件。它會：
+replay mode 則是重新開一個唯讀 runtime，從本地 session artifact 載入：
 
-- 從 session 目錄載入 `events.jsonl`
-- 重建 state
-- 將 metric events backfill 到 Prometheus
-- 建立 `MetricPlayer` 以支援 pseudo-live 播放
+- `events.jsonl`
+- `meta.json`
+- `topology.yaml`
 
-因此 replay 比較像「以既有事件檔重新開一個唯讀 runtime」，而不是 live runtime 的縮時版。
+接著：
+
+- 由前端本地重播 event / topology
+- 由後端視 policy 決定是否 backfill Prometheus
 
 ## 3. Live DVR 操作路徑
-
-live mode 下的 DVR 不是另一個 backend 模式，而是前端暫時改變「如何消費 live 事件」。
 
 ### Pause
 
 當使用者按下 Pause：
 
 - frontend 狀態從 `LIVE` 進入 `PAUSED`
-- backend 仍持續 collect、parse、寫 JSONL、更新 metrics、broadcast
-- 前端繼續把新事件存入 `_events`，但不再即時 dispatch 到 topology / log
-- Grafana 從 `now-window ~ now` 切成以目前停點為右邊界的 trailing absolute window
+- backend 仍持續 collect、parse、寫 session、更新 metrics
+- 前端仍會把新事件收進 `_events`，但不再即時 dispatch 到 topology / log
+- Grafana 從 `now-window ~ now` 切成當前停點對應的絕對時間窗
 
 ### Scrub
 
@@ -60,42 +58,65 @@ live mode 下的 DVR 不是另一個 backend 模式，而是前端暫時改變�
 
 - frontend 進入 `SCRUBBING`
 - topology 改由 `Topology.renderStaticSnapshot(...)` 重建指定時間點
-- event log 改為顯示該時間點之前最近一段 tail
-- 若目前前端 buffer 不夠早，會向 `/api/events` 補拉該 live session 的歷史事件
+- event log 改為顯示該時間點之前的近期尾段
+- 若本地 buffer 不夠早，可向 `/api/events` 補拉該 live session 的歷史事件
 
 ### Play
 
 當使用者從 live paused 狀態按下 Play：
 
-- frontend 依事件原始時間差與 `_playSpeed` 重播既有 `_events`
-- backend 仍持續向前產生新事件，但前端先不即時消費它們
-- 若播放追到目前 live 邊界，前端會自動回到 `LIVE`
+- frontend 依事件原始時間差重播本地 `_events`
+- backend 仍持續向前產生新事件
+- 若播放追到 live edge，前端會回到 `LIVE`
 
 ### Go Live
 
 當使用者按下 Go Live：
 
-- frontend 進入 `RESUMING`
-- 優先呼叫 `/api/state` 取得 server 端最新 `state_snapshot`
+- frontend 先請求最新 `state_snapshot`
 - 套用 `Topology.applySnapshot(...)`
-- timeline 跳到最新位置，event log 重新顯示近期 live tail
+- timeline 跳到最新位置
 - Grafana 恢復 `now-window ~ now`
 
-若 `/api/state` 失敗，前端才退回用本地 `_events` 做一次靜態重建。
+## 4. Replay 操作路徑
 
-### 這條路徑的重點
+目前 replay 已收斂成較單純的模型。
 
-live DVR 的本質是：
+### 啟動
 
-- backend 一直往前跑
-- frontend 暫時脫離即時視角
-- 使用者隨時可再接回權威 live state
+`run.py replay` 啟動前會先做：
 
-因此它和 replay 最大的差異不是 UI，而是資料來源始終仍有「正在進行中的 live 流」。
+- local session status 檢查
+- Prometheus session status 檢查
+- `auto / overwrite / skip` 決策
 
-## 4. 前端 DVR 狀態
+### 前端資料來源
 
-前端目前把 DVR 明確分成五個狀態：
+replay 前端不建立 live WebSocket 事件來源，而是：
+
+1. 抓 `/api/session-info`
+2. 抓 `/api/events`
+3. 在本地建立 timeline
+4. 以本地 `_events` 驅動 pause / scrub / play / resume
+
+### Grafana
+
+目前 replay Grafana 的 canonical model 是：
+
+- 始終查原始 session
+- paused / scrubbed 用絕對時間窗
+- playing 用 historical relative 時間窗
+
+因此現在 replay 已不再有：
+
+- pseudo-live
+- `MetricPlayer`
+- replay speed
+- replay mutation APIs
+
+## 5. 前端 DVR 狀態
+
+前端目前仍可視為有這幾個主要狀態：
 
 | 狀態 | 主要意義 |
 |---|---|
@@ -103,65 +124,49 @@ live DVR 的本質是：
 | `PAUSED` | 停在某一時間點 |
 | `SCRUBBING` | 使用者正在拖曳 timeline |
 | `PLAYING` | 從目前時間點往前播放後續事件 |
-| `RESUMING` | 正在切模式，例如 Go Live 或重啟 replay pseudo-live |
+| `RESUMING` | 從 paused / scrubbed 回到播放或 live |
 
-但這五個狀態只定義前端消費事件的方式，不表示 backend pipeline 本身會跟著停下來。
+這些狀態定義的是前端如何消費事件，不代表 backend pipeline 本身會停下來。
 
-## 5. 三條需要一起協調的資料面
+## 6. 三條需要一起協調的資料面
 
-DVR 之所以複雜，是因為它同時協調三條不同的資料面。
-
-### Topology
+### topology
 
 - 來源是結構化 events
-- `LIVE` 時直接 dispatch
-- `PAUSED / SCRUBBING` 時用 `Topology.renderStaticSnapshot(...)` 做靜態重建
-- `PLAYING` 時依事件時間差重播動畫
+- live 時即時 dispatch
+- paused / scrubbing 時以 static snapshot 重建
+- playing 時按事件原始時間差重播
 
-### Event Log
+### event log
 
-- 也是以 events 為來源
-- live append 與 paused tail render 共用同一份 `_events` 緩衝
+- 與 topology 同源
+- live append 與 paused tail render 共用同一份 `_events`
 
 ### Grafana
 
-- 來源不是 event 本身，而是 Prometheus 裡的 metrics
-- live 與 paused 看的時間窗不一樣
-- replay `PAUSED` 看的是原始 replay session backfill
-- replay `PLAYING` 看的是 pseudo-live session
+- 來源不是 event 本身，而是 Prometheus 內的 metrics
+- live、paused、replay、playing 的差異主要在 query window
 
-這三條資料面共享同一個播放位置，但不共享同一條底層資料路徑。
+## 7. Session artifact 與 Prometheus 的分工
 
-## 6. 各層責任分工
+目前 replay 要正常工作，需要分清楚兩類資產：
 
-| 層 | 主要責任 |
-|---|---|
-| `main.py` | 決定 live / replay 模式、建立 session、載入 replay session、提供 `/api/events`、`/api/state`、`/api/replay/*` |
-| `state.py` | 根據 event 與 `event_reactions` 維護權威 `state_snapshot`，供新 live client 與 `Go Live` 回跳使用 |
-| `frontend/events.js` | 管理 DVR 狀態機、timeline、事件緩衝、播放控制與 Grafana 模式切換 |
-| `frontend/topology.js` | 依 event reactions 重建 paused / scrub 的靜態拓樸 |
-| `metric_player.py` | replay `PLAYING` 期間產生 pseudo-live metrics |
-| `grafana_setup.py` | 確保 dashboard 與 datasource 存在 |
+### session artifact
 
-這種分工也決定了 canonical 文件的切法：
+canonical replay artifact 仍是本地 session 目錄：
 
-- 前端操作細節在 [../frontend/events-and-dvr.md](../frontend/events-and-dvr.md)
-- session 落盤與查詢介面在 [session.md](./session.md)
-- replay backfill 與 pseudo-live 在 [replay.md](./replay.md)
+- `events.jsonl`
+- `meta.json`
+- `topology.yaml`
 
-## 7. 時間語意
+### Prometheus metrics
 
-DVR 目前同時用到兩種時間：
+Prometheus 端已有同名 session 時，只能讓 system 省掉 backfill；它不能替代本地 `events.jsonl`。
 
-- event 原始時間：來自 JSONL / replay session
-- 真實現在時間：用於 live mode 與 replay pseudo-live 映射
+因此：
 
-這帶來一個重要區分：
-
-- paused / scrub 時，使用者看到的是某個歷史時間點的重建結果
-- replay playing 時，topology 播放仍沿用歷史事件順序，但 Grafana 看到的是映射到 `now` 的 pseudo-live metrics
-
-也就是說，`PLAYING` 的 Grafana 體驗追求的是「近似 live」，不是「與 paused 視窗完全同一條時間軸」。
+- 本地 session 不存在 => 不能 replay
+- 本地 session 存在、Prometheus 無資料 => 可 replay，但 chart 視 policy 可能為空或需要 backfill
 
 ## 8. 目前邊界
 
@@ -171,14 +176,15 @@ DVR 目前同時用到兩種時間：
 - replay 載入
 - `/api/sessions`、`/api/events`、`/api/state`
 - timeline pause / scrub / play / go-live
-- replay backfill
-- replay pseudo-live 與速度控制
+- replay session status / backfill policy
+- replay chart 的 historical relative 播放
 
-尚未做成正式產品化功能的部分包括：
+目前不再屬於系統一部分的舊模型包括：
 
-- 專用的 export / import CLI 或 UI 流程
-- 更細的 playback checkpoint / snapshot 加速機制
-- 對 replay pseudo-live 與 paused backfill 完全一致的數值保證
+- pseudo-live metrics stream
+- replay speed
+- `MetricPlayer`
+- replay chart window change 需重啟 pseudo-live
 
 ## 9. 閱讀順序
 

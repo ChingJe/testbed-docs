@@ -12,7 +12,7 @@
 effect duration 抽出成獨立控制面板。另一方面，當 Python control plane 取代 `start.sh` 成為主要入口後，
 設定模型也不應再只停留在 shell-friendly `.env`。
 
-> 狀態：`config.yaml + run.py + shared loader` groundwork 與 Prometheus lifecycle groundwork 已落地；後續 phases 尚未開始。
+> 狀態：`5g-viz` runtime refactor 已完成，`Phase 1 ~ 6` 均已落地；目前進行中的是 `Phase 7` 文件收斂與 historical-doc cleanup。
 
 ---
 
@@ -1100,7 +1100,7 @@ uv run run.py replay sessions/20260513T033836881 --profile default --backfill=sk
 | 4 | Remove pseudo-live | 刪除 pseudo-live API / runtime / cleanup | Done |
 | 5 | Visual FX controls | runtime effect config、panel、presets / reset | Done |
 | 6 | Modular structure refactor | backend / runtime / services / replay 分層與 root shim 收斂 | Done |
-| 7 | Docs convergence / historical-doc cleanup | 現況技術文件重寫 + 舊技術文件降格分流 | In Progress |
+| 7 | Docs convergence / historical-doc cleanup | 現況技術文件重寫 + 舊技術文件降格分流 | Done |
 
 狀態欄建議只用：
 
@@ -1442,7 +1442,7 @@ Phase 完成判準：
 
 - 新讀者不需要知道 pseudo-live 歷史也能理解現在系統
 - README、start-here、ui-workflows、mental-model、troubleshooting 等正式入口文件與現況一致
-- `design/overview/*`、`design/backend/{api,profiles,metrics}.md`、`design/frontend/{events-and-dvr,grafana-embed}.md`、`design/grafana/{setup,rendering}.md` 已可直接作為現況 technical reference
+- `design/overview/*`、`design/backend/{api,profiles,metrics}.md`、`design/frontend/{events-and-dvr,grafana-embed}.md`、`design/grafana/{setup,rendering}.md`、`design/dvr/{overview,replay}.md` 與核心 feature docs 已可直接作為現況 technical reference
 - 舊的 pseudo-live / `.env` / `start.sh` / `main:app` 心智若仍保留，只存在於明確標示的歷史文件中
 
 目前判斷：
@@ -1450,6 +1450,7 @@ Phase 完成判準：
 - `5g-viz/README.md` 與 `setup.sh` 已大致對齊現況
 - Phase 7 的主要工作已不在主專案程式，而在 `docs/5g-viz/` 內大量仍描述舊架構的文件
 - 因此 Phase 7 應視為 documentation convergence，不再是產品功能 phase
+- 以目前 canonical docs 與核心 technical reference 的覆蓋範圍，Phase 7 已可視為完成；剩餘零星 historical 文件可於後續 maintenance commits 再逐步清理
 
 建議優先處理的文件族群：
 
@@ -1463,13 +1464,22 @@ Phase 完成判準：
 - `docs/5g-viz/design/frontend/{events-and-dvr,grafana-embed}.md`
 - `docs/5g-viz/design/grafana/{setup,rendering}.md`
 
+目前已完成的深層 technical docs 重寫 / 收斂：
+
+- `docs/5g-viz/design/overview/{system,data-flow,architecture}.md`
+- `docs/5g-viz/design/backend/{api,profiles,metrics}.md`
+- `docs/5g-viz/design/frontend/{events-and-dvr,grafana-embed}.md`
+- `docs/5g-viz/design/grafana/{setup,rendering}.md`
+- `docs/5g-viz/design/dvr/{overview,replay}.md`
+- `docs/5g-viz/design/features/{traffic-chart,nwdaf-ml-cycle,subscription-chain}.md`
+- `docs/5g-viz/design/reference/env-config.md` 已改成 migration-oriented reference
+
 建議直接標記 historical / pre-refactor、而非全面重寫的文件族群：
 
-- `docs/5g-viz/design/dvr/*`
-- `docs/5g-viz/design/reference/env-config.md`
-- `docs/5g-viz/design/features/*` 中仍大量綁定舊 replay 模型的部分
 - `docs/5g-viz/notes/*`
-- `docs/5g-viz/notes/*`
+- `docs/5g-viz/notes/impl/*`
+- `docs/5g-viz/notes/internals/*`
+- 仍以「當時實作過程」為主軸的歷史報告與實驗記錄
 
 ### 11.10 每次 commit 前的共用驗證清單
 
@@ -1601,8 +1611,8 @@ UI 命名若不清楚，使用者會誤以為：
 5. 臨時測試差異透過複製新 profile 處理，不靠 env 覆蓋
 6. session overwrite / reuse 決策採 CLI-only，未來也不規劃前端 UI
 
-目前 Phase 1 到 Phase 6 已完成，因此下一步不再是主程式重構，而是文件收斂：
+目前 Phase 1 到 Phase 7 已完成，因此下一步不再是主程式重構，而是維護性收尾：
 
-1. Phase 7：收斂 canonical README / guides / troubleshooting
-2. 將仍描述 pseudo-live、`.env`、`start.sh`、`main:app` 的舊設計文件改為明確 historical / pre-refactor
-3. 只有在文件收斂過程中發現新的實作落差時，才回頭補主專案
+1. 將剩餘零星 deep notes / impl history 依需要補上更明確的 historical 標記
+2. 僅在文件維護過程中發現新的實作落差時，才回頭補主專案
+3. 後續功能變更應以新的小型 design / plan 文件增量推進，而不是回到本次大型重構計畫

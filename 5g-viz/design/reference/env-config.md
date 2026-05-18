@@ -1,178 +1,177 @@
 # env-config
 
-> Historical note: this document is retained mainly for the old `.env` / runtime-env model. The current runtime has removed `.env` and now uses `profiles/<profile>/config.yaml` with `--profile`.
+> Note: the filename is historical. The current runtime no longer uses profile `.env` files. Read this page as a bridge from the old env model to the current `config.yaml` model.
 
-本文整理 `5g-viz` 目前與 profile `.env` 相關的環境變數契約，以及少數不屬於 profile 檔、但會一起影響啟動模式的 runtime env。
+本文的重點不是再描述 `.env` 契約，而是說明：
 
-> 重要：目前若要覆寫 Prometheus 位址，應設定的是 `PROMETHEUS_URL`。`.env.example` 內的 `PROMETHEUS_BASE` 目前只是範本殘留，程式不會讀這個名稱。
+1. 舊 `.env` 心智現在對應到哪裡
+2. 目前真正的設定來源是什麼
+3. 哪些設定屬於 `config.yaml`、哪些屬於 `topology.yaml`
 
-## 1. 載入方式
+若要看現況 canonical profile reference，請優先讀：
 
-`config.py` 在模組匯入時，會根據：
+- [`../backend/profiles.md`](../backend/profiles.md)
+
+## 1. 現況結論
+
+目前 `5g-viz` 已正式移除：
+
+- `profiles/<profile>/.env`
+- root `.env.example`
+- 以 env 作為 runtime config source 的模式
+
+現在的設定來源是：
 
 ```text
-PROFILE
+profiles/<profile>/config.yaml
+profiles/<profile>/topology.yaml
 ```
 
-選擇要載入哪一份：
-
-```text
-profiles/<PROFILE>/.env
-```
-
-若檔案不存在，程式會直接丟出錯誤，並提示先執行：
+而執行模式由 CLI 顯式指定：
 
 ```bash
-./setup.sh -p <profile>
+uv run run.py live --profile <profile>
+uv run run.py replay sessions/<id> --profile <profile>
 ```
 
-`.env` 目前透過 `python-dotenv` 載入。這表示：
+## 2. 舊 `.env` 變數現在對應到哪裡
 
-- profile `.env` 是主要設定來源
-- 若程序在啟動前已經有同名 shell env，`load_dotenv()` 預設不會覆蓋它
+### SSH / collector 設定
 
-## 2. profile `.env` 的主要變數
+舊模型裡：
 
-### SSH 與 log 路徑
+- `SSH_5GC_HOST`
+- `SSH_5GC_PORT`
+- `SSH_5GC_USER`
+- `SSH_5GC_KEY`
+- `LOG_*`
 
-這組變數不直接被 `config.py` 匯出，而是由 `topology.yaml` 的 `ssh_sources` 以名稱引用。
+現在都收斂到：
 
-| 變數 | 格式 | 主要消費者 | 用途 |
-|---|---|---|---|
-| `SSH_5GC_HOST` | host / IP | `collector.py` | SSH 連線主機 |
-| `SSH_5GC_PORT` | integer | `collector.py` | SSH port |
-| `SSH_5GC_USER` | string | `collector.py` | SSH username |
-| `SSH_5GC_KEY` | path | `collector.py` | SSH private key 路徑 |
-| `LOG_FREE5GC_DIR` | path | `collector.py` | `latest_subdir` 模式下的 log 根目錄 |
-| `LOG_NWDAF` | path | `collector.py` | 直接 tail 的 NWDAF log 路徑 |
+- `config.yaml -> collector.sources[*]`
 
-這些值透過 `topology.yaml` 內的下列欄位被間接使用：
+### Grafana 設定
 
-- `host_env`
-- `port_env`
-- `user_env`
-- `key_env`
-- `dir_env`
-- `path_env`
+舊模型裡：
 
-也就是說，`.env` 和 `topology.yaml` 之間是靠字串名稱關聯，而不是靠正式 schema 綁定。
+- `GRAFANA_BASE`
+- `GRAFANA_API_BASE`
+- `GRAFANA_ADMIN_USER`
+- `GRAFANA_ADMIN_PASS`
+- `GRAFANA_GROUPS`
 
-### Grafana
+現在對應到：
 
-這組變數由 `config.py` 直接解析，並供 backend 與 frontend 間接使用。
+- `config.yaml -> grafana.*`
 
-| 變數 | 格式 | 主要消費者 | 用途 |
-|---|---|---|---|
-| `GRAFANA_BASE` | URL 或 path | `config.py`、`main.py`、前端 iframe | 瀏覽器可達的 Grafana base URL；same-origin proxy 模式下可設為 `/grafana` |
-| `GRAFANA_API_BASE` | URL | `grafana_setup.py`、`main.py` | backend 呼叫 Grafana admin API 與 proxy upstream 的 base URL；若 Grafana 啟用 `/grafana/` 子路徑，通常為 `http://localhost:3000/grafana` |
-| `GRAFANA_ADMIN_USER` | string | `grafana_setup.py` | 建 datasource / dashboard |
-| `GRAFANA_ADMIN_PASS` | string | `grafana_setup.py` | 同上 |
-| `GRAFANA_GROUPS` | `a,b,c` | `config.py`、`grafana_setup.py`、`main.py` | dashboard panel 群組與 session metadata |
-| `GRAFANA_DEVIATION_LABEL` | string | `grafana_setup.py` | deviation panel 標題（選填，預設 `"Deviation (sMAPE)"`） |
-| `GRAFANA_DEVIATION_UNIT` | string | `grafana_setup.py` | deviation panel y 軸標籤（選填，預設 `"sMAPE"`） |
-| `GRAFANA_DEVIATION_LEGEND_SUFFIX` | string | `grafana_setup.py` | deviation panel 曲線名稱後綴，格式為 `{{model}} <suffix>`；設為空字串時只顯示 model 名稱（選填，預設 `"sMAPE"`） |
+### Prometheus 設定
 
-這裡有三個重要限制：
+舊模型裡主要靠：
 
-- `GRAFANA_BASE` 必須是瀏覽器看得到的位址或 path；若採 same-origin proxy，建議直接設成 `/grafana`
-- `GRAFANA_API_BASE` 應該是 backend 真正打得到的 Grafana 位址；若 Grafana 與 5g-viz 同機且啟用 `/grafana/` 子路徑，通常是 `http://localhost:3000/grafana`
-- `GRAFANA_GROUPS` 會被解析成逗號分隔字串陣列，空白會被 `strip()`
+- `PROMETHEUS_URL`
 
-live session 建立時，`main.py` 也會把 `GRAFANA_GROUPS` 寫進 `meta.json`。replay 時若 `meta.json` 內有保存值，會優先使用 session 內保存的 groups。
+現在對應到：
 
-### Parser / metrics 用的 UPF 映射
+- `config.yaml -> prometheus.*`
 
-| 變數 | 格式 | 主要消費者 | 用途 |
-|---|---|---|---|
-| `UPF_EES_API_IPS` | `ip=name,ip=name` | `rules/smf.py` | 把 `selected_upf_api_root` 中的 API IP 映射成 node 名稱 |
-| `UPF_DATA_SUBNETS` | `octet=name,octet=name` | `rules/nwdaf.py` | 把 `10.x.x.x` 第二個 octet 映射成 UPF 名稱 |
+除了 URL 外，還包括：
 
-這兩個變數都經過 `_parse_kv()` 解析成字典，所以格式必須是：
+- `retention_time`
+- `retention_size`
+- `out_of_order_time_window`
 
-```text
-key=value,key=value
-```
+### UPF 映射
 
-它們不只是部署細節，也會改變 event payload：
+舊模型裡：
+
+- `UPF_EES_API_IPS`
+- `UPF_DATA_SUBNETS`
+
+現在對應到：
+
+- `config.yaml -> mappings.upf_ees_api_ips`
+- `config.yaml -> mappings.upf_data_subnets`
+
+這兩組 mapping 仍會影響 parser 產出的 event payload，例如：
 
 - `sbi_call.to`
 - `upf_volume.upf`
 
-目前 fallback 行為如下：
+## 3. `config.yaml` 與 `topology.yaml` 的邊界
 
-- `UPF_EES_API_IPS` 若找不到對應 IP，`rules/smf.py` 會回退成 `"UPF-EES"`
-- `UPF_DATA_SUBNETS` 若找不到對應 subnet，`rules/nwdaf.py` 會保留原始 IP 字串
+目前建議心智如下：
 
-### 其他 profile 變數
+### `config.yaml`
 
-| 變數 | 格式 | 現況 |
-|---|---|---|
-| `WS_PORT` | integer | `config.py` 會讀取，但 `start.sh` 目前仍硬編碼用 `uvicorn --port 8765` 啟動，因此改它不會改變實際 listen port |
+承載：
 
-## 3. Prometheus 相關變數
+- server port
+- Grafana base / API base / groups / admin credentials
+- Prometheus URL / retention / window
+- replay policy default
+- collector sources
+- UPF / subnet mappings
 
-目前程式實際使用的是：
+### `topology.yaml`
 
-| 變數 | 格式 | 主要消費者 | 用途 |
-|---|---|---|---|
-| `PROMETHEUS_URL` | URL | `main.py` | replay backfill / query / admin API 使用的 Prometheus base URL |
+承載：
 
-但目前 `.env.example` 寫的是：
+- nodes
+- aliases
+- edge styles
+- event reactions
+- visual defaults
 
-| 變數 | 現況 |
+也就是：
+
+- `config.yaml` 偏 runtime / environment / integration
+- `topology.yaml` 偏 UI / topology semantics / reactions
+
+## 4. 舊 runtime env 現在對應到哪裡
+
+舊模型裡常見：
+
+- `PROFILE`
+- `SESSION_MODE`
+- `SESSION_PATH`
+- `FORCE_BACKFILL`
+
+這些現在都不再作為主要 env surface，而是改成 CLI 參數：
+
+| 舊概念 | 現在做法 |
 |---|---|
-| `PROMETHEUS_BASE` | 範本檔存在，但目前程式不讀這個名稱 |
+| `PROFILE` | `--profile <profile>` |
+| `SESSION_MODE=live` | `run.py live` |
+| `SESSION_MODE=replay` | `run.py replay` |
+| `SESSION_PATH` | `run.py replay <session_dir>` |
+| `FORCE_BACKFILL` | `--backfill=overwrite` |
 
-因此目前若要覆寫預設的 `http://localhost:9090`，應設定的是 `PROMETHEUS_URL`，不是 `PROMETHEUS_BASE`。
+## 5. 仍值得記住的遷移點
 
-## 4. 不屬於 profile `.env` 的 runtime env
+雖然 `.env` 已移除，但舊文件裡常見的欄位語意仍有延續性：
 
-這幾個變數通常由 `start.sh` 匯出，不一定放在 `profiles/<profile>/.env` 裡：
+- `GRAFANA_GROUPS` 仍對應到 panel groups
+- `UPF_EES_API_IPS` / `UPF_DATA_SUBNETS` 仍決定 subscription chain 與 UPF notify 的終點
+- `PROMETHEUS_URL` 的概念仍存在，只是現在寫在 `config.yaml`
 
-| 變數 | 來源 | 用途 |
-|---|---|---|
-| `PROFILE` | `start.sh -p` 或 shell env | 決定要載入哪個 profile 目錄 |
-| `SESSION_MODE` | `start.sh` | `live` 或 `replay` |
-| `SESSION_PATH` | `start.sh --replay` | replay 模式下要讀的 session 路徑 |
-| `FORCE_BACKFILL` | `start.sh --force-backfill` | 強制 replay metric backfill |
+因此看到舊文件提到這些 env name 時，應把它理解成「今天的 `config.yaml` 欄位」。
 
-這組變數比較像執行期模式控制，而不是 profile 的持久設定。
+## 6. 現在不該再做的事
 
-## 5. `setup.sh` 建立哪些預設值
+以下都已不是現況：
 
-`setup.sh -p <profile>` 目前會：
+- 建立或複製 profile `.env`
+- 透過 shell env 覆蓋一般 profile 設定
+- 以 `start.sh -p ...` 選 profile
+- 把 collector source 定義寫進 `topology.yaml` 的 `ssh_sources`
 
-1. 建立 `profiles/<profile>/`
-2. 若 `.env` 不存在，從 `.env.example` 複製
-3. 若 `topology.yaml` 不存在，從 `profiles/default/topology.yaml` 複製
+## 7. 目前文件中的定位
 
-`.env.example` 目前提供的預設鍵主要包含：
+因為檔名 `env-config.md` 已是歷史名稱，這份文件現在應視為：
 
-- SSH / log 路徑變數
-- `WS_PORT`
-- `UPF_EES_API_IPS`
-- `UPF_DATA_SUBNETS`
-- `GRAFANA_BASE`
-- `GRAFANA_ADMIN_USER`
-- `GRAFANA_ADMIN_PASS`
-- `GRAFANA_GROUPS`
-- `GRAFANA_DEVIATION_LABEL`（選填，已以 `#` 註解，預設 `"Deviation (sMAPE)"`）
-- `GRAFANA_DEVIATION_UNIT`（選填，已以 `#` 註解，預設 `"sMAPE"`）
-- `GRAFANA_DEVIATION_LEGEND_SUFFIX`（選填，已以 `#` 註解，預設 `"sMAPE"`）
-- `PROMETHEUS_BASE`
+- 一份 migration-oriented reference
+- 幫助讀者把舊 `.env` 心智映射到新 `config.yaml`
 
-其中 `setup.sh` 在第一次建立 profile 後，還會特別提示使用者檢查：
+若需要實際現況 schema 與欄位來源，請回到：
 
-- `SSH_5GC_KEY`
-- `GRAFANA_BASE`
-- `GRAFANA_ADMIN_USER`
-- `GRAFANA_ADMIN_PASS`
-- `GRAFANA_GROUPS`
-
-## 6. 目前限制與已知差異
-
-- `.env` 與 `topology.yaml` 之間只有字串名稱關聯，例如 `host_env: SSH_5GC_HOST`；拼字錯誤通常要到 runtime 才會發現
-- `WS_PORT` 雖然存在於 `config.py`，但 `start.sh` 目前沒有用它來決定 uvicorn port
-- `.env.example` 目前列出 `PROMETHEUS_BASE`，但 `main.py` 實際讀的是 `PROMETHEUS_URL`
-- replay mode 不啟動 collector，因此 `SSH_5GC_*`、`LOG_*` 這類 collector 相關變數在 replay runtime 中通常不會被實際使用
-- replay 時主要依賴 session 內保存的 `meta.json` 與 `topology.yaml`；修改目前 profile `.env` 不會 retroactively 改變舊 session 的 topology 或 grafana groups metadata
+- [`../backend/profiles.md`](../backend/profiles.md)

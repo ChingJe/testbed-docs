@@ -1,261 +1,179 @@
 # Replay
 
-> Historical note: this document is primarily a pre-refactor replay runtime reference. It still describes `start.sh`, replay cleanup on startup, pseudo-live, `MetricPlayer`, and replay control APIs that are no longer part of the current system.
+本文描述目前 `5g-viz` 的 replay runtime：如何載入本地 session、如何決定是否 backfill Prometheus、以及前端如何在同一份 session 上完成 topology 與 Grafana 的歷史觀察。
 
-本文描述 `5g-viz` 的 replay runtime，以及它如何把同一份 session 同時重建為 topology 播放與 Grafana 圖表。
+若要先看使用者角度，請讀：
 
-## 1. Replay 啟動做了什麼
+- [`../../guides/ui-workflows/dvr-controls.md`](../../guides/ui-workflows/dvr-controls.md)
+- [`../frontend/events-and-dvr.md`](../frontend/events-and-dvr.md)
+- [`../grafana/rendering.md`](../grafana/rendering.md)
 
-`./start.sh --replay <session_path>` 的啟動流程如下（`start.sh` 本身的行為與 live 模式相同；差異在 app lifespan 根據 `SESSION_MODE` 進行不同的初始化）：
+## 1. 入口
 
-1. `start.sh` 重啟 Prometheus（帶 `--web.enable-admin-api` 與 `--web.enable-remote-write-receiver`）
-2. `start.sh` 透過 admin API 刪除所有 `nwdaf_*` series 並清理 tombstones
-3. `start.sh` 啟動 FastAPI app（帶 `SESSION_MODE=replay`、`SESSION_PATH` 環境變數）
-4. lifespan：清除所有 `_live_.*` pseudo-session series（startup cleanup）
-5. lifespan：載入 replay session（`events.jsonl` 與 `meta.json`）
-6. lifespan：重建 state
-7. lifespan：執行 replay backfill（以原始 timestamp remote write 進 Prometheus）
-8. lifespan：建立 `MetricPlayer`
-9. lifespan：執行 Grafana setup
+目前 replay 由 `run.py` 啟動：
 
-這表示 replay 不是在 live session 上「暫停再重放」，而是另起一個專用 runtime。
+```bash
+uv run run.py replay sessions/<session_id> --profile <profile> --backfill=auto|overwrite|skip
+```
 
-## 2. Replay 期間哪些東西不會啟動
+其中：
 
-replay mode 下不會啟動：
+- `--backfill=auto`
+  - Prometheus 已有該 session 時直接 reuse
+  - 否則 backfill
+- `--backfill=overwrite`
+  - 先刪掉該 session 的 metrics，再重灌
+- `--backfill=skip`
+  - 不寫 Prometheus；此時 Grafana 可能沒有圖
+
+## 2. Replay 的前提條件
+
+目前 replay 需要兩種資產：
+
+1. 本地 session artifact
+   - `events.jsonl`
+   - `meta.json`
+   - `topology.yaml`
+2. 已常駐且可用的 Prometheus
+
+其中本地 session 仍是 replay 的 source of truth。Prometheus 既有 session 最多只能讓 system 省掉 metrics backfill，不能取代本地 `events.jsonl`。
+
+## 3. 啟動流程
+
+### 1. `run.py` 先做 session / Prometheus 判斷
+
+在真正啟動 app 前，`run.py` 會：
+
+1. 載入 profile `config.yaml`
+2. 確認 Prometheus 已常駐並可 reload
+3. 透過 `services/replay_session_service.py` 讀出：
+   - 本地 session 是否存在
+   - event count、時間範圍
+   - Prometheus 是否已有該 session
+4. 依 `--backfill` policy 決定本次 replay 的 metrics 策略
+
+### 2. Backend 載入 session 並重建 state
+
+`backend.app` 啟動後會：
+
+1. 載入 session `meta.json`
+2. 載入 `events.jsonl`
+3. 載入 session 目錄中的 `topology.yaml`
+4. 依事件重建 `runtime/state.py`
+5. 若 policy 需要，執行 replay backfill
+
+replay mode 不會啟動：
 
 - SSH collector
-- queue processor
-- live WebSocket 事件生產
+- live queue consumer
+- live WebSocket 事件來源
 
-`/ws` endpoint 雖然仍存在，但一般不作為 replay 前端資料來源。前端會在 bootstrap 時直接走：
+## 4. Replay 的兩個資料面
+
+replay 下仍然要分清楚兩個資料面。
+
+### event / topology
+
+前端會先讀：
 
 - `GET /api/session-info`
 - `GET /api/events`
 
-並自動進入 `PAUSED` 狀態。
+之後把整份事件放進本地 `_events`，所有：
 
-## 3. Replay Backfill
-
-replay 啟動後，backend 會先把 session 內的 metric events 重建成 Prometheus series，再用 remote write 寫進本機 Prometheus。
-
-這條路徑的目的，是讓 Grafana 可以查到：
-
-- 原始 session ID
-- 原始事件時間戳
-
-對應的歷史曲線。
-
-### 何時會跳過
-
-若未開 `FORCE_BACKFILL`，backend 會先查：
-
-```promql
-count(nwdaf_ground_truth_ul_bytes{session="<session_id>"})
-```
-
-有結果就跳過 backfill。
-
-### 寫入條件
-
-這條路徑依賴：
-
-- Prometheus 已開 `--web.enable-remote-write-receiver`
-- Python 可匯入 `snappy`
-
-任一條件不成立時，Grafana replay 圖表可能不可用，但 topology replay 仍可繼續。
-
-## 4. 為什麼 Replay 需要 Pseudo-Live
-
-若 replay 播放期間只靠改 Grafana iframe 的絕對 `from/to` 來追播放位置，每次都會造成 iframe reload。
-
-為了避免播放中頻繁 reload，系統把 replay Grafana 分成兩種模式：
-
-- `BACKFILL`
-- `PSEUDO_LIVE`
-
-### `BACKFILL`
-
-用於：
-
-- replay 初始 paused 狀態
-- scrub 後停下來的狀態
-- replay 播放結束或 pause 之後
-
-此時 iframe 查的是：
-
-- `var-session=<orig_session>`
-- 絕對 `from/to`
-
-### `PSEUDO_LIVE`
-
-用於 replay `PLAYING`。此時 iframe 改查：
-
-- `var-session=<pseudo_session>`
-- `from=now-<window>m&to=now&refresh=5s`
-
-也就是說，播放期間 Grafana 看的不再是原始 session，而是 backend 重新映射到現在的一條新 session。
-
-## 5. `MetricPlayer` 的角色
-
-`MetricPlayer` 是 replay pseudo-live 的核心元件。
-
-它在初始化時會先從 `_events` 篩出 `METRIC_EVENT_TYPES`，只保留真正會影響 Grafana 的那些事件。之後播放時分兩段進行：
-
-### Pre-seed
-
-開始播放時，`MetricPlayer.play(from_time, speed, window_min)` 會先把 playhead 前一段視窗內的 metric event 映射到現在之前，寫進一個新的 pseudo session。
-
-目的：
-
-- 讓 Grafana 一切到 `now-window ~ now` 就有可看的歷史資料
-- 避免播放剛開始時圖表一片空白
-
-目前這段 pre-seed 有三個關鍵細節：
-
-- 歷史回看範圍是 `window_ms * speed`
-- 每筆 event 的映射時間為：
-
-```text
-mapped_ts = now_ms - int((from_ms - event_ms) / speed)
-```
-
-- 只有 `event_ms >= from_ms - window_ms * speed` 的事件會被映射進 pre-seed
-
-也就是說，播放速度越快，為了填滿同樣寬度的 `now-window ~ now` 圖窗，需要回看的原始歷史範圍就越大。
-
-### Emit loop
-
-接著 `_emit_loop()` 會：
-
-1. 按原始事件時間差與播放速度計算 sleep
-2. 把到期事件映射成新的 wall clock timestamp
-3. 批次 remote write 到 Prometheus
-
-因此 pseudo-live 並不是重播 topology 事件給 Grafana，而是重播 metric event 的時間分佈。
-
-### `_retrain_prefix` 與 cursor
-
-`MetricPlayer` 初始化時，除了保存排序後的 `_metric_events`，還會建立：
-
-- `_metric_times`：每筆 metric event 的原始毫秒時間
-- `_retrain_prefix`：到每個 cursor 為止累積了多少個 `retrain_trigger`
-
-`update_speed(...)` 時，backend 會用：
-
-```python
-cursor = bisect_right(self._metric_times, current_ms)
-retrain_total = self._retrain_prefix[cursor]
-```
-
-快速定位新的播放起點與對應的 retrain counter 狀態，而不是重新線性掃描整份事件。
-
-## 6. Replay 控制 API
-
-前端在 replay 模式下會額外用到三個 API：
-
-- `POST /api/replay/play`
-- `POST /api/replay/pause`
-- `POST /api/replay/speed`
-
-### `play`
-
-`play` 會：
-
-- 驗證參數
-- 產生新的 `pseudo_session`
-- 停掉先前 active stream
-- 做 pre-seed
-- 啟動新的 emit loop
-
-前端拿到 `pseudo_session` 後，才切 Grafana iframe。
-
-### `pause`
-
-`pause` 只會停止目前 active 的 pseudo-live stream。若收到的是舊 token，會回 `204`，不去影響當前播放。
-之後 backend 還會刪掉該 `pseudo_session` 的 `nwdaf_*` series，避免 `_live_...` 長期留在 Grafana
-session 下拉選單裡。
-
-### `speed`
-
-`speed` 會：
-
-- 依 `current_time` 重新定位 cursor
-- 計算到該點為止的 `retrain_total`
-- cancel 舊 task
-- 以新速度重建 emit loop
-
-也就是說，變速不是原 loop 內原地改 sleep，而是重新對齊後續播放。
-
-## 7. 前端與 `MetricPlayer` 如何協調
-
-replay `PLAYING` 時，前端與 backend 各自維護一條播放節奏：
-
-- 前端：`_tickPlayback()` 推進 topology 與 event log
-- backend：`MetricPlayer` 推進 pseudo-live metrics
-
-兩者只在下列節點做弱同步：
-
-- play 開始
+- play
 - pause
-- speed 變更
-- chart window 變更
+- scrub
+- keyboard arrow step
+- residual edge/pulse continuation
 
-這種設計的含義是：
+都只是在這份本地事件集合上重新取樣與重播。
 
-- topology 與 Grafana 不追求毫秒級嚴格同步
-- 更重視操作簡單與播放體感
+### metrics / Grafana
 
-## 8. 一致性邊界
+Grafana 不再有 pseudo-live session。
 
-replay 有一個重要現況：`PAUSED` 和 `PLAYING` 看到的 Grafana 圖，底層不是同一組樣本。
+目前 replay 下只有一個 canonical session：
 
-### `PAUSED`
+- `var-session=<original_session_id>`
 
-- 查原始 replay session backfill
-- 使用原始事件時間戳
+差別只有時間窗：
 
-### `PLAYING`
+- paused / scrubbed：絕對 `from/to`
+- playing：historical relative `from=now-(offset+window)`、`to=now-offset`
 
-- 查本次播放的 pseudo session
-- 使用映射到 `now` 的新時間戳
+因此現在 replay 播放期間，Grafana 看的是「原始 session 的歷史相對視窗」，不是額外映射到現在的新 session。
 
-因此：
+## 5. Replay backfill
 
-- 同一段歷史在 `PAUSED` 與 `PLAYING` 間可能不完全一致
-- 同一段歷史在不同次 `PLAYING` 間，也可能因為 wall clock 相位不同而長得不完全一樣
+### 1. 角色
 
-目前系統把這視為可接受的 tradeoff：`PAUSED` 偏向忠實歷史，`PLAYING` 偏向近似 live 體感。
+replay backfill 的角色很單純：
 
-## 9. 已知不對稱之處
+- 讓這份 session 的 metrics 以原始時間戳存在於 Prometheus
+- 讓 paused / scrubbed / playing 三種 replay chart 模式都能查同一個原始 session
 
-### `model_swap`
+### 2. 執行方式
 
-live mode 的 metric handler 會在 `model_swap` 時刪掉舊 deviation series。replay backfill 與
-`MetricPlayer` 無法直接重播 exporter `remove()`，所以改在 `model_swap` 時對目前 active models
-寫一筆 `NaN` sample。
+backfill 會把 metric-bearing events 重建成 Prometheus time series，再用 remote write 寫進 TSDB。
 
-結果是：
+這條路徑保留原始時間戳，不會把樣本重映射到 `now`。
 
-- replay graph 也會在 swap 當下截斷舊 model 線段
-- 新 model 第一筆 `accuracy` 進來前，會保留和 live 一致的 cold-start gap
+### 3. overwrite 的正式語意
 
+`overwrite` 的語意已正式收斂為：
 
-## 10. 圖表視窗與播放控制
+1. 刪除 `session=<session_id>` 的 `nwdaf_*` series
+2. 再重新 backfill
 
-目前 replay 還有一個特殊點：Chart window 改變時，若正在 `PLAYING`，前端不只會 reload iframe，還會：
+這比早期的「每次啟動先清整個 TSDB」更精準，也比較符合持久 Prometheus 的心智。
 
-1. pause 目前 pseudo-live
-2. 以目前 playhead 和新 window 重啟一個 pseudo-live
-3. 取得新的 pseudo session
-4. 繼續播放
+## 6. 前端 replay 狀態機
 
-原因是 pre-seed 範圍本身就依賴 window 大小。
+目前前端 replay 的主要狀態仍是：
 
-## 11. 目前限制
+- `PAUSED`
+- `PLAYING`
+- `SCRUBBING`
 
-- replay 前端會把整個 session 的事件一次載入記憶體；超長 session 時記憶體與初始等待時間會上升
-- pseudo-live 不保證與 paused backfill 完全數值一致
-- `MetricPlayer` 只處理 metric event，不處理 topology event；兩條播放面是分開推進的
-- replay 仍是單一 active player 設計，多個使用者不應同時操作同一個 replay backend
-- 每次 `start.sh` 啟動都清除所有 `nwdaf_*` series；Prometheus 不是累積式 session 資料倉，Grafana 上可查的歷史範圍取決於當次啟動後寫入的內容
+但它們現在只影響兩件事：
+
+1. topology / event log 如何從本地 `_events` 取樣
+2. Grafana iframe 的 `from/to/refresh`
+
+已不存在的行為包括：
+
+- replay speed
+- `/api/replay/play`
+- `/api/replay/pause`
+- `/api/replay/speed`
+- `MetricPlayer`
+- pseudo session cleanup
+
+## 7. `skip` policy 的含義
+
+`--backfill=skip` 目前是刻意保留的簡化模式：
+
+- replay 仍可正常載入 session、播放 topology、看 event log
+- 但如果 Prometheus 本來沒有這個 session 的 metrics，Grafana chart 會是空的
+
+這條模式主要用於只想看 topology / event path，而暫時不處理 chart 的情境。
+
+## 8. 與 live 的差異
+
+| 面向 | live | replay |
+|---|---|---|
+| 事件來源 | 遠端 log 即時解析 | 本地 `events.jsonl` |
+| 前端事件來源 | `/ws` | `/api/events` 一次載入 |
+| chart metric 來源 | `/metrics` scrape | original session backfill |
+| 播放中的 chart | `now-window ~ now` 查當前 live session | historical relative 查原始 replay session |
+| Prometheus 寫入策略 | 持續 scrape | 啟動時依 policy backfill |
+
+## 9. 目前限制
+
+- replay 仍需要本地 session artifact；Prometheus 既有 session 不能單獨替代它
+- `skip` 在 Prometheus 無資料時會讓 chart 為空
+- replay 會把整份事件載入前端記憶體；超長 session 的初始載入成本仍與 event count 成正比
+- replay chart 與 topology 雖共享同一份 session，但一邊是 Grafana query，一邊是前端本地重播；兩者並不是單一事件 loop 在驅動
+
+若看到 `start.sh`、pseudo-live、`MetricPlayer`、replay speed 或 replay control APIs，應視為 pre-refactor historical runtime，不是目前系統。
