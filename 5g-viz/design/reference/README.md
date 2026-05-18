@@ -1,6 +1,8 @@
 # Reference
 
-本目錄收錄設定與 schema 參考文件，聚焦於 topology config 與 profile 環境變數。
+> 注意：本子目錄中 `env-config.md` 等文件主要記錄 pre-refactor 的 `.env` / `start.sh` 設定模型。現況已改為 `config.yaml` + `run.py`，因此這裡應優先當 historical reference 閱讀。
+
+本目錄收錄設定與 schema 參考文件，聚焦於 topology config 與舊設定模型。
 
 這一層處理的是：
 
@@ -14,5 +16,5 @@
 
 主要文件：
 
-- [topology-yaml.md](topology-yaml.md)：`topology.yaml` 的頂層區塊、`ssh_sources`、`event_reactions` 與 cross-layer 契約
-- [env-config.md](env-config.md)：profile `.env`、runtime env 與目前實際有被程式消費的環境變數
+- [topology-yaml.md](topology-yaml.md)：`topology.yaml` 的頂層區塊、`event_reactions` 與 cross-layer 契約
+- [env-config.md](env-config.md)：歷史的 profile `.env` / runtime env 設定模型

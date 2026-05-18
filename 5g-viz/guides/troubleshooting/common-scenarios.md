@@ -75,7 +75,7 @@ Topology 有反應，只能證明 event 被辨識並投影到 UI，不等於該�
 
 ### 最常見的解釋
 
-兩者查的不是同一條 session。
+兩者查的時間窗語意不同。
 
 ### 先看哪裡
 
@@ -84,8 +84,8 @@ Topology 有反應，只能證明 event 被辨識並投影到 UI，不等於該�
 
 ### 補充說明
 
-- replay `paused` 主要看原始 session backfill
-- replay `playing` 主要看 pseudo-live session
+- replay `paused` 主要看原始 session 的固定歷史時間窗
+- replay `playing` 主要看原始 session 的 historical relative 視窗
 
 因此同一段歷史在兩種狀態下，不保證完全一致。
 
@@ -109,22 +109,22 @@ replay 啟動時，backend 會先把原始 session 的 metric events 寫回 Prom
 
 ### 最常見的解釋
 
-因為 backend 先做了 `pre-seed`。
+因為 replay `playing` 會切成 historical relative 視窗，不再是停住時那張固定歷史圖。
 
 ### 先看哪裡
 
 - Grafana
-- replay / pseudo-live 相關說明
+- Live Vs Replay Data Paths
 
 ### 補充說明
 
-`pre-seed` 會先把 playhead 前一段 metrics 映射到 `now-window ~ now`，避免 pseudo-live 一開始只有空窗。
+播放中圖表會跟著 `now` 平滑滑動，所以剛按播放時，視覺上看到的已經不是原本停住那張固定圖。
 
 ## 7. 改 Chart Window 時，replay 播放中的 chart 為什麼會像重啟
 
 ### 最常見的解釋
 
-因為這不只是 iframe 換一個時間窗，還會重建 pseudo-live chart 路徑。
+因為這不只是 iframe 換一個時間窗，也會改變 replay `playing` 使用的 relative query。
 
 ### 先看哪裡
 
@@ -133,8 +133,8 @@ replay 啟動時，backend 會先把原始 session 的 metric events 寫回 Prom
 
 ### 補充說明
 
-Chart Window 會影響 `pre-seed` 範圍。  
-replay `playing` 時變更 window，backend 需要以目前 playhead 和新 window 重新建立一次 pseudo-live session。
+Chart Window 會影響 replay `playing` 的 relative query 範圍。  
+因此播放中改變 window，圖表會明顯重新同步到新的查詢視窗。
 
 ## 8. Event Log 有事件，但畫面上的過去時間點和預期不一致
 
@@ -170,7 +170,7 @@ replay `playing` 時變更 window，backend 需要以目前 playhead 和新 wind
 ### 補充說明
 
 目前 live metrics path 會在 `model_swap` 時清理舊 deviation series。  
-replay backfill 與 pseudo-live 沒有完全等價的 delete 動作，因此兩者不保證完全一致。
+replay backfill 主要保留原始歷史寫入結果，因此和 live runtime 不保證完全一致。
 
 ## 對照閱讀
 

@@ -1,7 +1,9 @@
 # 5g-viz Design
 
-本目錄收錄 `5g-viz` 目前系統行為的 canonical 設計文件。
-這一層偏向 deep technical reference，不是第一次閱讀 `5g-viz` 的建議入口。
+> 注意：本目錄目前仍混有一部分 pre-refactor 文件，內容可能提到 `start.sh`、profile `.env`、`main.py`、pseudo-live、`MetricPlayer` 等舊 runtime 心智。若要理解現況，請先以 `5g-viz/README.md` 與 `guides/*` 為準，再把 `design/*` 當 deep technical / historical reference 交叉閱讀。
+
+本目錄收錄 `5g-viz` 的 deep technical 設計文件。
+這一層偏向 technical reference，不是第一次閱讀 `5g-viz` 的建議入口。
 
 第一次接觸這套系統時，先看：
 

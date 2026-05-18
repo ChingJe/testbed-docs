@@ -19,6 +19,6 @@
 ## 與其他層的邊界
 
 - [`../reference/`](../reference/README.md)：deep reference 導覽
-- [`../design/`](../design/README.md)：canonical technical reference
+- [`../design/`](../design/README.md)：technical reference；部分子文件仍為 pre-refactor historical reference
 - [`../plans/`](../plans/README.md)：歷史規劃與設計探索
 - [`../notes/`](../notes/README.md)：背景筆記與工作過程

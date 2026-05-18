@@ -1,6 +1,8 @@
 # Frontend
 
-本目錄收錄 `5g-viz` 前端行為的 canonical 文件，聚焦於拓樸渲染、事件播放控制與 Grafana 嵌入。
+> 注意：本子目錄中的部分文件仍描述 pre-refactor 的 header FX controls、舊 replay chart 路徑或舊 API。現況請先對照 `guides/ui-workflows/*` 與 `5g-viz/README.md`。
+
+本目錄收錄 `5g-viz` 前端行為的技術文件，聚焦於拓樸渲染、事件播放控制與 Grafana 嵌入。
 
 適合的情況包括：
 

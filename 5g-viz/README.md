@@ -52,7 +52,7 @@
    它們彼此相關，但不是同一層的不同畫法。
 
 2. `live` 與 `replay` 長得很像，但底層資料流不一樣。  
-   特別是 Grafana 的行為，在 replay `paused` 與 replay `playing` 期間也不是同一種資料來源。
+   replay `paused` 與 replay `playing` 現在都查原始 session，但 chart 在兩種狀態下仍不是同一種時間窗語意。
 
 3. 這套系統的可攜 replay 核心不是 Prometheus TSDB，而是 session 目錄。  
    實際保存的是 `meta.json`、`events.jsonl`、`topology.yaml` 這三個檔案。

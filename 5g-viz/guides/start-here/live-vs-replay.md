@@ -40,7 +40,7 @@
 - timeline 一開始就有明確起點與終點
 - 前端不是等新事件推進，而是先載入既有 session 事件
 - topology 與 event log 主要是在既有事件上做重建與播放
-- Grafana 預設看的是這個 session 被回填後的歷史資料
+- Grafana 預設看的是這個 session 在 Prometheus 中的歷史資料
 
 `replay` 的性質比較接近：
 
@@ -94,10 +94,10 @@
 
 需要先區分兩種情況：
 
-- replay `paused` / `scrubbed` 時，Grafana 看的比較像「原始 session 的歷史圖」
-- replay `playing` 時，Grafana 會切到另一條「pseudo-live」路徑，讓圖看起來像正在即時播放
+- replay `paused` / `scrubbed` 時，Grafana 看的比較像「原始 session 的固定歷史時間窗」
+- replay `playing` 時，Grafana 仍看原始 session，但時間窗改成 historical relative range，讓圖看起來像正在平滑播放
 
-這就是為什麼 replay 看起來像一種模式，但 chart 在不同播放狀態下其實不是完全同一種底層資料。
+這就是為什麼 replay 看起來像一種模式，但 chart 在不同播放狀態下其實不是完全同一種查詢語意。
 
 ## 為什麼新分頁在 live 不會自動重播完整歷史
 

@@ -148,15 +148,15 @@ Grafana 主要讀的是：
 - 新分頁的 Topology 先對齊到目前狀態
 - Event Log 不會自動長出整段過去事件
 
-### replay `paused` 和 replay `playing` 的 Grafana 不是同一條資料路徑
+### replay `paused` 和 replay `playing` 的 Grafana 不是同一種查詢語意
 
-`paused` 主要看原始 session backfill。  
-`playing` 主要看 pseudo-live session。
+`paused` 主要看原始 session 的固定歷史時間窗。  
+`playing` 主要看原始 session 的 historical relative 視窗。
 
 結果就是：
 
 - Topology 看起來都像在回看同一段歷史
-- Grafana 在不同播放狀態下，底層實際上不是同一組樣本
+- Grafana 在不同播放狀態下，查詢方式仍然不同
 
 ## 哪些問題最適合先用這個心智模型回答
 

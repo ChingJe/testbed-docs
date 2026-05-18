@@ -1,12 +1,14 @@
 # Reference
 
+> 注意：本入口目前混合了現況 deep reference 與 pre-refactor 歷史文件。若看到 `start.sh`、profile `.env`、pseudo-live、`MetricPlayer`、`main.py` 等名詞，請優先視為 historical reference，並回頭對照 `5g-viz/README.md` 與 `guides/*`。
+
 本目錄收錄 `5g-viz` 的 deep reference 文件入口。
 
 這裡主要整理的是：
 
 - 系統層資料路徑
 - 前端與後端的實際行為
-- replay / pseudo-live / metrics 的 runtime 細節
+- replay / metrics 的 runtime 細節
 - schema、config 與 session artifact 參考
 
 若目前的需求是：
@@ -29,7 +31,7 @@
 
 - 需要查實際 API、payload、session artifact 或 config schema
 - 需要確認某個 runtime 行為在 code path 上怎麼發生
-- 需要對照 `main.py`、`events.js`、`state.py`、`metric_player.py` 的設計邊界
+- 需要對照 `backend.app`、`events.js`、`runtime/state.py` 等模組的設計邊界
 - 需要確認某個現象是否已知存在 replay / live 不對稱
 
 ## 依問題找文件
@@ -62,7 +64,7 @@
 
 - collector / parser / state / API / metrics 的實際責任邊界
 - `state_snapshot` 如何生成
-- live metrics、replay backfill、pseudo-live remote write 如何分工
+- live metrics、replay backfill 與 Prometheus 管理如何分工
 
 ### 想看 DVR / replay
 
@@ -72,7 +74,7 @@
 
 - session artifact 是什麼
 - replay runtime 怎麼啟動
-- pseudo-live、pre-seed、一致性邊界是什麼
+- replay session artifact、backfill policy、一致性邊界是什麼
 
 ### 想看 Grafana / Prometheus 整合
 
@@ -82,7 +84,7 @@
 
 - dashboard 怎麼建
 - panel query 與 `session` variable 怎麼切換
-- rendering 語意與 live / replay / pseudo-live 有什麼差異
+- rendering 語意與 live / replay 有什麼差異
 
 ### 想看單一功能流
 
@@ -100,7 +102,7 @@
 適合的問題：
 
 - `topology.yaml` 的區塊與 cross-layer 契約
-- profile `.env` 和 runtime env 的實際消費位置
+- `config.yaml`、`topology.yaml` 與 runtime 設定的實際消費位置
 
 ## 與 `plans/`、`notes/` 的邊界
 

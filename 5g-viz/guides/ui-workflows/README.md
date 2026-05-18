@@ -39,4 +39,4 @@
 - topology / filter / snapshot 重建：[`../../design/frontend/topology.md`](../../design/frontend/topology.md)
 - events / DVR / timeline：[`../../design/frontend/events-and-dvr.md`](../../design/frontend/events-and-dvr.md)
 - Grafana iframe / session / time window：[`../../design/frontend/grafana-embed.md`](../../design/frontend/grafana-embed.md)
-- replay / pseudo-live：[`../../design/dvr/replay.md`](../../design/dvr/replay.md)
+- replay runtime：[`../../design/dvr/replay.md`](../../design/dvr/replay.md)

@@ -24,12 +24,12 @@
 - 概念邊界與資料路徑：[`../mental-model/`](../mental-model/README.md)
 - 常見現象與解釋：[`../troubleshooting/common-scenarios.md`](../troubleshooting/common-scenarios.md)
 - 系統組件與端到端資料流：[`../../design/overview/`](../../design/overview/README.md)
-- pause / replay / pseudo-live：[`../../design/dvr/`](../../design/dvr/README.md)
+- pause / replay / timeline semantics：[`../../design/dvr/`](../../design/dvr/README.md)
 - topology / DVR / Grafana iframe 的實作行為：[`../../design/frontend/`](../../design/frontend/README.md)
 - state、API、metrics 與 session 行為：[`../../design/backend/`](../../design/backend/README.md)
 
 ## 本層不展開的內容
 
 - 不先從 function、handler、state machine 名稱開始
-- 不把 `main.py`、`events.js`、`topology.js` 的實作順序直接搬成章節骨架
-- 不在第一層就展開 remote write、pre-seed、rule registry、protobuf 這類低層細節
+- 不把 `backend.app`、`events.js`、`topology.js` 的實作順序直接搬成章節骨架
+- 不在第一層就展開 remote write、rule registry、protobuf 這類低層細節

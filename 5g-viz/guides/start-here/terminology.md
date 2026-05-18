@@ -78,7 +78,7 @@ parser rule 決定 log 會被辨識成哪種 event；`event_reactions` 則決定
 - `Play`
 - `Scrub`
 - `Go Live`
-- speed
+- keyboard step
 - chart window
 
 它的重點不是影片播放器本身，而是讓 topology、event log 與 Grafana 可以切換不同時間視角。
@@ -170,14 +170,8 @@ parser rule 決定 log 會被辨識成哪種 event；`event_reactions` 則決定
 
 它的目的，是讓 Grafana 能直接查到這次 replay session 的歷史時間序列，而不是只能看當前播放點附近的資料。
 
-### `pseudo-live`
+### historical relative chart window
 
-`pseudo-live` 指 replay 播放時，將歷史 metric 重新映射到現在時間後持續送入 Prometheus 的做法。
+這指的是 replay `playing` 時，Grafana 不再固定用絕對 `from/to`，而是用相對於 `now` 的歷史時間窗來查原始 session。
 
-它的目的，是讓 replay `playing` 時的 chart 體驗更接近 live，而不是只看一張固定歷史圖。
-
-### `pre-seed`
-
-`pre-seed` 指 pseudo-live 開始前，先補一段播放點之前的 metrics 到目前 chart window 內。
-
-它的作用是避免剛按播放時，Grafana 一開始只有空白視窗。
+它的目的，是讓圖表在播放中平滑滑動，而不需要另一條 metrics remap runtime。

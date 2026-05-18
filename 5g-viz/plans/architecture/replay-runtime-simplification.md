@@ -1100,7 +1100,7 @@ uv run run.py replay sessions/20260513T033836881 --profile default --backfill=sk
 | 4 | Remove pseudo-live | 刪除 pseudo-live API / runtime / cleanup | Done |
 | 5 | Visual FX controls | runtime effect config、panel、presets / reset | Done |
 | 6 | Modular structure refactor | backend / runtime / services / replay 分層與 root shim 收斂 | Done |
-| 7 | Docs convergence / historical-doc cleanup | 收斂 canonical 文件並處理舊 mental model 文件分流 | Planned |
+| 7 | Docs convergence / historical-doc cleanup | 收斂 canonical 文件並處理舊 mental model 文件分流 | In Progress |
 
 狀態欄建議只用：
 

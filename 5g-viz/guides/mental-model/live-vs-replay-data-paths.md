@@ -114,10 +114,10 @@ Grafana 查的是：
 
 Grafana 查的是：
 
-- pseudo-live session
-- 映射到 `now-window ~ now` 的資料
+- 原始 replay session
+- historical relative time range
 
-這是 replay 最重要的不對稱之一。
+這是 replay 最重要的不對稱之一：資料來源沒換，但查詢時間語意換了。
 
 ## 為什麼 replay 不能完全照 live 的方式做
 
@@ -129,8 +129,8 @@ Grafana 查的是：
 所以 replay 目前採用的是混合設計：
 
 - Topology / Event Log：前端本地事件回放
-- Grafana paused：原始 session backfill
-- Grafana playing：pseudo-live
+- Grafana paused：原始 session 歷史查詢
+- Grafana playing：原始 session + historical relative range
 
 ## 哪些現象來自這個路徑差異
 
@@ -140,7 +140,7 @@ Grafana 查的是：
 
 ### replay `Pause` 與 replay `Play` 的 chart 性質不同
 
-因為兩者根本不是查同一條 session。
+因為兩者雖然都查同一個 session，但時間窗語意不同。
 
 ### 新分頁只看到目前狀態
 

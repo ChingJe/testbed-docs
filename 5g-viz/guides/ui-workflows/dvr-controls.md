@@ -21,7 +21,7 @@ DVR Controls 是主畫面的時間控制層。
 - `Play`
 - `Go Live`
 - timeline
-- speed
+- step
 - chart window
 - reset chart
 
@@ -59,9 +59,9 @@ Live 下的 `Play` 主要作用是：
 
 ### 在 replay
 
-Replay 下的 `Play` 除了推動 Topology 與 Event Log 之外，還會啟動 pseudo-live chart 路徑。
+Replay 下的 `Play` 除了推動 Topology 與 Event Log 之外，還會讓 Grafana 切成 historical relative chart window。
 
-這代表 replay `Play` 不只是單純重播前端事件，還會改變 Grafana 的資料來源。
+這代表 replay `Play` 不只是單純重播前端事件，還會改變 Grafana 的查詢時間語意。
 
 ## `Go Live`
 
@@ -110,15 +110,16 @@ Replay 下的 timeline 範圍主要來自錄製 session 的起訖時間。
 
 在 live 下，若前端緩衝不夠早，還可能補抓較早的事件。
 
-## `Speed`
+## `Step`
 
-`Speed` 只在播放狀態下有明顯效果。
+`Step` 控制的是左右方向鍵每次讓 playhead 移動幾秒。
 
-它控制的是：
+它只影響 keyboard scrub：
 
-- 重播事件的推進速度
+- `ArrowLeft`
+- `ArrowRight`
 
-在 replay 模式下，`Speed` 也會影響 pseudo-live chart 的節奏，因為 chart 播放不是獨立於 playback speed 的。
+它不等於播放速度，也不會改變 replay `Play` 的節奏。
 
 ## `Chart Window`
 
@@ -134,11 +135,9 @@ Replay 下的 timeline 範圍主要來自錄製 session 的起訖時間。
 
 ### 在 replay playing 狀態
 
-這會連帶影響 pseudo-live chart 路徑，因為：
+這會讓 historical relative chart window 立即切到新的寬度。
 
-- pre-seed 的範圍與 window 大小耦合
-
-所以 replay playing 下改 Chart Window，實際上比一般狀態更接近一次小型重啟。
+它仍可能讓 Grafana iframe 重新同步，但不再需要重建另一條 metrics remap stream。
 
 ## `Reset Chart`
 
@@ -162,7 +161,7 @@ Replay 下的 timeline 範圍主要來自錄製 session 的起訖時間。
 
 ### 對 Grafana
 
-- 控制圖表看的是現在、固定時間窗，還是 replay 的 pseudo-live 路徑
+- 控制圖表看的是現在、固定時間窗，還是 replay 的 historical relative 視窗
 
 ## 常見誤解
 

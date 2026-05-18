@@ -4,6 +4,8 @@
 
 這一層不是 canonical reference，也不是 onboarding 主入口。
 
+其中不少文件保留了當時的 runtime 心智，例如 `start.sh`、pseudo-live、`main.py`、profile `.env` 等。這些內容應視為歷史上下文，而不是現況操作指南。
+
 它的價值在於保留：
 
 - 當時的實作脈絡

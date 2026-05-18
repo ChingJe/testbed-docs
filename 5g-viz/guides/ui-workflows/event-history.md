@@ -148,7 +148,7 @@ GET /api/events?session=<session_id>
 播放時，前端也不是向後端逐筆要事件，而是：
 
 - 在本地 `_events` 內找到目前 playhead 之後的第一筆事件
-- 依事件原始時間差與 playback speed 逐筆往前推進
+- 依事件原始時間差逐筆往前推進
 
 ### Go Live
 

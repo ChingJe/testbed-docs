@@ -30,7 +30,7 @@ Header 下方那排 controls 是整個畫面的時間控制中心。
 - `Play`
 - `Go Live`
 - timeline slider
-- speed selector
+- keyboard step
 - chart window
 - reset chart
 
@@ -47,23 +47,23 @@ Header 下方那排 controls 是整個畫面的時間控制中心。
 
 其中 `Go Live` 只在 live mode 有意義；在 replay 裡沒有「回到最新 live 狀態」這件事。
 
-## 3. Filter Sidebar：可視化過濾
+## 3. Topology Controls：可視化控制
 
-左側的 filter sidebar 是 topology 的可視化過濾器。
+左側的 `Topology Controls` 是 topology 的可視化控制器。
 
 它不是硬編碼清單，而是根據目前 topology config 生成的，所以：
 
 - node filter 會跟著 topology 裡定義的 nodes 出現
-- edge filter 會跟著 `edge_styles` 裡定義的 label types 出現
+- effect controls 會跟著 `edge_styles` 與 pulse reaction 定義出現
 
 主要用途有兩個：
 
 - 只看某些 NF
-- 只看某些 SBI / edge 類型
+- 控制某些 edge / pulse effect 是否顯示，以及顯示多久
 
 要注意的是：
 
-- filter 只影響目前畫面上的可見性
+- controls 只影響目前畫面上的可見性與 transient effect 呈現
 - 它不會改變 event 是否存在於 session，也不會改變 backend 真正收到了哪些資料
 
 ## 4. Topology：事件反應與狀態投影
@@ -112,7 +112,7 @@ Topology 下方的 Grafana 區塊是嵌入進來的 dashboard。
 - Grafana 沒有線，也不代表 topology 一定沒東西發生
 
 在 live 模式下，它通常跟著 `now` 走。  
-在 pause / scrub / replay 時，它會改看別的時間窗；在 replay `playing` 時，它甚至會切到另一條 pseudo-live 路徑。
+在 pause / scrub / replay 時，它會改看別的時間窗；在 replay `playing` 時，它仍查原始 session，但會切成 historical relative time range。
 
 ## 6. Event Log：結構化事件清單
 
