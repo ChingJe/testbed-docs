@@ -3,6 +3,15 @@
 `~/testbed` 的 5G 測試床獨立文件庫。
 與程式碼儲存庫分離，讓文件可以獨立演進。
 
+## 新版 NWDAF Infrastructure 計畫
+
+舊 `5G_Infrastructure` 目前只作歷史 testbed 與實驗室 site-specific 設定來源。
+新版、可公開重現的 three-NWDAF／two-TAI 環境暫定以新的
+`5G_NWDAF_Infrastructure` repository 建置，計畫入口如下：
+
+- [5G_NWDAF_Infrastructure 建置與遷移計畫](5g-infra/design/5g-nwdaf-infrastructure-plan.md)
+- [舊環境 local network settings inventory](5g-infra/reports/local-network-settings-inventory-2026-08-05.md)
+
 ## 結構
 
 ```

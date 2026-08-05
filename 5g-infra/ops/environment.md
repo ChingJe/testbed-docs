@@ -1,5 +1,10 @@
 # 5G Infrastructure — Environment & Setup
 
+> 2026-08-05 已重新盤點此機器的 local network settings。完整結果、限制與
+> clean rebuild 保存清單請見
+> [`local-network-settings-inventory-2026-08-05.md`](../reports/local-network-settings-inventory-2026-08-05.md)。
+> 本頁描述舊 testbed profile，不代表新版 NWDAF 架構。
+
 ## IP Shift +20
 
 實驗室有其他人在跑相同的 testbed，為了避免 IP 衝突，需要將所有 subnet 的第三段 +20。
@@ -14,6 +19,7 @@
 | `192.168.107.x` | `192.168.127.x` |
 | `192.168.108.x` | `192.168.128.x` |
 | `192.168.109.x` | `192.168.129.x` |
+| `192.168.110.x` | `192.168.130.x` |
 | `192.168.200.x` | `192.168.220.x` |
 
 ### 需要修改的檔案
@@ -40,12 +46,14 @@
 
 - 改完 Vagrantfile 後，config yaml 裡對應的 IP 也要一起改，否則 NF 之間無法連線
 - `setup.sh` 裡的 `ip route add default via <gateway>` 也要對應更新
-- bridge 介面：實驗室有線網路用 `eno1`（確認後更新），手機熱點用 `wlp85s0f0`
+- bridge 介面：2026-08-05 實機確認為 `enp2s0`；Wi-Fi `wlp0s20f3` 目前 DOWN
 
 ## MongoDB
 
-- 自己的 MongoDB 跑在本機 **port 27018**（其他使用者的在 27017，有 auth，不能用）
-- 以 systemd service `mongod-27018` 管理，開機自啟動
+- 舊 profile 預期自己的 MongoDB 跑在本機 **port 27018**，避免和 27017 衝突
+- systemd service `mongod-27018` 目前 enabled，但 2026-08-05 唯讀檢查為
+  **failed**，27018 沒有 listener；不可再假設它已正常啟動
+- 27017 目前有 listener；本次未確認其 owner、資料或 authentication policy
 - dbpath：`/var/lib/mongodb-27018`
 - VM 透過 VirtualBox NAT 連本機，host IP 在 VM 內永遠是 `10.0.2.2`
 
@@ -86,6 +94,11 @@
 
 **冪等性**：已 shift 過的 IP 不會再被 shift，可以安全重複執行。
 但 `git pull` 會還原所有修改，所以每次 pull 後都要跑一次。
+
+> `.agent/setup.sh` 只重放固定的 bridge、IP mapping、Mongo URL 與 submodule
+> copy cleanup。它不會重建 UPF 的 NAT default route、ADRF synced folder、
+> untracked config／run scripts、submodule revisions 或 NWDAF／Daisy 行為變更。
+> 不可將它視為完整 backup。
 
 ## 網路環境
 

@@ -2,6 +2,10 @@
 
 `git pull` 會覆蓋 Vagrantfile 和 `config/` yaml，每次 pull 後需執行此腳本重新套用本地設定。
 
+> 2026-08-05 盤點確認：此腳本是機械式 local patch helper，不是完整 rebuild
+> artifact。完整缺口與 clean rebuild 清單請見
+> [`local-network-settings-inventory-2026-08-05.md`](../reports/local-network-settings-inventory-2026-08-05.md)。
+
 ```bash
 .agent/setup.sh
 ```
@@ -102,3 +106,14 @@ mongodb://<任意 host>:<任意 port>  →  mongodb://10.0.2.2:27018
 2. **IP shift**：所有 Vagrantfile、`config/**/*.yaml`、各元件 `setup.sh`、`daisy/**/nodes.yaml`、`NWDAF/nwdaf_uecomm_consumer/**/*.json`，按步驟一的對應表做 sed 取代
 3. **provision.sh .git 清除**：在 UPF-EES、UPF-EES2、5GC 的 `provision.sh` 對應 `cp -r` 行後各插一行 `rm -f .../.git`
 4. **MongoDB URL**：`config/**/*.yaml` 全域取代 `mongodb://.*` → `mongodb://10.0.2.2:27018`
+
+上述步驟只重建此腳本涵蓋的固定 patch。它不包含：
+
+- `UPF-EES*/setup.sh` 改用 `10.0.2.2 dev enp0s3` 的 default route；
+- 5GC 的 ADRF synced folder、ADRF／Daisy run scripts 與 untracked config；
+- gNB／UPF trace scripts；
+- submodule revision；
+- `nwdafcfg.yaml` 中非網路的 MTLF、WAPE、ADRF 與 training 行為。
+
+因此移除舊 working tree 前仍須另外保存 tracked diff、untracked inventory 與
+submodule identity。
