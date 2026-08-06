@@ -2,7 +2,8 @@
 
 日期：2026-08-05
 
-狀態：Draft；repository 名稱與第一版方向暫定，尚未授權建立 remote repository 或實作部署
+狀態：本機 infrastructure baseline 已實作；尚未建立 remote、選定可用 provider、建立新 VM
+或完成 privileged full-scenario E2E
 
 ## 1. 目的
 
@@ -1230,17 +1231,55 @@ state 或舊 VM process 偶然使 scenario 通過。
 這些決策不影響先完成 repository skeleton 的大部分文件，但會影響 host mutation、
 provider dependency、release scope 或 public security expectation，因此不能靜默假設。
 
-## 15. 下一個待確認的實作範圍
+## 15. 下一個執行範圍
 
-若本計畫獲確認，下一個工作包先執行 Phase 0.5 的唯讀 inventory 與 backup／removal
-proposal，不立即刪除 VM：
+舊 VM inventory、使用者確認的不備份永久移除，以及本機 repository baseline 已完成。
+下一個工作包不再重做 cleanup 或 repository bootstrap，而是：
 
-1. 解析 Vagrant 與 provider 中所有現存 VM 的 exact identity／storage；
-2. 盤點 guest-only 高價值資產與 provider 目前是否能 export；
-3. 提出 backup 方法、所需外部空間、recovery 說明與 exact removal list；
-4. 由使用者確認 backup 與逐台 removal targets；
-5. 另開執行步驟清理並驗證 reclaimed space，之後才進入 Phase 1 repository bootstrap。
+1. 釋放 physical host memory／swap，使 preflight 通過 guest allocation 加 host reserve；
+2. 在不建立 VM 的情況下確認 VirtualBox 修復或 libvirt feasibility，明確選定 provider；
+3. 使用 public default 建立三台空白 VM，先驗證 disk、NIC、clock 與 guest provisioning；
+4. 進行 component build/config smoke，再分層驗證 Core、Path 與 subscription；
+5. 最後才進入帶 PseudoDriver 的 privileged full-scenario E2E。
 
-VM destroy／unregister/delete、Phase 1 repository bootstrap、Phase 2 submodule pinning、
-工具移植、provider 安裝、新 VM 建立與剩餘 legacy cleanup 都是後續獨立授權範圍；新
-repository 不以加入 `nwdaf-resources` submodule 作為其中一步。
+Provider 安裝／修復、新 VM 建立與 privileged E2E 仍需要在對應步驟明確執行；新
+repository 不以加入 `nwdaf-resources` submodule 作為前置。
+
+## 16. 本機實作紀錄（2026-08-06）
+
+已在 `/home/chingje/testbed/5G_NWDAF_Infrastructure` 建立獨立 local git repository，
+branch 為 `main`，目前未設定 remote。實作未修改或清除舊 `5G_Infrastructure` source
+working tree，也未建立任何新 VM。
+
+主要 commits：
+
+| Commit | 內容 |
+| --- | --- |
+| `36da7ee` | repository ownership、目錄與 command surface |
+| `4fc1f8e` | Core／Path A／Path B、dual TAI topology 與 Vagrant definition |
+| `bb9a7c0` | 16 個 component submodule gitlinks、branch hints、license inventory |
+| `49f0598` | default native config、typed renderer 與 cross-component checker |
+| `3b2c87b` | guest-local build、hashed config activation 與 disabled systemd units |
+| `3dc3e07` | host preflight、service lifecycle、status、observe 與 journald follow |
+| `a4d4a58` | NRF discovery、雙 NWDAF subscription、callback、rollback 與 exact DELETE |
+| `47d3079` | Vagrant disk budgets 與 reboot-safe guest address aliases |
+| `b67cd40` | guest allocation 外保留 4 GiB physical-host RAM safety margin |
+| `ac2b9db` | quick start、operation boundaries、PseudoDriver 與 non-goals 文件 |
+
+已完成的非 privileged checks：
+
+- 所有 committed YAML 可解析；
+- default 與 renderer output 都通過同一套 config checker；
+- 16 個 `components.lock.yaml` revisions 與 parent gitlinks 一致，submodule clean；
+- PyAnLF-A/B 與 PyMTLF-A/B/C native config 通過各自 `load_settings()`；
+- consumer 以 synthetic NRF profiles 驗證 TAI A/B distinct-NF selection；
+- shell／Python syntax 與 Vagrant 2.4.3 `validate --ignore-provider` 通過。
+
+UPF 固定在 remote 可取得且包含 PseudoDriver 的
+`test-EES-with-pseudodriver@9a4d95c`；`gtp5g` 因該 UPF 的版本檢查固定
+`v0.9.16@8d723c2`。先前 full-core 紀錄中的 go-upf `c69051b` 是無法從 remote
+取得的 local commit，因此目前只可稱為可重建的新基線，不可宣稱已等價重現舊 E2E。
+
+2026-08-06 preflight 當下 storage 約 176 GiB free，通過 120 GiB threshold；available
+RAM 約 20,026 MiB，低於 16,384 MiB guests 加 4,096 MiB host reserve，且 swap 幾乎用盡，
+因此正確阻擋 `vm-up`。在釋放 host memory、選定並驗證 provider 前，不進入新 VM 建立。
