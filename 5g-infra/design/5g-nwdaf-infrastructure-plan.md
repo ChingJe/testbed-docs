@@ -288,20 +288,40 @@ bridge、provider-specific storage expectation 或 lab gateway，且必須通過
 
 ### 8.3 初始資源預算
 
-資源配置先作為量測起點，不作固定承諾：
+資源配置以目前 full-core scenario 的實際併發度作為基線，不作 capacity benchmark
+承諾：
 
-| VM | 初始 RAM | 初始 vCPU | 動態磁碟上限 |
+| VM | Compact RAM | vCPU | 動態磁碟上限 |
 | --- | ---: | ---: | ---: |
-| `core` | 6 GiB | 6 | 35 GiB |
-| `path-a` | 5 GiB | 4 | 25 GiB |
-| `path-b` | 5 GiB | 4 | 25 GiB |
-| 合計 | 16 GiB | 14 | 85 GiB |
+| `core` | 5 GiB | 4 | 20 GiB |
+| `path-a` | 3.5 GiB | 3 | 25 GiB |
+| `path-b` | 3.5 GiB | 3 | 25 GiB |
+| 合計 | 12 GiB | 10 | 70 GiB |
 
-正式建立 VM 前必須重新量測 host available RAM、swap、free disk 與現有 VM 使用量。
-動態磁碟上限不等於立即占用，但現有約 56 GiB free space 沒有足夠安全餘裕同時保存
-舊 VM、guest build cache 與新三 VM。已決定在新 VM 建立前先完成舊 local VM 的保存
-與清理；若新舊 VM 位於同一 filesystem，清理後的暫定目標是至少 120 GiB free space，
-最終 threshold 仍由 provider location、動態 disk policy 與 preflight 計算。
+這個計算利用現行 scenario 的限制：六個 UE、每 path 僅一個 FL client training job、
+C 僅一個 active FL server process、30 秒 sampling、30 個 input window，以及約
+0.4 MiB 的 seed model。舊 Daisy client leak 曾在 3.8 GiB VM 中累積 2.7 GiB RSS，
+但它不在新版 PyMTLF architecture；不能把該 leak 的記憶體需求帶入新基線。
+
+Core 的 5 GiB 包含 full control plane、MongoDB、ADRF、NWDAF-C 與 PyMTLF-C；
+兩條 Path 的 3.5 GiB 分別包含 UPF、gNB、三個 UE、NWDAF、PyAnLF 和 PyMTLF。
+MongoDB WiredTiger cache 固定為 256 MiB，Python service 的 BLAS/OpenMP threads
+固定為一條，PyMTLF client `max_concurrent_jobs` 固定為一，因此配置不是單靠
+「閒置時看起來能跑」的猜測。
+
+磁碟方面，Core 的 20 GiB 足以容納 Ubuntu、toolchain、MongoDB、Go build 與一個
+PyMTLF environment。兩條 Path 暫時不能低於 25 GiB：雖然 ML config 僅允許 CPU
+training，目前 PyAnLF 與 PyMTLF 的 Linux lock 仍分別會下載約 3.8 GiB、2.8 GiB
+的 PyTorch/CUDA package set；同一 Path 的最低 compressed dependency footprint
+約 6.8 GiB，實際解壓後會更大。guest provisioning 不保留 `uv` download cache，
+並把 model artifact 限為 32 MiB compressed／128 MiB extracted，以減少穩態占用。
+CPU-only lock 必須在 PyAnLF／PyMTLF source repositories 個別完成、驗證並更新
+gitlink 後，才可重新估算 Path disk 至較小值。
+
+正式建立 VM 前仍必須量測 host available RAM、swap、free disk 與現有 VM 使用量。
+`testbed.yaml` 將 6 GiB RAM 保留給實體機、要求至少 1 GiB free swap 與 120 GiB
+workspace free space。動態磁碟上限不等於立即占用，但 70 GiB ceiling 加上
+provider metadata、box image 與暫存下載仍不適合在磁碟壓力下啟動。
 
 清理不等於直接刪目錄。執行前必須先確認每台舊 VM 的 Vagrant project、provider name、
 UUID、storage path、disk/snapshot size 與 state，保存 guest-only config／script／data／log
