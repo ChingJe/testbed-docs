@@ -11,6 +11,7 @@
 
 - [5G_NWDAF_Infrastructure 建置與遷移計畫](5g-infra/design/5g-nwdaf-infrastructure-plan.md)
 - [舊環境 local network settings inventory](5g-infra/reports/local-network-settings-inventory-2026-08-05.md)
+- [舊 VM inventory 與 removal report](5g-infra/reports/legacy-vm-inventory-and-removal-proposal-2026-08-06.md)
 
 ## 結構
 
