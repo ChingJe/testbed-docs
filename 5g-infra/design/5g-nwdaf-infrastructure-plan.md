@@ -413,9 +413,22 @@ Host 另需承擔五個 container、共享 PyTorch/CUDA image layers 和 CPU-sid
 Preflight 暫以 VM 10 GiB 加 Host/ML 6 GiB available RAM 作為自動啟動門檻，並另外回報
 Docker data-root free space；container RSS 不是在啟動 VM 時一次預留完，但 training 時會
 按實際 workload 成長。GPU preflight 必須確認 RTX 3080、R535 driver、Docker 與 NVIDIA
-Container Toolkit；Host 不需要安裝完整 CUDA toolkit，image 使用 PyTorch 2.5.1 的 CUDA
-12.1 runtime。A/B 同時 training 的 VRAM peak、OOM 行為與 sequential fallback 必須在長時間
-運行前完成 bounded smoke。
+Container Toolkit CDI support；Host 不需要安裝完整 CUDA toolkit，image 使用 PyTorch 2.5.1
+的 CUDA 12.1 runtime。第一版採既有 rootful Docker daemon 加原生 CDI device request：Host
+安裝 `nvidia-container-toolkit-base` 並產生 `/var/run/cdi/nvidia.yaml`，Compose 以
+`devices: ["nvidia.com/gpu=all"]` 交付 GPU，不註冊 `nvidia` runtime、不修改 Docker
+`default-runtime`，也不把共用 Docker daemon restart 當成正常安裝步驟。安裝後必須先以
+`nvidia-ctk cdi list` 和 disposable container probe 證明目前 Docker／Compose 可解析 CDI，
+才允許啟動 production project。A/B 同時 training 的 VRAM peak、OOM 行為與 sequential
+fallback 必須在長時間運行前完成 bounded smoke。
+
+此 Host 的 system Docker 為多人共用且 `live-restore=false`；2026-08-09 清點時有八個
+running containers，完整 daemon restart 會中斷其他使用者，且部分 service 沒有自動 restart
+policy。因此 CDI probe 失敗時不得由 automation 改寫 `/etc/docker/daemon.json` 或 restart
+daemon；先停止本 testbed 的 GPU activation，再另行評估 daemon reload、維護窗口或專用
+rootless Docker。Rootless daemon 只作 fallback：目前 Host 使用 cgroup v1，無法假設
+rootless mode 能落實 Compose 的 CPU／RAM limits，而且會建立獨立 image/data store 並增加
+networking 驗證與磁碟占用。
 
 正式建立 VM 前仍必須量測 host available RAM、swap、free disk、Docker image/cache 與
 現有 workload。沒有 swap 不代表必然失敗，但 shared Host 在瞬時壓力下會更快進入 OOM
@@ -944,7 +957,9 @@ source commit、lock hash、base image digest 與 final image digest。
 
 PyAnLF／PyMTLF image 可以具備 CUDA runtime，但 device 是否交給 container 由 Compose
 service 設定。這讓 PyAnLF 預設 CPU、PyMTLF-A/B 使用 GPU、PyMTLF-C 使用 CPU，而不需要
-為 CPU/GPU placement 維護不同 source branch 或修改 lockfile。
+為 CPU/GPU placement 維護不同 source branch 或修改 lockfile。Production Compose 的 GPU
+宣告改用 CDI `devices`；CPU smoke override 必須清除同一欄位，不能同時保留舊 `gpus:` 與
+CDI request。
 
 ### 10.4 Operations
 
@@ -1385,8 +1400,9 @@ Deliverables：
 - 一個 `compose.yaml` 定義五個獨立 service，不把多個 process 塞進同一 container；
 - PyAnLF-A/B 預設 CPU、PyMTLF-A/B 使用 `cuda:0`、PyMTLF-C 使用 CPU 的 explicit device
   placement；
-- Docker／NVIDIA Container Toolkit／driver preflight；toolkit installation 是另行授權的
-  Host prerequisite，不由一般 bring-up script 自動修改系統；
+- Docker／driver／CDI preflight；`nvidia-container-toolkit-base` installation 是另行授權的
+  Host prerequisite，不由一般 bring-up script 自動修改系統；完成後驗證 CDI inventory、
+  disposable GPU probe 與 Compose device resolution，不修改 shared daemon runtime config；
 - Host published endpoints、VM-to-Host reachability、read-only config mount、health、source／
   lock／image identity 與 bounded log rotation；
 - `ml-start`／`ml-status`／`ml-stop`，並讓 `observe`／`logs` 同時涵蓋 guest 與 container；
@@ -1492,6 +1508,8 @@ state 或舊 VM process 偶然使 scenario 通過。
 - 舊 local VM 已依使用者授權永久移除，舊 source repository 保留；
 - 第一版採三台 network VM 加五個 Host ML containers，不採全 VM 或第四台 GPU VM；
 - PyAnLF-A/B 預設 CPU、PyMTLF-A/B 使用單張 RTX 3080、PyMTLF-C 使用 CPU；
+- GPU activation 採既有 rootful Docker 加 NVIDIA CDI；不另建 rootless daemon、不註冊
+  Docker `nvidia` runtime，也不以 restart 共用 daemon 作為正常流程；
 - consumer 第一版仍為 Core VM 的單一 process，未來可另案 containerize；
 - `nwdaf-resources` 不成為 submodule/runtime dependency；certificate、TLS、OAuth 暫不支援。
 
@@ -1500,8 +1518,9 @@ state 或舊 VM process 偶然使 scenario 通過。
 1. 已將 Host SBI public candidate 固定為 `192.168.57.1`，並確認五個 published ports
    目前無 listener；provider 建立 host-only network 後仍須驗證 exact interface、三台 VM
    的雙向 route 與 firewall；
-2. NVIDIA Container Toolkit 的安裝時機與 host mutation 授權；R535 driver 不因 CUDA 12.1
-   image 而先行升級；
+2. `nvidia-container-toolkit-base` 的安裝時機與 host mutation 授權；安裝後 CDI probe 是否
+   可在 Docker 27.4.1／Compose 2.32.1 直接通過；R535 driver 不因 CUDA 12.1 image 而先行
+   升級；
 3. A/B PyMTLF 同時 training 的實測 VRAM 是否低於 10 GiB，以及超限時採 sequential queue
    或 fail-fast；
 4. VirtualBox 已是第一個 provider candidate；仍須完成 Vagrant host-only network 與三台
@@ -1532,8 +1551,10 @@ gitlink／component lock 更新已完成。
    bounded CPU-only config/health smoke；smoke 只清除自身 containers／volumes 並保留 images；
 3. 已完成 `ml-start`／`ml-status`／`ml-stop`、project-scoped rollback/retention，以及
    observe/log integration；bounded CPU lifecycle smoke 已驗證 start/status/log/stop；
-4. 取得 Host prerequisite 授權後安裝／設定 NVIDIA Container Toolkit，執行 single-GPU 與
-   dual-client VRAM smoke；此步可延至 CPU full-stack smoke 後，不阻擋前三步；
+4. 取得 Host prerequisite 授權後安裝 `nvidia-container-toolkit-base`、產生並驗證 CDI spec，
+   將 production Compose 從 `gpus:` 遷移到 CDI `devices`；先通過 disposable probe，再執行
+   single-GPU 與 dual-client VRAM smoke。此步不修改／restart shared Docker daemon，可延至
+   CPU full-stack smoke 後，不阻擋前三步；
 5. 依 ML 與 PseudoDriver 的實測 peak 更新 Host／Path 資源 budget，再移除 guest
    PyAnLF／PyMTLF provisioning、systemd 與舊 endpoint assumptions；
 6. 選定 provider，建立三台 VM 並依 Core、Path、ML、subscription、PseudoDriver E2E
@@ -1702,3 +1723,31 @@ PyAnLF 啟動同時回報 callback ingestion default 的高理論 memory bound�
 limit，但正式 callback burst 仍可能造成 container-local OOM 或 drop-oldest。這次不在缺乏
 traffic peak evidence 時改變 queue semantics；GPU/full-stack smoke 前須量測實際 payload、
 queue depth、drop counter 與 peak RSS，再決定 capacity／request limit 或提高 container RAM。
+
+### 16.7 2026-08-09 Shared Docker GPU activation 決策
+
+唯讀 Host audit 確認 RTX 3080／R535 driver 正常，Docker 27.4.1、Compose 2.32.1 可用，但
+尚未安裝 `nvidia-ctk`／NVIDIA container runtime，也沒有 CDI spec。共用 Docker 當時有八個
+running containers 且 `live-restore=false`；其中部分使用 `restart: no`，因此不能把 daemon
+restart 視為不影響他人的一般 prerequisite step。
+
+第一版改採既有 rootful Docker 的 native CDI support。另行取得 Host package mutation 授權後，
+只安裝 CDI 所需的 `nvidia-container-toolkit-base`，確認自動或手動產生的
+`/var/run/cdi/nvidia.yaml`，再依序執行：
+
+1. `nvidia-ctk cdi list` 應列出 RTX 3080 device；
+2. 不改 `/etc/docker/daemon.json`，以 disposable container 的 CDI `--device` 執行
+   `nvidia-smi`；
+3. 將 production Compose 的 PyMTLF-A/B 從 `gpus:` 改成
+   `devices: ["nvidia.com/gpu=all"]`，同步更新 static checker、CPU override 與 lifecycle
+   CUDA probe；
+4. 驗證現有八個 containers 的 ID、start time 與 state 未因安裝／probe 改變；
+5. 依序量測 PyMTLF-A、PyMTLF-B 與 A/B 同時 training 的 peak VRAM；外部 GPU workload
+   可以共存，但必須記錄其 baseline usage 與避免把 slowdown 誤判為本 testbed failure。
+
+任何 CDI inventory、Docker device resolution 或 container CUDA probe 失敗，都應 fail closed，
+不得自動改採 legacy runtime configuration 或 restart shared daemon。專用 rootless Docker 只作
+第二順位 fallback；audit 顯示 rootless scripts、user namespace 與 subordinate IDs 已具備，
+但仍缺 `uidmap`，且 Host 的 cgroup version 是 v1。即使補齊 package，仍不能依賴 rootless
+daemon 落實目前 Compose 的 CPU／RAM limits，並會重複 image store、增加固定 Host SBI port
+與 VM reachability 的網路驗證，因此不作預設部署路徑。
