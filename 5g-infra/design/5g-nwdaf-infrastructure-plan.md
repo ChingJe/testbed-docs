@@ -1,9 +1,12 @@
 # `5G_NWDAF_Infrastructure` 建置與遷移計畫
 
-日期：2026-08-05
+建立日期：2026-08-05
+最近更新：2026-08-09
 
-狀態：本機 infrastructure baseline 已實作；尚未建立 remote、選定可用 provider、建立新 VM
-或完成 privileged full-scenario E2E
+狀態：本機 infrastructure baseline 已實作；PyAnLF／PyMTLF 的可設定 GPU 支援已完成並
+推送 component branch。部署設計已調整為三台 VM 加 Host Docker ML services；尚未實作
+container orchestration、建立 remote、選定可用 provider、建立新 VM 或完成 privileged
+full-scenario E2E。
 
 ## 1. 目的
 
@@ -26,7 +29,7 @@ federated-learning closed loop：
 
 - 新 integration repository 的責任與目錄；
 - component submodule 與版本固定策略；
-- 三台精簡 VM 的角色與網路邊界；
+- 三台精簡 VM 與 Host ML containers 的角色、資源及網路邊界；
 - component config、testbed topology 與本機 override 邊界；
 - host orchestration 與 guest setup／build／service lifecycle；
 - 從舊 testbed 遷移並最終退場的安全條件。
@@ -45,8 +48,9 @@ federated-learning closed loop：
 - Vagrant provisioning、`setup.sh`、guest source tree 與 runtime state 共同決定
   最終狀態，重建邊界不清楚；
 - 舊雙 path profile 的兩個 gNB 都使用同一 TAC，不等於新版 two-TAI scenario；
-- host 目前只剩約 56 GiB 可用磁碟、swap 幾乎用滿，且 VirtualBox kernel driver
-  尚不可用，不適合直接複製舊 VM 方式重建。
+- 盤點初期 host 只剩約 56 GiB 可用磁碟、swap 幾乎用滿，且 VirtualBox kernel driver
+  不可用；舊 VM 清除後雖已回收空間，共用主機的 RAM、disk 與 provider 狀態仍會變動，
+  每次新建或長時間運行前都必須重新 preflight。
 
 舊環境仍保有不可遺失的 site-specific 資訊。其 host interface、bridge、IP、route、
 VM NIC、MongoDB 與舊 topology 已另行保存於
@@ -69,13 +73,19 @@ VM NIC、MongoDB 與舊 topology 已另行保存於
    main 預設啟動就宣稱支援。
 7. **不內嵌 `nwdaf-resources`**：它保留為獨立開發／回歸 repository，不成為新
    infrastructure 的 submodule 或執行前置；只在確認 ownership 後移植必要小工具。
-8. **generated state 與 source 分離**：VM disk、binary cache、Python environment、
-   MongoDB、ADRF data、log 與 pcap 都不是 submodule。
+8. **generated state 與 source 分離**：VM disk、container image/layer、binary cache、Python
+   environment、MongoDB、ADRF data、log 與 pcap 都不是 submodule。
 9. **第一版不支援憑證**：不提供 certificate、TLS 或 OAuth 管理；環境明確限定
    在隔離實驗網路以 HTTP 執行，不暗示 production security readiness。
 10. **先保存、再清理舊 VM**：由於本機空間不足，新 VM 建立前先盤點、備份並在使用者
     確認 exact targets 後移除舊 local VM；舊 `5G_Infrastructure` repository、本地腳本
     與 migration inventory 仍保留到新環境通過 fresh-clone E2E。
+11. **分離 execution lifecycle**：VM power、guest 5GC／Go services、Host ML containers、
+    NWDAF subscriptions 與 traffic/degradation action 分別啟停；任何一層都不隱含重建或
+    停止其他層。
+12. **GPU 留在 Host**：Python ML backend 以 Docker 使用實體機 GPU，不把 CUDA runtime
+    和 NVIDIA device passthrough 塞入一般 Vagrant guest；CPU/GPU device selection 仍由
+    component config 控制，不寫死在程式碼。
 
 ## 4. Repository 責任與邊界
 
@@ -83,9 +93,10 @@ VM NIC、MongoDB 與舊 topology 已另行保存於
 
 - component revision 組合；
 - build orchestration 與 artifact identity；
-- VM topology、network 與 single-project Vagrant orchestration；
-- host-side preflight／start／stop／status；
-- guest-side OS setup、role-local build、network 與 service lifecycle；
+- VM topology、network、single-project Vagrant orchestration 與 Host container placement；
+- host-side preflight、VM／service／container／subscription start／stop／status；
+- guest-side OS setup、role-local non-ML build、network 與 service lifecycle；
+- PyAnLF／PyMTLF image build、GPU runtime gate 與 Host-to-VM endpoint wiring；
 - component config 與本機 testbed override；
 - public quick start 與後續 E2E bring-up。
 
@@ -122,6 +133,9 @@ VM NIC、MongoDB 與舊 topology 已另行保存於
 ├── ML/
 │   ├── PyAnLF/
 │   └── PyMTLF/
+├── containers/
+│   └── ml/                   # 共用 CUDA base/layer 與 PyAnLF/PyMTLF image targets
+├── compose.yaml              # 五個 ML service；不管理 VM 或 guest NF
 ├── RAN/
 │   └── UERANSIM/
 ├── kernel/
@@ -156,6 +170,9 @@ VM NIC、MongoDB 與舊 topology 已另行保存於
 │   │   ├── services-start.sh
 │   │   ├── services-stop.sh
 │   │   ├── services-status.sh
+│   │   ├── ml-start.sh
+│   │   ├── ml-stop.sh
+│   │   ├── ml-status.sh
 │   │   ├── subscriptions-start.sh
 │   │   ├── subscriptions-stop.sh
 │   │   ├── subscriptions-status.sh
@@ -185,7 +202,10 @@ VM NIC、MongoDB 與舊 topology 已另行保存於
   的 committed baseline，`generated/`／`local/` 不作為 source history；
 - `tools/nwdaf-consumer/` 是 infrastructure-owned 實驗控制工具，不是 NF submodule，也不從
   `nwdaf-resources` 整包帶入；
-- `scripts/host/` 在實體機協調 Vagrant，`scripts/guest/` 由 Vagrant 在 VM 內執行；
+- `containers/`／`compose.yaml` 只定義 Host 上的 ML runtime；PyAnLF 與 PyMTLF 使用兩種
+  image target，五個長時間 service 各自一個 container，不把多個 daemon 綁進同一個
+  container；
+- `scripts/host/` 在實體機協調 Vagrant 與 Docker，`scripts/guest/` 由 Vagrant 在 VM 內執行；
 - 第一版不先建立空的 `tests/`、泛用 `fixtures/` 或頂層 `patches/`；有實際驗證程式
   或相容 patch 時再放到最接近 owner 的位置；
 - 不建立泛用 `resources/`，不嵌入 `free5gc-main/`，也不嵌入 `nwdaf-resources/`。
@@ -249,15 +269,30 @@ submodule 或讓預設 launcher 多啟動一個 process。
 6. 不用 submodule 保存 generated config、model artifact、MongoDB data、VM disk、venv、
    Go cache、log、pcap 或 evidence。
 
-## 8. 三 VM Compact Topology
+## 8. 三 VM 加 Host ML Containers 的 Compact Topology
 
 ### 8.1 角色分配
 
 | VM | 主要元件 | 邊界 |
 | --- | --- | --- |
-| `core` | NRF、AMF、SMF、UDR、UDM、AUSF、NSSF、PCF、NWDAF-C、PyMTLF-C、ADRF、MongoDB；optional webconsole | shared control、model owner、FL coordinator、persistent services |
-| `path-a` | UPF-A、gNB-A、UE1–3、NWDAF-A、PyAnLF-A、PyMTLF-A | TAI `000001` analytics／FL client path |
-| `path-b` | UPF-B、gNB-B、UE4–6、NWDAF-B、PyAnLF-B、PyMTLF-B | TAI `000002` analytics／FL client path |
+| `core` | NRF、AMF、SMF、UDR、UDM、AUSF、NSSF、PCF、NWDAF-C、ADRF、MongoDB；optional webconsole | shared control、model owner／FL coordinator 的 Go NF、persistent services |
+| `path-a` | UPF-A、gNB-A、UE1–3、NWDAF-A | TAI `000001` network、analytics／FL client 的 Go NF |
+| `path-b` | UPF-B、gNB-B、UE4–6、NWDAF-B | TAI `000002` network、analytics／FL client 的 Go NF |
+
+Python ML backend 改在實體 Host 以五個獨立 container 執行，但只建置兩種 image：
+
+| Container | Image 類型 | Device default | 角色 |
+| --- | --- | --- | --- |
+| `pyanlf-a` | PyAnLF | CPU，可設定 `cuda:0` | Path A inference、collection、accuracy |
+| `pymtlf-a` | PyMTLF | `cuda:0` | Path A FL Client |
+| `pyanlf-b` | PyAnLF | CPU，可設定 `cuda:0` | Path B inference、collection、accuracy |
+| `pymtlf-b` | PyMTLF | `cuda:0` | Path B FL Client |
+| `pymtlf-c` | PyMTLF | CPU | FL Server、sample-count-weighted FedAvg 與 model serialization |
+
+每個 container 只執行一個長時間 process，不把 PyAnLF、PyMTLF 或多個角色包成單一
+supervisor container。PyAnLF 預設使用 CPU，是為兩個 PyMTLF client 保留 RTX 3080 的
+10 GiB VRAM；是否能讓 A/B training 同時使用 GPU，必須由實機 VRAM smoke 決定，不能只
+根據單一 process 測試推論。
 
 初始 logical mapping 延續已驗證 scenario：
 
@@ -269,12 +304,41 @@ submodule 或讓預設 launcher 多啟動一個 process。
 - 同一 Internal Group 的六個 UE 分散在兩個 TAI；
 - A 可切換到 degraded traffic profile，B 保持 stable control profile。
 
-### 8.2 Network planes
+### 8.2 為什麼不繼續採用全 VM
+
+5GC、UPF、UERANSIM 與 Go NWDAF 仍留在 VM，因為它們需要清楚的 kernel、network plane、
+TAI 與 failure boundary；Python ML backend 移到 Host container，則是本機只有一張 RTX
+3080 所造成的實際部署選擇，不是因為 container 比 VM 更像 3GPP NF。
+
+一般 KVM／VirtualBox guest 不能像 container 一樣自然共用同一張實體 GPU。PCI
+passthrough 通常把整張 GPU 專屬交給一台 VM；交給 `path-a` 後，Host 與 `path-b` 便不能
+同時正常使用。RTX 3080 也不應假設具有可供兩台一般 VM 分割使用的 NVIDIA vGPU 能力，
+更不能把相應硬體、driver 與授權要求當作公開 testbed 的預設前置。
+
+新增第四台「GPU VM」雖可在該 VM 內啟動五個 ML process，但仍有以下問題：
+
+- GPU 被整台 guest 獨占，增加 passthrough、IOMMU、driver 與 provider 相依性；
+- 多出一份 Ubuntu、virtual disk、RAM 與 CUDA runtime 開銷；
+- ML backend 最終仍不在 `path-a`／`path-b` guest，並未比 Host containers 更忠實地保留
+  logical A/B placement；
+- PyAnLF／PyMTLF process、config、health 與 log 仍需分別管理，將它們放進同一 VM 不會
+  消除 service orchestration 問題。
+
+Host containers 可在保留五個獨立 service identity 的同時共享同一 NVIDIA driver、CUDA
+runtime image layers 與 GPU，且不在兩台 Path disk 重複安裝數 GiB 的 Python/CUDA
+dependencies。代價是必須明確驗證 Host-to-VM route、published ports、firewall 與 endpoint
+advertisement；這些設定納入 topology/config preflight，不靠 Docker 動態 container IP。
+
+若未來有至少兩張可分別 passthrough 的 GPU，或正式目標改為完全 CPU-only，才重新評估
+全 VM placement。以目前單張 RTX 3080、兩個 FL client 都需 GPU 的條件，三台 network VM
+加五個 Host ML containers 是第一版部署基線。
+
+### 8.3 Network planes
 
 第一版 topology 至少明確區分：
 
 - management/provisioning：Vagrant SSH、artifact deployment、health collection；
-- SBI/service：core NF、NWDAF、ML backend、ADRF、MongoDB 與 callback；
+- SBI/service：core NF、NWDAF、Host ML published endpoint、ADRF、MongoDB 與 callback；
 - N2：兩個 gNB 到 AMF；
 - N3-A／N3-B：各 gNB 到對應 UPF；
 - N4：SMF 到兩個 UPF；
@@ -286,42 +350,76 @@ plane bridge 到實驗室實體 LAN。只有 gitignored `testbed.local.yaml` 可
 bridge、provider-specific storage expectation 或 lab gateway，且必須通過衝突檢查後
 才套用。
 
-### 8.3 初始資源預算
+五個 container 使用一般 Docker bridge network，對 VM 發布固定 Host port；Go NWDAF 與
+PyAnLF／PyMTLF config 只引用 stable Host SBI address 加 published port，不引用 Docker
+container IP。實體 Host 必須能到達三台 VM 的 SBI address，三台 VM 也必須能到達所選
+Host SBI address；exact interface、address、route 與 firewall rule 必須在建立 container
+前由 site inventory 和 provider smoke 確認。第一版不預設 `host` networking 或 macvlan。
+
+### 8.4 初始資源預算
 
 資源配置以目前 full-core scenario 的實際併發度作為基線，不作 capacity benchmark
 承諾：
 
-| VM | Compact RAM | vCPU | 動態磁碟上限 |
-| --- | ---: | ---: | ---: |
-| `core` | 5 GiB | 4 | 20 GiB |
-| `path-a` | 3.5 GiB | 3 | 25 GiB |
-| `path-b` | 3.5 GiB | 3 | 25 GiB |
-| 合計 | 12 GiB | 10 | 70 GiB |
+| VM | Compact RAM | vCPU | Primary logical capacity | 預期 guest 使用量 |
+| --- | ---: | ---: | ---: | ---: |
+| `core` | 4 GiB | 4 | 40 GiB | 約 20 GiB 內 |
+| `path-a` | 3 GiB | 3 | 40 GiB | 約 18 GiB 內 |
+| `path-b` | 3 GiB | 3 | 40 GiB | 約 18 GiB 內 |
+| 合計 | 10 GiB | 10 | 120 GiB logical | 約 56 GiB 內 |
 
-這個計算利用現行 scenario 的限制：六個 UE、每 path 僅一個 FL client training job、
-C 僅一個 active FL server process、30 秒 sampling、30 個 input window，以及約
-0.4 MiB 的 seed model。舊 Daisy client leak 曾在 3.8 GiB VM 中累積 2.7 GiB RSS，
-但它不在新版 PyMTLF architecture；不能把該 leak 的記憶體需求帶入新基線。
+這是把 Python environment 與 training/inference RSS 移出 guest 後的 provisional target，
+不是已由完整 VM E2E 證明的 minimum。Core 4 GiB 包含 full control plane、MongoDB、ADRF
+與 NWDAF-C；各 Path 3 GiB 包含 UPF、gNB、三個 UE 與 NWDAF。MongoDB WiredTiger cache
+仍先限制為 256 MiB。第一次 bring-up 必須記錄 idle、registration/PDU Session、analytics
+baseline 與 FL 各 stage 的 guest peak RSS；若發生 guest OOM、reclaim thrashing 或明顯
+latency，先以 512 MiB step 調整，不把偶然成功當作 sizing evidence。
 
-Core 的 5 GiB 包含 full control plane、MongoDB、ADRF、NWDAF-C 與 PyMTLF-C；
-兩條 Path 的 3.5 GiB 分別包含 UPF、gNB、三個 UE、NWDAF、PyAnLF 和 PyMTLF。
-MongoDB WiredTiger cache 固定為 256 MiB，Python service 的 BLAS/OpenMP threads
-固定為一條，PyMTLF client `max_concurrent_jobs` 固定為一，因此配置不是單靠
-「閒置時看起來能跑」的猜測。
+各 Path 的 3 GiB 也必須包含 go-upf PseudoDriver 的 dataset replay，不可只算 idle UPF。
+目前 pinned datasets 與直接 streaming probe 為：
 
-磁碟方面，Core 的 20 GiB 足以容納 Ubuntu、toolchain、MongoDB、Go build 與一個
-PyMTLF environment。兩條 Path 暫時不能低於 25 GiB：雖然 ML config 僅允許 CPU
-training，目前 PyAnLF 與 PyMTLF 的 Linux lock 仍分別會下載約 3.8 GiB、2.8 GiB
-的 PyTorch/CUDA package set；同一 Path 的最低 compressed dependency footprint
-約 6.8 GiB，實際解壓後會更大。guest provisioning 不保留 `uv` download cache，
-並把 model artifact 限為 32 MiB compressed／128 MiB extracted，以減少穩態占用。
-CPU-only lock 必須在 PyAnLF／PyMTLF source repositories 個別完成、驗證並更新
-gitlink 後，才可重新估算 Path disk 至較小值。
+| Path | Dataset | Compressed bytes | 實際掃描 rows | 單 context probe peak RSS |
+| --- | --- | ---: | ---: | ---: |
+| A | `pre_data/group1/training_packets_run001.parquet` | 21,830,425 | 2,720,063 | 約 22.9 MiB process RSS |
+| B | `pre_data/group2/training_packets_run001.parquet` | 44,050,349 | 5,759,921 | 約 22.7 MiB process RSS |
 
-正式建立 VM 前仍必須量測 host available RAM、swap、free disk 與現有 VM 使用量。
-`testbed.yaml` 將 6 GiB RAM 保留給實體機、要求至少 1 GiB free swap 與 120 GiB
-workspace free space。動態磁碟上限不等於立即占用，但 70 GiB ceiling 加上
-provider metadata、box image 與暫存下載仍不適合在磁碟壓力下啟動。
+目前 implementation 逐列掃描 Parquet 兩次，將資料聚合成 `(subscription, UE, window)` maps
+與 Phase 2 windows，不把數百萬筆 raw rows 全部常駐記憶體。因此上述 dataset 本身暫時
+不足以支持直接把 Path RAM 增加數 GiB；但 probe 只隔離 PseudoDriver algorithm，不包含
+完整 UPF、Parquet page cache、gtp5g、gNB、三個 UE、NWDAF、journald 或多 subscription
+fan-out，不能當成 VM peak。
+
+第一輪實機必須在 subscription warm-start 前保有至少 512 MiB guest `MemAvailable`，並以
+systemd memory accounting／VM metrics 記錄 UPF replay 前、scan/aggregation peak、Phase 2
+retained windows 與 replay 完成後的 RSS。未達 headroom、發生 OOM/reclaim thrashing，或
+dataset／subscription fan-out 超出 manifest 時，停止 E2E 並將該 Path 以 512 MiB step
+增加；不允許因 3 GiB target 而讓 kernel 強制 kill UPF 或其他 NF。
+
+VirtualBox/Bento 路線先把 40 GiB 視為每台 primary disk 的 logical floor。Vagrant
+`vm.disk ... primary: true` 是 primary disk expansion interface，不能把 base box disk
+縮小；若 box 本身為 40 GiB，設定 18／20 GiB 不會得到較小的 primary disk。三台因此是
+120 GiB logical capacity，但 VMDK/VDI 採 dynamic allocation，不會在建立時立刻實佔
+120 GiB。
+
+移除 guest PyAnLF／PyMTLF virtualenv 和 CUDA packages 後，Core 約 20 GiB、各 Path 約
+18 GiB 應視為 guest used space／Host backing-file allocation 的量測目標，而不是 virtual
+disk size。第一次 clean build 應記錄 base box、toolchain、source、artifact 與 journal
+各自占用。若真要把 logical disk 做到 40 GiB 以下，必須選用或自行建置較小的 base box，
+不能靠一般 Vagrant resize；在 dynamic disk 未實際膨脹時，這通常不值得增加維護成本。
+
+Host 另需承擔五個 container、共享 PyTorch/CUDA image layers 和 CPU-side tensor/data。
+Preflight 暫以 VM 10 GiB 加 Host/ML 6 GiB available RAM 作為自動啟動門檻，並另外回報
+Docker data-root free space；container RSS 不是在啟動 VM 時一次預留完，但 training 時會
+按實際 workload 成長。GPU preflight 必須確認 RTX 3080、R535 driver、Docker 與 NVIDIA
+Container Toolkit；Host 不需要安裝完整 CUDA toolkit，image 使用 PyTorch 2.5.1 的 CUDA
+12.1 runtime。A/B 同時 training 的 VRAM peak、OOM 行為與 sequential fallback 必須在長時間
+運行前完成 bounded smoke。
+
+正式建立 VM 前仍必須量測 host available RAM、swap、free disk、Docker image/cache 與
+現有 workload。沒有 swap 不代表必然失敗，但 shared Host 在瞬時壓力下會更快進入 OOM
+killer，因此 preflight 必須警告並禁止無人長時間運行；是否把 swap 設為 hard gate，應由
+本機政策另定，不在 deployment script 中自動建立或清除 swap。動態 disk ceiling 加上
+provider metadata、box image、container layers 與暫存下載仍不適合在磁碟壓力下啟動。
 
 清理不等於直接刪目錄。執行前必須先確認每台舊 VM 的 Vagrant project、provider name、
 UUID、storage path、disk/snapshot size 與 state，保存 guest-only config／script／data／log
@@ -329,12 +427,12 @@ UUID、storage path、disk/snapshot size 與 state，保存 guest-only config／
 使用者確認。預設優先由原 Vagrant project 執行 destroy；只有 Vagrant metadata 已失效
 時才考慮 provider-specific unregister/delete。不得以 broad path 或 glob 清除。
 
-Virtualization provider 尚未定案。VirtualBox 目前缺少可用 `/dev/vboxdrv`；在選擇
-Vagrant + VirtualBox、Vagrant + libvirt 或其他 provider 前，先做只影響 host
-prerequisite 的 feasibility check。Topology 與 config 不應綁死 provider-specific
-介面名稱。
+Virtualization provider 尚未定案；2026-08-06 baseline 當時 VirtualBox 缺少可用
+`/dev/vboxdrv`，實作前必須重新檢查而不能永久沿用該診斷。在選擇 Vagrant + VirtualBox、
+Vagrant + libvirt 或其他 provider 前，先做只影響 Host prerequisite 的 feasibility check。
+Topology 與 config 不應綁死 provider-specific 介面名稱。
 
-### 8.4 單一 multi-machine Vagrant project
+### 8.5 單一 multi-machine Vagrant project
 
 Root `Vagrantfile` 在同一個 project 內定義三個 named machines：
 
@@ -372,8 +470,9 @@ folder。任何 global storage 變更都屬於獨立 host setup，必須先確�
 ### 9.1 `config/default/`：可直接執行的 baseline
 
 `config/default/` 保存 component 真正讀取的完整 native config，延續 free5GC-style
-flat filenames；只有 UERANSIM 等本來就適合分組的檔案使用子目錄。Guest scripts 再依
-placement 將同一 config set 的適當檔案交給 Core、Path A、Path B。內容涵蓋：
+flat filenames；只有 UERANSIM 等本來就適合分組的檔案使用子目錄。Host orchestration
+再依 placement 將同一 config set 的適當檔案交給 Core、Path A、Path B 與五個 Host
+containers。內容涵蓋：
 
 - free5GC core NF、UPF-A/B 與 `uerouting`；
 - NWDAF-A/B/C、ADRF、PyAnLF、PyMTLF 與 optional webconsole；
@@ -438,7 +537,7 @@ Root `testbed.yaml` 是 public default topology definition，描述：
 
 - `core`、`path-a`、`path-b` 的 RAM、vCPU 與 disk budget；
 - management、SBI、N2、N3-A/B、N4、N6-A/B network；
-- component 到 VM 的 placement；
+- component 到 VM／Host container 的 placement，以及 Host published ML endpoints；
 - PLMN、S-NSSAI、DNN、TAI、UPF／UE pools 與生成 component config 所需的 network
   identity；
 - Vagrant/provider-neutral defaults 與 two-TAI／two-UPF reachability。
@@ -449,7 +548,8 @@ Makefile 的 explicit `TESTBED=<path>` 選用；同一個 definition 同時交�
 
 `testbed.local.example.yaml` 說明可覆寫欄位；`testbed.local.yaml` gitignored，只保存
 physical host／provider 差異與 active `configDir`，例如 VirtualBox/libvirt、physical
-bridge/interface、expected VM storage、host port forwarding 與 optional outbound gateway。
+bridge/interface、expected VM／Docker storage、Host SBI publish address、host port forwarding
+與 optional outbound gateway。
 Local override 不直接改變 TAI、UE identity、NWDAF ownership 或 FL assertion；這些語意
 變更必須放進 explicit topology definition 和完整 config set。
 
@@ -470,12 +570,17 @@ guest:
   os: ubuntu
   release: "24.04"
 
+hostSafety:
+  reserveMemoryMiB: 6144
+  swapPolicy: warn
+  minimumFreeStorageGiB: 120
+
 machines:
   core:
     resources:
-      memoryMiB: 6144
-      cpus: 6
-      diskGiB: 35
+      memoryMiB: 4096
+      cpus: 4
+      diskGiB: 40
     interfaces:
       management: 192.168.56.10
       sbi: 192.168.57.2
@@ -484,9 +589,9 @@ machines:
 
   path-a:
     resources:
-      memoryMiB: 5120
-      cpus: 4
-      diskGiB: 25
+      memoryMiB: 3072
+      cpus: 3
+      diskGiB: 40
     interfaces:
       management: 192.168.56.11
       sbi: 192.168.57.3
@@ -497,9 +602,9 @@ machines:
 
   path-b:
     resources:
-      memoryMiB: 5120
-      cpus: 4
-      diskGiB: 25
+      memoryMiB: 3072
+      cpus: 3
+      diskGiB: 40
     interfaces:
       management: 192.168.56.12
       sbi: 192.168.57.4
@@ -559,10 +664,21 @@ placement:
     - mongodb
     - adrf
     - nwdaf-c
-    - pymtlf-c
     - nwdaf-consumer
-  path-a: [upf-a, gnb-a, ue1, ue2, ue3, nwdaf-a, pyanlf-a, pymtlf-a]
-  path-b: [upf-b, gnb-b, ue4, ue5, ue6, nwdaf-b, pyanlf-b, pymtlf-b]
+  path-a: [upf-a, gnb-a, ue1, ue2, ue3, nwdaf-a]
+  path-b: [upf-b, gnb-b, ue4, ue5, ue6, nwdaf-b]
+  host-containers: [pyanlf-a, pymtlf-a, pyanlf-b, pymtlf-b, pymtlf-c]
+
+mlRuntime:
+  engine: docker-compose-v2
+  network: bridge
+  publishAddress: 192.168.57.1  # public default candidate; Phase 4 must verify
+  services:
+    pyanlf-a: {image: pyanlf, publishedPort: 9093, containerPort: 9093, device: cpu}
+    pyanlf-b: {image: pyanlf, publishedPort: 9094, containerPort: 9093, device: cpu}
+    pymtlf-a: {image: pymtlf, publishedPort: 9092, containerPort: 9092, device: "cuda:0"}
+    pymtlf-b: {image: pymtlf, publishedPort: 9091, containerPort: 9092, device: "cuda:0"}
+    pymtlf-c: {image: pymtlf, publishedPort: 9292, containerPort: 9292, device: cpu}
 
 coreServices:
   nrf:
@@ -603,6 +719,12 @@ paths:
       eventExposure: {network: sbi, address: 192.168.57.40, port: 8088}
       gtpInterface: upfgtp-a
       uePool: 10.60.0.0/16
+      pseudoDriver:
+        datasetProfile: group1
+        sha256: d9e2772de8529870e272f44a3bc02863e8831d9c90d51eb0b33961eb28a29030
+        bytes: 21830425
+        rows: 2720063
+        minimumReplayHeadroomMiB: 512
     ues:
       - imsi-466920000000001
       - imsi-466920000000002
@@ -621,6 +743,12 @@ paths:
       eventExposure: {network: sbi, address: 192.168.57.50, port: 8088}
       gtpInterface: upfgtp-b
       uePool: 10.61.0.0/16
+      pseudoDriver:
+        datasetProfile: group2
+        sha256: b8482a21f3370de491a67fa1f9908e1b8b3aec7671787bbbdb0d9287680b662e
+        bytes: 44050349
+        rows: 5759921
+        minimumReplayHeadroomMiB: 512
     ues:
       - imsi-466920000000004
       - imsi-466920000000005
@@ -646,11 +774,11 @@ analytics:
     role: fl-server
 
   backends:
-    pyanlf-a: {machine: path-a, address: 192.168.57.42, port: 9093}
-    pyanlf-b: {machine: path-b, address: 192.168.57.52, port: 9093}
-    pymtlf-a: {machine: path-a, address: 192.168.57.43, port: 9092}
-    pymtlf-b: {machine: path-b, address: 192.168.57.53, port: 9092}
-    pymtlf-c: {machine: core, address: 192.168.57.31, port: 9292}
+    pyanlf-a: {runtime: host-container, address: 192.168.57.1, port: 9093}
+    pyanlf-b: {runtime: host-container, address: 192.168.57.1, port: 9094}
+    pymtlf-a: {runtime: host-container, address: 192.168.57.1, port: 9092}
+    pymtlf-b: {runtime: host-container, address: 192.168.57.1, port: 9091}
+    pymtlf-c: {runtime: host-container, address: 192.168.57.1, port: 9292}
 
 consumer:
   machine: core
@@ -684,47 +812,64 @@ operations:
 這份 definition 的欄位只放跨 component／VM 的共同事實。像 NF retry interval、NWDAF
 model policy、PyAnLF window、PyMTLF training rounds 或 log level 等 component-owned 行為，
 仍保留在所選 `config/<set>/` 的 native config，不因 renderer 而全部搬進 `testbed.yaml`。
+範例中的 `192.168.57.1` 與 ML published ports 是 public default candidate，不是已確認的本機
+interface；Phase 4 必須先驗證 Host bind、VM route、port conflict 與 provider 行為。
+PseudoDriver metadata 則必須由實際 Parquet 產生並由 config checker 驗證 hash、bytes 與
+row count，避免換檔後仍沿用舊 RAM 判斷。現有 group2 `data.md` 記載的 row count 與直接
+掃描結果不一致，正式 bring-up 以 pinned file hash 和 machine-verified metadata 為準，並將
+該文件差異列為 component-owned follow-up。
 
 ### 9.5 第一版不管理 experiment history
 
 VM lifecycle 與單次 experiment 分開：三台 VM 可以 `up`／`start` 一次，再連續執行多次
 實驗。第一版不定義 run-id、`runs/`、`runtime/`、自動 log collection 或 archive schema。
-Log 與 service state 先留在各 guest，需要時以 `vagrant ssh`、`journalctl` 或 component
-自身工具查看。等 VM-aware experiment runner 的 ownership 和需求確定後，再獨立設計
-跨多次 experiment 的 identity、collection 與保存方式。
+Log 與 service state 留在各自 execution domain，需要時以 `vagrant ssh`／`journalctl` 或
+Docker logs 查看。等 VM/container-aware experiment runner 的 ownership 和需求確定後，再
+獨立設計跨多次 experiment 的 identity、collection 與保存方式。
 
 ## 10. Host／Guest Scripts 與 Build Lifecycle
 
 ### 10.1 Host scripts
 
-`scripts/host/` 在實體機執行，只協調 source identity、Vagrant、三台 VM，以及 service／
-subscription lifecycle，不編譯 guest component，也不在 Host 執行 consumer：
+`scripts/host/` 在實體機執行，協調 source identity、Vagrant、三台 VM、Docker ML services
+以及 guest service／subscription lifecycle；不在 Host 編譯 guest component，第一版也不把
+consumer 搬出 Core VM：
 
-- `preflight.sh`：唯讀檢查 provider、RAM、swap、VM storage free space、submodule、
-  testbed files、active config set、必要網段與 port，並呼叫 config checker；不修改 host
-  network 或建立 VM；
+- `preflight.sh`：唯讀檢查 provider、RAM、swap、VM／Docker storage free space、submodule、
+  testbed files、active config set、必要網段與 port；ML slice 另檢查 Docker、GPU driver、
+  NVIDIA Container Toolkit 與容器內 CUDA probe；PseudoDriver 檢查 dataset file、hash、bytes
+  與 row-count manifest，並呼叫 config checker；不安裝 toolkit、修改 host network 或建立 VM；
 - `config-render.py`：選用地由 default baseline 與 explicit topology definition 產生一組
   `config/generated/<name>/` native configs 和 manifest，不覆寫 committed/default files；
 - `config-check.py`：唯讀驗證 default／generated／local config set 的跨 component network、
   identity、placement、A/B mapping 與所選 testbed definition 一致；
 - `services-start.sh`：解析 effective `TESTBED`／`CONFIG_DIR`，先 check、stage、activate 完整
   config set，再依 dependency order 透過 Vagrant SSH／guest service interface 啟動 Core、
-  Path A 與 Path B 的 database、NF、RAN、NWDAF 與 ML process；
+  Path A 與 Path B 的 database、NF、RAN 與 Go NWDAF process；不隱含啟動 ML container；
 - `services-stop.sh`：停止 experiment stack service/process，不等於 `vagrant halt`，
   更不等於 destructive `vagrant destroy`；
-- `services-status.sh`：只彙整 core NF、UPF、gNB／UE、NWDAF／ML 與 database health；
+- `services-status.sh`：只彙整 core NF、UPF、gNB／UE、Go NWDAF 與 database health，並回報
+  Path `MemAvailable`、UPF memory accounting 與 PseudoDriver replay state；
   VM power state 另外由 `vagrant status` 或 `make vm-status` 回報；
+- `ml-start.sh`：驗證所選 config、Host-to-VM reachability、GPU runtime 與五個 endpoint，
+  再以 Compose 建置／啟動 `pyanlf-a`、`pymtlf-a`、`pyanlf-b`、`pymtlf-b`、`pymtlf-c`；
+- `ml-status.sh`：彙整 container state、application health、effective device、GPU visibility、
+  image/source identity 與 endpoint reachability；
+- `ml-stop.sh`：停止五個 ML containers，但不刪 image、volume、VM、guest process 或
+  subscription state；
 - `subscriptions-start.sh`：透過 Vagrant SSH 在 Core 啟動單一 consumer callback，確認
-  A/B callback reachability，要求 consumer 經 NRF discovery 找到兩個不同的 NWDAF，
-  建立兩筆 subscription；部分成功時負責 rollback；
+  A/B callback reachability 與兩台 Path 都具有 dataset manifest 要求的 replay headroom，
+  再要求 consumer 經 NRF discovery 找到兩個不同的 NWDAF 並建立兩筆 subscription；部分
+  成功時負責 rollback；
 - `subscriptions-status.sh`：彙整 Core consumer／callback 狀態、discovered A/B NF
   identities、兩筆 subscription identities 與最近 notification；
 - `subscriptions-stop.sh`：要求 Core consumer 依保存的 exact `Location` 退訂兩側，成功後
   停止 callback；失敗時保留可重試的 state，不等於停止 5GC services；
-- `observe.sh`：週期性顯示三台 VM、service health、discovered A/B、subscription 與最近
-  callback 的 compact terminal view，不解析完整 business log；
-- `logs.sh`：透過 Vagrant SSH 並行 follow 各 guest 的 journald，為每行加上 VM／unit
-  prefix，支援依 VM、service 與 since time 過濾；結束 follow 不停止任何 guest process。
+- `observe.sh`：週期性顯示三台 VM、guest service、ML container、GPU、discovered A/B、
+  subscription 與最近 callback 的 compact terminal view，不解析完整 business log；
+- `logs.sh`：並行 follow guest journald 與 `docker compose logs`，為每行加上 VM／unit 或
+  Host／container prefix，支援依來源、service 與 since time 過濾；結束 follow 不停止任何
+  process。
 
 Renderer／checker 在 Host 執行，因為它們在 VM 建立前決定 effective config set；guest
 只能接收已通過 check 的完整 config set，不在 VM 內自行組合或回寫設定。
@@ -738,10 +883,10 @@ Renderer／checker 在 Host 執行，因為它們在 VM 建立前決定 effectiv
 - `config-activate.sh`：驗證 staged config identity 與 guest role，在 services／consumer
   都停止時原子切換 `/etc/5g-nwdaf-infrastructure/active` symlink，不修改
   committed/shared source；
-- `core.sh`：Core 的 MongoDB、core NF、ADRF、NWDAF-C、PyMTLF-C 與 optional
+- `core.sh`：Core 的 MongoDB、core NF、ADRF、NWDAF-C 與 optional
   webconsole setup／build；
-- `path.sh A|B`：Path A/B 的 kernel headers、network、gtp5g、UPF、UERANSIM、NWDAF、
-  PyAnLF 與 PyMTLF setup／build。
+- `path.sh A|B`：Path A/B 的 kernel headers、network、gtp5g、UPF、UERANSIM 與 NWDAF
+  setup／build。
 
 概念流程：
 
@@ -755,15 +900,15 @@ Provisioning 與 deployment 仍是不同 lifecycle 語意，但不各占一個�
 內部以 idempotent setup／build／start／stop action 區分。Guest 不自行 clone branch、
 不編輯 submodule source，也不把 generated data copy 回 source tree。
 
-### 10.3 Guest-local build responsibility
+### 10.3 Guest 與 Host build responsibility
 
 Host 只將 parent 已固定的 clean source snapshot 與 config 交給對應 VM。三台 VM 分工：
 
 | VM | Guest-local 建置／環境 |
 | --- | --- |
-| `core` | NRF、AMF、SMF、UDR、UDM、AUSF、NSSF、PCF、NWDAF-C、ADRF、PyMTLF-C；optional webconsole |
-| `path-a` | gtp5g、UPF-A、UERANSIM、NWDAF-A、PyAnLF-A、PyMTLF-A |
-| `path-b` | gtp5g、UPF-B、UERANSIM、NWDAF-B、PyAnLF-B、PyMTLF-B |
+| `core` | NRF、AMF、SMF、UDR、UDM、AUSF、NSSF、PCF、NWDAF-C、ADRF；optional webconsole |
+| `path-a` | gtp5g、UPF-A、UERANSIM、NWDAF-A |
+| `path-b` | gtp5g、UPF-B、UERANSIM、NWDAF-B |
 
 UERANSIM 在 `path-a`／`path-b` 各編譯一次，產生各 VM 自己的 `nr-gnb`／`nr-ue`。
 這避免 host C++ toolchain、額外 builder 與 host/guest library compatibility 門檻；A/B
@@ -772,12 +917,21 @@ compiler/CMake 與 binary hash，可有 keyed local cache，但 cache miss 必�
 
 `gtp5g` 必須配合各 path guest kernel 建置。先測 pinned upstream 原版；只有實際 guest
 kernel 需要時，才把 reviewed patch 放在 `kernel/` 內靠近 gtp5g，不預先建立泛用
-`patches/`。Python component 以各自 lockfile 和 `uv sync --frozen` 建立 role-local
-environment。建置後可清除 apt、Go 與 compiler cache，以控制動態磁碟占用。
+`patches/`。建置後可清除 apt、Go 與 compiler cache，以控制動態磁碟占用。
+
+Host 以 parent gitlink 固定的 `ML/PyAnLF`／`ML/PyMTLF` build 兩種 image。兩者應共用
+Python 3.12、PyTorch 2.5.1＋CUDA 12.1 的 immutable base/layers，避免把相同 CUDA wheel
+與 NVIDIA runtime dependency 各存一份；application layer 仍各自由自己的 lockfile 和
+`uv sync --frozen` 建立。Build 必須避免永久保留不必要的 `uv` download cache，並記錄
+source commit、lock hash、base image digest 與 final image digest。
+
+PyAnLF／PyMTLF image 可以具備 CUDA runtime，但 device 是否交給 container 由 Compose
+service 設定。這讓 PyAnLF 預設 CPU、PyMTLF-A/B 使用 GPU、PyMTLF-C 使用 CPU，而不需要
+為 CPU/GPU placement 維護不同 source branch 或修改 lockfile。
 
 ### 10.4 Operations
 
-VM power、5G/NWDAF services 與 NWDAF subscriptions 是三組獨立操作：
+VM power、5G/NWDAF guest services、ML containers 與 NWDAF subscriptions 是四組獨立操作：
 
 ```text
 make preflight
@@ -793,6 +947,10 @@ make services-start
 make services-status
 make services-stop
 
+make ml-start
+make ml-status
+make ml-stop
+
 make subscriptions-start
 make subscriptions-status
 make subscriptions-stop
@@ -802,9 +960,10 @@ make logs
 ```
 
 `make vm-up` 對應 multi-machine `vagrant up`：第一次建立 VM 時執行 guest setup/build，
-之後只負責讓既有 VM 開機；它不啟動 experiment stack。`make services-start` 才按順序
-啟動 MongoDB、NRF、其他 core NF、Path A/B UPF 與 SMF、ADRF/NWDAF-C、A/B
-NWDAF/ML，最後才啟動 gNB/UE。
+之後只負責讓既有 VM 開機；它不啟動 experiment stack。`make services-start` 只管理
+MongoDB、core NF、UPF、Go NWDAF 與 UERANSIM；`make ml-start` 只管理 Host ML containers。
+啟動 full stack 時由高層 orchestration 按 dependency stage 呼叫兩者，不把 Docker
+lifecycle 藏進 Vagrant 或 guest systemd。
 
 Guest setup 不應將這些 experiment services 設為隨 VM boot 自動啟動；套件安裝若預設
 啟動 MongoDB 或其他 daemon，setup 必須停止並 disable，再交由
@@ -828,11 +987,14 @@ Guest setup 不應將這些 experiment services 設為隨 VM boot 自動啟動�
 | `services-start` | 呼叫 `scripts/host/services-start.sh` | 是；包含 config check／activation、跨 VM stage、readiness 與 rollback |
 | `services-status` | 呼叫 `scripts/host/services-status.sh` | 是；包含 process 與 application health |
 | `services-stop` | 呼叫 `scripts/host/services-stop.sh` | 是；包含反向 dependency order |
+| `ml-start` | 呼叫 `scripts/host/ml-start.sh` | 是；包含 Compose build/up、GPU gate、health 與 rollback |
+| `ml-status` | 呼叫 `scripts/host/ml-status.sh` | 是；包含 container、device、image 與 application health |
+| `ml-stop` | 呼叫 `scripts/host/ml-stop.sh` | 是；只停止 ML containers，不刪 image／volume |
 | `subscriptions-start` | 呼叫 `scripts/host/subscriptions-start.sh` | 是；包含 callback、NRF discovery、雙訂閱與 rollback |
 | `subscriptions-status` | 呼叫 `scripts/host/subscriptions-status.sh` | 是；包含 discovery／subscription state 與 notification status |
 | `subscriptions-stop` | 呼叫 `scripts/host/subscriptions-stop.sh` | 是；包含精確退訂與 failure-state preservation |
-| `observe` | 呼叫 `scripts/host/observe.sh` | 是；週期性組合 VM／service／subscription 摘要 |
-| `logs` | 呼叫 `scripts/host/logs.sh` | 是；跨 VM journald follow、prefix 與 filter |
+| `observe` | 呼叫 `scripts/host/observe.sh` | 是；週期性組合 VM／guest service／ML／subscription 摘要 |
+| `logs` | 呼叫 `scripts/host/logs.sh` | 是；跨 VM journald 與 Host Compose logs 的 follow、prefix 與 filter |
 
 如果後續 `vm-up` 需要 provider 選擇、storage preparation 或額外錯誤處理，再抽成
 `scripts/host/vm-up.sh`；第一版不為了名稱對稱先建立空殼 wrapper。Guest scripts 則只處理
@@ -848,8 +1010,8 @@ VM 內 provisioning／build／systemd unit 安裝，不作為 Host 的使用者�
    保存的 testbed/network identity；若 VM network 不相容，停止並要求明確 reload／
    reprovision，不在 service start 時偷偷改 guest network；
 3. requested config identity 與 active config 相同時可 idempotent reuse；兩者不同時，必須
-   確認三台 VM 上的 experiment services 與 Core consumer/subscriptions 都已停止，不得
-   hot switch；
+   確認三台 VM 上的 experiment services、五個 ML containers 與 Core
+   consumer/subscriptions 都已停止，不得 hot switch；
 4. 透過 Vagrant upload／SSH 將各 guest role 需要的 files 與完整 manifest stage 到
    `/etc/5g-nwdaf-infrastructure/config-sets/<config-name>-<short-hash>/`；
 5. 三台 Guest 先各自驗證 staged files；全部 prepare 成功後，Host 才要求
@@ -859,11 +1021,15 @@ VM 內 provisioning／build／systemd unit 安裝，不作為 Host 的使用者�
 6. systemd units 使用固定 path，例如
    `ExecStart=... --config /etc/5g-nwdaf-infrastructure/active/nrfcfg.yaml`，再由既定
    dependency order 啟動；unit file 不因 config set 改變而重寫；
-7. `services-status`／`observe` 回報三台 VM 的 active config hash，三者不同或與 Host
-   selected config 不同時視為錯誤。
+7. `ml-start` 將同一 config set 中 PyAnLF／PyMTLF 所需檔案 read-only bind mount 到各自
+   container，並把 config hash、source commit 與 image digest 暴露給 `ml-status`；container
+   不回寫 committed config；
+8. `services-status`／`ml-status`／`observe` 回報三台 VM 與五個 containers 的 active config
+   hash，任一者不同或與 Host selected config 不同時視為錯誤。
 
-因此只改 component 參數且 VM network identity 不變時，可以先 `services-stop`，再以另一個
-`CONFIG_DIR` 重新 `services-start`，不必重建 VM。若變更 management/SBI/N2/N3/N4/N6
+因此只改 component 參數且 VM network identity 不變時，可以先 `subscriptions-stop`、
+`ml-stop`、`services-stop`，再以另一個 `CONFIG_DIR` 重新啟動，不必重建 VM。若變更
+management/SBI/N2/N3/N4/N6
 介面或 Vagrant network，則必須先讓 VM 套用相同 `TESTBED` definition。後續
 `subscriptions-start` 只讀 Core 已 active 的 `consumer.yaml`，不接受另一組臨時 config，
 避免 services 與 subscriptions 使用不同組合。
@@ -875,14 +1041,16 @@ VM 內 provisioning／build／systemd unit 安裝，不作為 Host 的使用者�
 ### 10.5 Process supervision 與跨 VM 啟動順序
 
 舊環境主要依賴使用者逐台 SSH、直接執行 binary，或由 `run.sh` 以 background process／
-PID list 管理。新環境改成：每個長時間執行的 component 在所屬 guest 內有一個 systemd
-service unit，但 install 後保持 disabled，不隨 VM boot 自動啟動。
+PID list 管理。新環境改成：每個 guest 長時間 component 使用一個 systemd service unit；
+每個 Host ML backend 使用一個 Compose service。兩者 install/build 後都不隨 VM boot 或
+Docker daemon 自動啟動。
 
 概念 service 包含：
 
-- Core：MongoDB、NRF、NSSF、UDR、UDM、AUSF、PCF、AMF、SMF、ADRF、NWDAF-C、
-  PyMTLF-C，以及 optional webconsole；
-- Path A/B：UPF、gNB、UE instances、NWDAF、PyAnLF、PyMTLF；
+- Core：MongoDB、NRF、NSSF、UDR、UDM、AUSF、PCF、AMF、SMF、ADRF、NWDAF-C，
+  以及 optional webconsole；
+- Path A/B：UPF、gNB、UE instances 與 NWDAF；
+- Host：`pyanlf-a`、`pymtlf-a`、`pyanlf-b`、`pymtlf-b`、`pymtlf-c` 五個 containers；
 - UE 可使用 systemd template unit，例如 `ueransim-ue@1.service`，讓 A 啟動 UE1–3、
   B 啟動 UE4–6。
 
@@ -890,31 +1058,36 @@ Unit 至少明確指定 `User`、`WorkingDirectory`、`ExecStart`、config path�
 與 journald output。Guest `core.sh`／`path.sh` 負責安裝 unit file 和 `daemon-reload`，但
 不執行 `systemctl enable`，也不在 setup 結尾啟動 experiment service。
 
-Systemd 只能管理同一台 VM，無法保證另一台 VM 的 NF 已 ready，因此跨 VM 順序由
-host `services-start.sh` 負責。它不是一次平行執行所有 unit，而是分 stage 啟動並等待
-readiness，例如：
+Systemd 與 Compose 都只能回答各自 execution domain 的狀態，無法保證另一個 VM 或 Host
+endpoint 已 ready。因此完整 bring-up 由 Host 分 stage 呼叫 guest 與 ML lifecycle，並在
+每個 dependency barrier 等待 readiness，例如：
 
 ```text
 1. Core MongoDB -> wait database ready
 2. Core NRF -> wait NRF SBI ready
 3. NSSF/UDR/UDM/AUSF/PCF/AMF -> wait health and NRF registration
 4. Path A/B UPF + Core SMF -> wait PFCP association and SMF registration
-5. ADRF/NWDAF-C/PyMTLF-C -> wait analytics/model services ready
-6. Path A/B NWDAF/PyAnLF/PyMTLF -> wait role registration and backend health
-7. gNB-A/B -> wait NG setup
-8. UE1–6 -> wait registration, PDU Session and expected UE pools
+5. Core ADRF -> wait storage/model endpoint ready
+6. Host five ML containers -> wait process health and verify effective CPU/CUDA devices
+7. NWDAF-C then NWDAF-A/B -> wait NRF registration, role identity and ML cross-endpoint health
+8. gNB-A/B -> wait NG setup
+9. UE1–6 -> wait registration, PDU Session and expected UE pools
 ```
 
 可安全平行的 A/B stage 可以平行執行，但每一 stage 必須有 bounded timeout、明確失敗
-訊息與當下 service status。`services-stop.sh` 依相反 dependency order 停止，避免先停
-database／core 而留下仍在寫入或 retry 的 UE、NWDAF 與 UPF process。
+訊息與當下 service status。單一 lifecycle command 只停止自己管理的 domain；完整 stack
+shutdown 則先停止 subscriptions，再反向停止 guest dependency 與 ML containers，避免先停
+database／core 而留下仍在寫入的 UE、NWDAF 或 training job。為了診斷而只停其中一層時，
+另一層可保持啟動，但其 connection retry 必須 bounded 且可觀察。
 
 `services-status.sh` 同時檢查 systemd active state 與必要的 application-level health；
-只看到 process active 不代表 NRF registration、PFCP、PDU Session 或 NWDAF backend 已
-ready。Log 先留在 guest journald，可用 `vagrant ssh <vm> -c 'journalctl -u <unit>'` 查看。
+`ml-status.sh` 同時檢查 container state、HTTP health、effective device 與 GPU visibility。
+只看到 process/container active 不代表 NRF registration、PFCP、PDU Session 或 NWDAF
+backend 已 ready。Guest log 留在 journald，ML stdout/stderr 交由 Docker log driver。
 
-需要單步除錯時仍可維持原本操作感：先停止該 unit，再 SSH 進 VM 手動執行 binary；
-結束後再交回 systemd。自動化是取代重複操作，不限制人工診斷。
+需要單步除錯時仍可維持原本操作感：Guest 可先停止 unit，再 SSH 進 VM 手動執行 binary；
+ML 可只停止單一 Compose service，再以 interactive container 或 foreground command 執行。
+結束後再交回 systemd／Compose。自動化是取代重複操作，不限制人工診斷。
 
 ### 10.6 NWDAF consumer 與訂閱生命週期
 
@@ -952,19 +1125,25 @@ file、listener port 與 PID 清理。`5GC/provision.sh` 將整個目錄複製�
   ID、notification correlation ID 與建立時間，供精確退訂與避免重複訂閱；
 - 第一版不因此重新引入 run ID、runtime archive 或 log collection framework。
 
-三組可獨立啟停的生命週期因此明確分開；traffic／degradation 等實驗動作在訂閱成立後
+Consumer 未納入目前五個 ML containers 的改造範圍。後續可把它改成第六個獨立 container，
+同時承擔長時間 callback server、subscription ownership 與 notification stdout log；但必須先
+確認 Host callback published address 可由 A/B NWDAF 穩定到達，且不能因此改回兩個 consumer
+或把 subscription lifecycle 併入 ML lifecycle。
+
+四組可獨立啟停的生命週期因此明確分開；traffic／degradation 等實驗動作在訂閱成立後
 另外執行：
 
 ```text
 time -------------------------------------------------------------->
 VM:             vm-up ====================================== vm-halt
 Services:              services-start =============== services-stop
-Subscriptions:                        start ===== stop
-Actions:                                  traffic / degradation
+ML containers:                  ml-start ============= ml-stop
+Subscriptions:                            start ===== stop
+Actions:                                      traffic / degradation
 ```
 
-`subscriptions-start.sh` 必須先確認 `services-status`、A/B NWDAF readiness 與 Core callback
-address 可達，再依序：
+`subscriptions-start.sh` 必須先確認 `services-status`、`ml-status`、A/B NWDAF readiness 與
+Core callback address 可達，再依序：
 
 1. 啟動單一 callback listener，確認 port ready，並從兩台 Path VM 驗證 callback address
    可達；
@@ -992,43 +1171,50 @@ address 可達，再依序：
 第一版不依賴 `5g-viz`，也不重新引入 session／run archive，但必須能回答兩類不同問題：
 
 - 「現在是否正常」：由 `make observe` 顯示 VM power、systemd／application health、NRF
-  registration、PFCP、UE registration／PDU Session、consumer discovery mapping、A/B
-  subscription identity、callback count 與最後通知時間；
-- 「剛才發生什麼」：由 `make logs` 即時 follow guest journald，查看原始 process log。
+  registration、PFCP、UE registration／PDU Session、五個 ML container health、effective
+  device／GPU usage、consumer discovery mapping、A/B subscription identity、callback count
+  與最後通知時間；
+- 「剛才發生什麼」：由 `make logs` 即時 follow guest journald 與 Host Docker logs，查看
+  原始 process log。
 
-所有由本 repo 啟動的長時間 process，包括單一 consumer，都應將 stdout／stderr 交給
-systemd journald。`logs.sh` 不要求 component 另外寫一份固定路徑 log，也不把 log copy
-回 repository；它透過 multi-machine Vagrant SSH 對選定 unit 執行可中止、可限制起始時間的
-`journalctl --follow`，並輸出例如：
+所有由本 repo 啟動的長時間 process 都維持 stdout／stderr logging：Guest process（包括
+第一版 consumer）交給 systemd journald，Host ML process 交給 Docker log driver。
+`logs.sh` 不要求 PyAnLF／PyMTLF 或其他 component 新增固定路徑 application log，也不把 log
+copy 回 repository；它組合 multi-machine `journalctl --follow` 與 `docker compose logs
+--follow`，並輸出例如：
 
 ```text
 [core/nrf] ...
 [core/nwdaf-c] ...
 [path-a/nwdaf] ...
-[path-a/pyanlf] ...
+[host/pyanlf-a] ...
+[host/pymtlf-a] ...
 [path-b/nwdaf] ...
+[host/pymtlf-b] ...
 [core/nwdaf-consumer] ...
 ```
 
 預設 view 只 follow 與目前 analytics／FL 路徑直接相關的 units，避免把所有 NF debug log
 混成不可讀輸出；使用者可用 VM／service filter 看單一 process，或明確要求 full stack。
-Ctrl-C 只結束 Host 上的 log follow SSH sessions，不停止 consumer、subscription、NF 或 VM。
+Ctrl-C 只結束 Host 上的 log follow sessions，不停止 container、consumer、subscription、
+NF 或 VM。
 
 為讓三台 VM log 可比較，guest setup 必須啟用同一可靠 time source，`preflight`／
 `services-status` 回報相對 Host 的 clock skew；超過容許值時不得把跨 VM log ordering 當成
-可靠證據。Journald retention 採明確且受磁碟上限約束的 guest policy，只提供近期診斷；
-它不是實驗結果保存機制。若日後需要可回放或長期稽核，再另立 session／collection 設計，
-不在第一版 live observation 中暗中加入。
+可靠證據。Journald 與 Docker log rotation 都採明確且受磁碟上限約束的 policy，只提供近期
+診斷；它們不是實驗結果保存機制。若日後需要可回放或長期稽核，再另立
+session／collection 設計，不在第一版 live observation 中暗中加入。
 
 ## 11. 實作階段與 Gate
 
-### Phase 0 — 決策與文件（目前階段）
+### Phase 0 — 決策與文件
 
 Deliverables：
 
 - 本計畫；
 - 舊 site/network inventory；
-- repository 名稱、owner、visibility、license 與 virtualization provider 待決清單。
+- repository 名稱、owner、visibility、license、deployment placement 與 virtualization
+  provider 待決清單。
 
 Exit gate：使用者確認計畫、第一版 component scope 與預計建立的 repositories／branches。
 
@@ -1063,8 +1249,8 @@ repository 仍完整保留；若新 VM 使用同一 filesystem，free space 達�
 
 Deliverables：
 
-- 建立 `5G_NWDAF_Infrastructure` remote 與初始 `main`；
-- 建立 `feat/tai-aligned-compact-testbed`；
+- 建立本機 `5G_NWDAF_Infrastructure` repository 與初始 `main`；remote、owner 與 visibility
+  在公開準備時再設定，不作為本機實作前置；
 - README、LICENSE、精簡目錄骨架、單一 multi-machine `Vagrantfile`、
   `testbed.yaml`／local example、ignore policy 與 non-mutating preflight；
 - 第一版不先建立空的 `tests/`、`fixtures/`、頂層 `patches/`、`profiles/`、`sites/`、
@@ -1081,6 +1267,8 @@ Deliverables：
 - source manifest 與 license inventory；
 - 固定 upstream／team exact commits；
 - optional webconsole；
+- PyAnLF 固定至少包含 `9e64417` 的 configurable CUDA inference；
+- PyMTLF 固定至少包含 `e9c5b08` 的 configurable CUDA training；
 - 確認匿名 HTTPS clone readiness。
 
 Exit gate：`git submodule status --recursive` clean，所有 required component 可取得、
@@ -1093,7 +1281,8 @@ Deliverables：
 - 匯入／整理 `config/default/` 下可直接執行的完整 core、path-a、path-b 與單一 consumer
   native config set，附來源與 topology manifest；
 - 定義 `testbed.yaml` topology schema、`testbed.local.yaml` 允許的 host-only override 與
-  active `configDir`，並驗證它們和 component config 的 network／placement 一致；
+  active `configDir`，包含 Host ML published endpoints／device placement，並驗證它們和
+  component config 的 network／placement 一致；
 - 實作 optional `config-render.py`，只寫入 gitignored `config/generated/<name>/`；實作同時
   驗證 default／generated／local set 的 `config-check.py`；
 - 盤點 `nwdaf-resources` 中與公開 VM 環境直接相關的 preflight、subscriber/group
@@ -1116,6 +1305,8 @@ Deliverables：
 - provider 選型與 prerequisite check；
 - root multi-machine `Vagrantfile` 內的 `core`、`path-a`、`path-b` VM；
 - management、SBI、N2、N3-A/B、N4、N6-A/B plane；
+- Host SBI address 到三台 VM 的雙向 reachability，以及五個 ML published port 的 conflict／
+  firewall smoke；
 - `testbed.local.yaml` override 與 public isolated default；
 - `.vagrant/` metadata、provider VM disk 與 Vagrant box cache 的位置／free-space 回報；
 - route、forwarding、NAT、MTU、port reachability smoke tests。
@@ -1128,12 +1319,13 @@ Exit gate：三 VM 可由 fresh testbed definition 重建；每個 plane 只具�
 Deliverables：
 
 - reproducible guest-local build/artifact manifest；
-- `common.sh`／`core.sh` 與 Core 的 NF、MongoDB、ADRF、NWDAF-C、PyMTLF-C；
+- `common.sh`／`core.sh` 與 Core 的 NF、MongoDB、ADRF、NWDAF-C；
 - optional webconsole setup；
 - start order、health、status 與 bounded cleanup。
 
-Exit gate：required core NF 與 analytics/storage service 健康，NRF registration identity
-符合本次 manifest，restart 不產生非預期 duplicate state。
+Exit gate：required core NF、ADRF 與 NWDAF-C process 在不要求 ML backend ready 的層級健康，
+NRF registration identity 符合本次 manifest，restart 不產生非預期 duplicate state；完整
+analytics/model health 留到 Phase 6.5。
 
 ### Phase 6 — Path A／B Guest Setup 與 Build
 
@@ -1143,7 +1335,9 @@ Deliverables：
 - guest-specific gtp5g build；
 - `common.sh`／`path.sh A|B` 與 role-local source/config placement；
 - UPF-A/B、gNB-A/B、six UEs；
-- NWDAF-A/B、PyAnLF-A/B、PyMTLF-A/B；
+- NWDAF-A/B；
+- PseudoDriver group1/group2 dataset hash／bytes／rows manifest、guest staging、systemd memory
+  accounting 與 bounded direct replay smoke；
 - TAI-aware UPF selection 與 subscriber/group test data provisioning。
 - 三台 VM clock-skew check、`observe.sh` compact status 與可過濾的跨 VM journald live
   follow。
@@ -1153,7 +1347,31 @@ Exit gate：
 - six UEs 都建立 current-run AMF／SMF registration；
 - TAI `000001` UE 只取得 Path A pool，TAI `000002` UE 只取得 Path B pool；
 - two UPFs 形成正確 PFCP association，兩條 N3/N6 path 可被獨立觀察；
+- A/B replay 使用預期 dataset identity，warm-start 前至少保有 512 MiB `MemAvailable`，且
+  scan/aggregation/Phase 2 不造成 OOM、強制 kill 或不可接受 reclaim；
 - A／B／C NWDAF role 與 scope discovery 正確。
+
+### Phase 6.5 — Host ML Containers 與 GPU Runtime
+
+Deliverables：
+
+- parent 更新 PyAnLF／PyMTLF gitlinks 至已推送的 GPU-capable commits；
+- 共用 Python 3.12、PyTorch 2.5.1＋CUDA 12.1 layers 的 PyAnLF／PyMTLF images；
+- 一個 `compose.yaml` 定義五個獨立 service，不把多個 process 塞進同一 container；
+- PyAnLF-A/B 預設 CPU、PyMTLF-A/B 使用 `cuda:0`、PyMTLF-C 使用 CPU 的 explicit device
+  placement；
+- Docker／NVIDIA Container Toolkit／driver preflight；toolkit installation 是另行授權的
+  Host prerequisite，不由一般 bring-up script 自動修改系統；
+- Host published endpoints、VM-to-Host reachability、read-only config mount、health、source／
+  lock／image identity 與 bounded log rotation；
+- `ml-start`／`ml-status`／`ml-stop`，並讓 `observe`／`logs` 同時涵蓋 guest 與 container；
+- RTX 3080 實機 smoke：A/B 單獨 GPU training、A/B 同時 training 的 peak VRAM／OOM 行為、
+  PyAnLF CPU inference，以及 PyMTLF-C CPU FedAvg／model serialization。
+
+Exit gate：五個 endpoint 可由所屬 Go NWDAF 到達，status 能證明 effective device 與 image
+identity；A/B GPU path 不是 silent CPU fallback；同時 training 若超過 10 GiB VRAM，必須有
+明確 sequential scheduling／failure policy。完成前不移除既有 guest ML setup，通過後才以
+獨立 commit 清除過時 provisioning、systemd units 與 guest disk assumptions。
 
 ### Phase 7 — Full Scenario E2E
 
@@ -1166,11 +1384,14 @@ Deliverables：
   subscription start，並以兩側都成功作為共同 action barrier；
 - stable A/B baseline、A-only degradation、automatic FL trigger；
 - two-round FedAvg、validation、ADRF publication、reprovision 與 monitor cutover；
+- 證明 Go NWDAF 在三台 VM、五個 ML backend 在 Host containers 時，NRF discovery、ADRF、
+  callback 與 model transfer 不依賴 Docker container IP；
 - 驗證成功／失敗條件；per-run record 與 archive format 留待後續設計。
 
-Exit gate：既有 Phase 7 business assertions 全部通過，summary 同時包含 VM/process
-identity、source revision、config hash、binary hash、sample count、model identity、ADRF
-transaction 與 monitor route；不得把 PseudoDriver 宣稱為真實 application benchmark。
+Exit gate：既有 Phase 7 business assertions 全部通過，summary 同時包含 VM／container／
+process identity、source revision、config hash、binary/image hash、effective device、sample
+count、model identity、ADRF transaction 與 monitor route；不得把 PseudoDriver 宣稱為
+真實 application benchmark。
 
 ### Phase 8 — Public Release Readiness
 
@@ -1205,11 +1426,15 @@ Exit gate：新環境 fresh-clone E2E 已通過，舊 site-specific 資訊已有
 | --- | --- | --- |
 | Source | 到底跑哪個版本？ | clean gitlinks、branch hint、dirty flag、license inventory |
 | Config | component config 與 testbed definition 是否一致？ | schema、network/placement preflight、effective config identity |
-| Host | 此機器能否安全承載？ | RAM、swap、disk、provider、kernel、port、interface preflight |
+| Host | 此機器能否安全承載？ | RAM、swap、VM／Docker disk、provider、driver、port、interface preflight |
 | VM | 三個 role 能否重建？ | one-project Vagrant identity、idempotent guest setup、network reachability、restart |
+| Container | 五個 ML service 是否可重建且彼此獨立？ | two image digests、five health checks、config/source identity、restart isolation |
+| GPU | A/B 是否真的使用 GPU 且不超出單卡能力？ | container CUDA probe、effective device、single/dual-client peak VRAM、no silent CPU fallback |
+| Hybrid network | VM 與 Host ML endpoint 是否穩定互通？ | stable Host address、published ports、bidirectional route、firewall、no container-IP dependency |
+| PseudoDriver | Dataset replay 是否在 Path RAM 內安全完成？ | file hash/bytes/rows、subscription fan-out、pre-replay headroom、UPF/VM peak、no OOM/kill |
 | Core | 真實 5GC control path 是否成立？ | NRF registration、auth、registration、policy、PDU Session |
 | Path | TAI 是否選到正確 UPF？ | A/B UE pool、PFCP、N3/N6、serving-SMF evidence |
-| Observation | 進行中能否定位目前狀態與錯誤？ | compact health、clock skew、prefixed/filterable live journal |
+| Observation | 進行中能否定位目前狀態與錯誤？ | compact health、clock skew、prefixed/filterable journald＋Docker live log |
 | Analytics | A/B/C ownership 是否正確？ | discovery、subscription、WAPE、monitor owner selection |
 | FL | closed loop 是否完整？ | ADRF retrieval、two rounds、FedAvg、validation、publication、cutover |
 | Reproducibility | 他人能否重做？ | fresh clone、public testbed definition、artifact/source/config identity |
@@ -1224,48 +1449,74 @@ state 或舊 VM process 偶然使 scenario 通過。
 | Repository | 預計變更 |
 | --- | --- |
 | `testbed-docs` | 本計畫、migration/network inventory、未來操作與驗證報告 |
-| `5G_NWDAF_Infrastructure` | 新增 integration、submodule、component config、testbed definition、multi-machine Vagrant 與 host/guest scripts |
+| `5G_NWDAF_Infrastructure` | 更新 PyAnLF／PyMTLF gitlinks；新增 container images、Compose、Host ML endpoints/lifecycle；移除通過驗證後才確定過時的 guest ML setup |
 | `nwdaf-resources` | 不作 submodule/runtime dependency；只有後續確認要去除已移植重複工具時才另行修改 |
-| 各 component repo | 只在確實發現 component-owned 缺口時另開 branch 修改 |
+| `PyAnLF` | 已完成 configurable CUDA inference；commit `9e64417` 已推送 feature branch |
+| `PyMTLF` | 已完成 configurable CUDA training；commit `e9c5b08` 已推送 feature branch |
+| 其他 component repo | 只在確實發現 component-owned 缺口時另開 branch 修改 |
 | 舊 `5G_Infrastructure` | 預設唯讀；只作 inventory／migration source，不直接清理或重構 |
 
 不得把跨 repository 的變更混成單一 commit。每個 component change 先在自己的 branch
 驗證，再更新 integration repo 的 gitlink。
 
-## 14. 尚待決策
+## 14. 已確定與尚待決策
 
-進入 Phase 1 前至少確認：
+已確定：
 
-1. GitHub owner／organization、remote URL 與初始 public/private visibility；
-2. repository 名稱是否正式採用 `5G_NWDAF_Infrastructure`；
-3. open-source license 與第三方 component/license compatibility；
+- repository 名稱使用 `5G_NWDAF_Infrastructure`，目前只保留本機 `main`，暫不設定 remote；
+- 舊 local VM 已依使用者授權永久移除，舊 source repository 保留；
+- 第一版採三台 network VM 加五個 Host ML containers，不採全 VM 或第四台 GPU VM；
+- PyAnLF-A/B 預設 CPU、PyMTLF-A/B 使用單張 RTX 3080、PyMTLF-C 使用 CPU；
+- consumer 第一版仍為 Core VM 的單一 process，未來可另案 containerize；
+- `nwdaf-resources` 不成為 submodule/runtime dependency；certificate、TLS、OAuth 暫不支援。
+
+進入 container／VM bring-up 前仍需確認：
+
+1. Host SBI 的 exact interface/address、五個 published ports，以及三台 VM 的雙向 route 和
+   firewall；範例 `192.168.57.1` 尚未凍結；
+2. NVIDIA Container Toolkit 的安裝時機與 host mutation 授權；R535 driver 不因 CUDA 12.1
+   image 而先行升級；
+3. A/B PyMTLF 同時 training 的實測 VRAM 是否低於 10 GiB，以及超限時採 sequential queue
+   或 fail-fast；
 4. 第一個 Vagrant provider，以及此 host 的 VirtualBox 修復或 libvirt feasibility；
-5. 舊 VM 採 raw directory copy、修復 provider 後 export 或選擇性 guest data backup，
-   以及外部備份位置與保留期限；
-6. guest source 採 provider shared folder、受控 source snapshot upload 或其他同步方式；
-7. webconsole 是否列入 v0.1 release gate，或只先固定 submodule／文件；
-8. public default 是否允許 outbound NAT，以及 scenario data network 的隔離政策；
-9. 哪些 `nwdaf-resources` 小工具確實屬於 infrastructure ownership，應移植、重寫或保留
-   在原 repo。
+5. 10 GiB guest RAM、三台 40 GiB dynamic primary disks、約 56 GiB guest used-space target
+   與 6 GiB Host/ML reserve 是否通過分 stage 實測，及沒有 swap 時採 warning、explicit
+   override 或 hard gate；
+6. open-source license 與第三方 component/license compatibility；
+7. guest source 採 provider shared folder、受控 source snapshot upload 或其他同步方式；
+8. webconsole 是否列入 v0.1 release gate，或只先固定 submodule／文件；
+9. public default 是否允許 outbound NAT，以及 scenario data network 的隔離政策；
+10. 哪些 `nwdaf-resources` 小工具確實屬於 infrastructure ownership，應移植、重寫或保留
+    在原 repo。
 
-這些決策不影響先完成 repository skeleton 的大部分文件，但會影響 host mutation、
-provider dependency、release scope 或 public security expectation，因此不能靜默假設。
+這些決策不阻擋先建立 non-privileged container definition 和 static checks，但凡涉及 Host
+package/driver/network mutation、建立 VM 或長時間 GPU run，必須在對應步驟明確確認。
 
 ## 15. 下一個執行範圍
 
-舊 VM inventory、使用者確認的不備份永久移除，以及本機 repository baseline 已完成。
-下一個工作包不再重做 cleanup 或 repository bootstrap，而是：
+舊 VM inventory／移除、本機 repository baseline、component-owned GPU 支援，以及 parent
+gitlink／component lock 更新已完成。
+下一個工作包按可回復且可階段 commit 的順序執行：
 
-1. 釋放 physical host memory／swap，使 preflight 通過 guest allocation 加 host reserve；
-2. 在不建立 VM 的情況下確認 VirtualBox 修復或 libvirt feasibility，明確選定 provider；
-3. 使用 public default 建立三台空白 VM，先驗證 disk、NIC、clock 與 guest provisioning；
-4. 進行 component build/config smoke，再分層驗證 Core、Path 與 subscription；
-5. 最後才進入帶 PseudoDriver 的 privileged full-scenario E2E。
+1. 盤點並凍結 Host SBI interface/address、可用 published ports、VM route 與 Docker
+   data-root，更新 `testbed.yaml`／local example／config checker；
+2. 建立共用 ML base/layers、兩種 image target 與 five-service `compose.yaml`，先做 build、
+   config、health 的 non-privileged/static checks；
+3. 實作 `ml-start`／`ml-status`／`ml-stop`，擴充 preflight、observe 與 logs；
+4. 取得 Host prerequisite 授權後安裝／設定 NVIDIA Container Toolkit，執行 single-GPU 與
+   dual-client VRAM smoke；此步可延至 CPU full-stack smoke 後，不阻擋前三步；
+5. 依 ML 與 PseudoDriver 的實測 peak 更新 Host／Path 資源 budget，再移除 guest
+   PyAnLF／PyMTLF provisioning、systemd 與舊 endpoint assumptions；
+6. 選定 provider，建立三台 VM 並依 Core、Path、ML、subscription、PseudoDriver E2E
+   分層驗證。
 
-Provider 安裝／修復、新 VM 建立與 privileged E2E 仍需要在對應步驟明確執行；新
-repository 不以加入 `nwdaf-resources` submodule 作為前置。
+每一步先通過該層驗證再 commit；provider 安裝／修復、Host toolkit/network mutation、新 VM
+建立與 privileged E2E 仍需在對應步驟明確執行。新 repository 不以加入
+`nwdaf-resources` submodule 作為前置。
 
-## 16. 本機實作紀錄（2026-08-06）
+## 16. 本機實作紀錄
+
+### 16.1 2026-08-06 Infrastructure baseline
 
 已在 `/home/chingje/testbed/5G_NWDAF_Infrastructure` 建立獨立 local git repository，
 branch 為 `main`，目前未設定 remote。實作未修改或清除舊 `5G_Infrastructure` source
@@ -1303,3 +1554,42 @@ UPF 固定在 remote 可取得且包含 PseudoDriver 的
 2026-08-06 preflight 當下 storage 約 176 GiB free，通過 120 GiB threshold；available
 RAM 約 20,026 MiB，低於 16,384 MiB guests 加 4,096 MiB host reserve，且 swap 幾乎用盡，
 因此正確阻擋 `vm-up`。在釋放 host memory、選定並驗證 provider 前，不進入新 VM 建立。
+
+### 16.2 2026-08-09 GPU capability 與 deployment 調整
+
+Component-owned GPU 支援已分別完成、驗證並推送，repositories 仍保持獨立 commit：
+
+| Repository | Commit | 內容 | 驗證 |
+| --- | --- | --- | --- |
+| PyAnLF | `9e64417fe053e03c2a616abea6f284df8acd1b38` | configurable CUDA inference、device validation 與 CUDA test coverage | Ruff；295 passed、1 個既有 live-artifact test skipped；RTX 3080/R535 smoke |
+| PyMTLF | `e9c5b08725dc06835485b29ff6c264340f9805f9` | configurable CUDA training、CPU-safe FedAvg／serialization 與 CUDA test coverage | Ruff；205 passed；RTX 3080/R535 smoke |
+
+兩者使用 Python 3.12、PyTorch 2.5.1；Linux x86_64 的 uv source 指向 PyTorch CUDA 12.1
+index，`nvidia-nvjitlink-cu12==12.1.105` 只作相容 constraint。這不要求 Host 安裝完整 CUDA
+toolkit，也不要求先把 R535 driver 升到 CUDA 12.8/13；Docker 實際存取 GPU 仍以 NVIDIA
+Container Toolkit 為 activation gate。
+
+`5G_NWDAF_Infrastructure` 已以 `5924a67` 將 `ML/PyAnLF`、`ML/PyMTLF` gitlinks 前進到
+上述 commits，並同步更新 `components.lock.yaml`。Container definition、Host endpoint、ML
+lifecycle 與 guest ML removal 仍尚未實作；不得把 source pinning 或 component GPU smoke
+誤認為混合 testbed 已完成。
+
+本次架構決策將五個 ML backend 移至 Host containers，三台 VM 僅保留需要 network/kernel
+boundary 的 5GC、UPF、UERANSIM、Go NWDAF、ADRF 與 MongoDB。Consumer containerization、
+application log 改造與 per-run archive 均延後，不混入第一個 ML deployment slice。
+
+### 16.3 2026-08-09 PseudoDriver dataset RAM audit
+
+Path RAM 重新納入 PseudoDriver warm-start。Pinned group1/group2 Parquet 分別為 21,830,425／
+44,050,349 bytes；以目前 `parquet-go` streaming implementation、30 秒 window 與一個 AnyUE
+subscription context 直接掃描，rows 分別為 2,720,063／5,759,921，test process peak RSS
+約 22.9／22.7 MiB。Probe 在完成後已移除，未留下 component source change。
+
+此結果只證明目前 driver 不把所有 raw rows 常駐 RAM，不代表完整 Path VM 只需增加約
+23 MiB；full UPF、Parquet page cache、gtp5g、UERANSIM、Go NWDAF、journald、多 subscription
+context 與 Go GC 必須一起量測。因此 Path 仍先維持 3 GiB target，但將 512 MiB
+pre-replay `MemAvailable` 設為 gate；未達或出現 reclaim/OOM 時，以 512 MiB step 上調。
+
+另發現 `pre_data/data.md` 的 group2 row count 與 pinned file 直接掃描不一致。Infrastructure
+必須以 SHA-256、bytes 與 machine-verified rows 鎖定 dataset identity，文件差異另由 go-upf
+repository 修正，不能以過時描述估算 RAM。
