@@ -3,10 +3,10 @@
 建立日期：2026-08-05
 最近更新：2026-08-09
 
-狀態：本機 infrastructure baseline 已實作；PyAnLF／PyMTLF 的可設定 GPU 支援已完成並
-推送 component branch。部署設計已調整為三台 VM 加 Host Docker ML services；尚未實作
-container orchestration、建立 remote、選定可用 provider、建立新 VM 或完成 privileged
-full-scenario E2E。
+狀態：本機 infrastructure baseline 與 component pinning 已實作；PyAnLF／PyMTLF 的可設定
+GPU 支援已完成並推送 component branch。三台 VM 加 Host Docker ML services 的 topology、
+native config、renderer/checker 與 non-mutating preflight 已同步；尚未實作 container
+orchestration、建立 remote、建立新 VM 或完成 privileged full-scenario E2E。
 
 ## 1. 目的
 
@@ -427,10 +427,12 @@ UUID、storage path、disk/snapshot size 與 state，保存 guest-only config／
 使用者確認。預設優先由原 Vagrant project 執行 destroy；只有 Vagrant metadata 已失效
 時才考慮 provider-specific unregister/delete。不得以 broad path 或 glob 清除。
 
-Virtualization provider 尚未定案；2026-08-06 baseline 當時 VirtualBox 缺少可用
-`/dev/vboxdrv`，實作前必須重新檢查而不能永久沿用該診斷。在選擇 Vagrant + VirtualBox、
-Vagrant + libvirt 或其他 provider 前，先做只影響 Host prerequisite 的 feasibility check。
-Topology 與 config 不應綁死 provider-specific 介面名稱。
+2026-08-09 在實際 Host context 的唯讀 smoke 中，VirtualBox 6.1.50 的 CLI／driver 可初始化，
+Docker 27.4.1 與 Compose 2.32.1 也可由目前使用者存取；因此 VirtualBox 是第一個可測的
+provider candidate，但仍不是完成 network gate 的意思。受限 sandbox 看不到 `/dev/vboxdrv`
+或 Host netlink/socket，不可把該視圖誤判為 Host driver 壞掉。正式 `vagrant up` 前仍須由
+preflight 重跑 provider、host-only address、route 與 port conflict；Topology 與 config
+不綁死 provider-specific 介面名稱。
 
 ### 8.5 單一 multi-machine Vagrant project
 
@@ -548,10 +550,11 @@ Makefile 的 explicit `TESTBED=<path>` 選用；同一個 definition 同時交�
 
 `testbed.local.example.yaml` 說明可覆寫欄位；`testbed.local.yaml` gitignored，只保存
 physical host／provider 差異與 active `configDir`，例如 VirtualBox/libvirt、physical
-bridge/interface、expected VM／Docker storage、Host SBI publish address、host port forwarding
+bridge/interface、expected VM／Docker storage、Host SBI bind address、host port forwarding
 與 optional outbound gateway。
-Local override 不直接改變 TAI、UE identity、NWDAF ownership 或 FL assertion；這些語意
-變更必須放進 explicit topology definition 和完整 config set。
+Local bind override 不改變 VM 所使用的 advertised address；兩者不同時，Host 必須具備
+對應 route／forwarding。Local override 不直接改變 TAI、UE identity、NWDAF ownership 或
+FL assertion；這些語意變更必須放進 explicit topology definition 和完整 config set。
 
 #### `testbed.yaml` schema 草案
 
@@ -573,6 +576,7 @@ guest:
 hostSafety:
   reserveMemoryMiB: 6144
   swapPolicy: warn
+  minimumFreeSwapMiB: 1024
   minimumFreeStorageGiB: 120
 
 machines:
@@ -671,8 +675,9 @@ placement:
 
 mlRuntime:
   engine: docker-compose-v2
-  network: bridge
-  publishAddress: 192.168.57.1  # public default candidate; Phase 4 must verify
+  networkMode: bridge
+  bindAddress: 192.168.57.1       # physical Host listener candidate
+  advertisedAddress: 192.168.57.1 # endpoint used by VMs and callbacks
   services:
     pyanlf-a: {image: pyanlf, publishedPort: 9093, containerPort: 9093, device: cpu}
     pyanlf-b: {image: pyanlf, publishedPort: 9094, containerPort: 9093, device: cpu}
@@ -720,11 +725,15 @@ paths:
       gtpInterface: upfgtp-a
       uePool: 10.60.0.0/16
       pseudoDriver:
+        enabled: true
+        mode: hybrid
         datasetProfile: group1
-        sha256: d9e2772de8529870e272f44a3bc02863e8831d9c90d51eb0b33961eb28a29030
-        bytes: 21830425
-        rows: 2720063
-        minimumReplayHeadroomMiB: 512
+        dataset:
+          file: training_packets_run001.parquet
+          sha256: d9e2772de8529870e272f44a3bc02863e8831d9c90d51eb0b33961eb28a29030
+          bytes: 21830425
+          rows: 2720063
+          minimumReplayHeadroomMiB: 512
     ues:
       - imsi-466920000000001
       - imsi-466920000000002
@@ -744,11 +753,15 @@ paths:
       gtpInterface: upfgtp-b
       uePool: 10.61.0.0/16
       pseudoDriver:
+        enabled: true
+        mode: hybrid
         datasetProfile: group2
-        sha256: b8482a21f3370de491a67fa1f9908e1b8b3aec7671787bbbdb0d9287680b662e
-        bytes: 44050349
-        rows: 5759921
-        minimumReplayHeadroomMiB: 512
+        dataset:
+          file: training_packets_run001.parquet
+          sha256: b8482a21f3370de491a67fa1f9908e1b8b3aec7671787bbbdb0d9287680b662e
+          bytes: 44050349
+          rows: 5759921
+          minimumReplayHeadroomMiB: 512
     ues:
       - imsi-466920000000004
       - imsi-466920000000005
@@ -812,10 +825,12 @@ operations:
 這份 definition 的欄位只放跨 component／VM 的共同事實。像 NF retry interval、NWDAF
 model policy、PyAnLF window、PyMTLF training rounds 或 log level 等 component-owned 行為，
 仍保留在所選 `config/<set>/` 的 native config，不因 renderer 而全部搬進 `testbed.yaml`。
-範例中的 `192.168.57.1` 與 ML published ports 是 public default candidate，不是已確認的本機
-interface；Phase 4 必須先驗證 Host bind、VM route、port conflict 與 provider 行為。
-PseudoDriver metadata 則必須由實際 Parquet 產生並由 config checker 驗證 hash、bytes 與
-row count，避免換檔後仍沿用舊 RAM 判斷。現有 group2 `data.md` 記載的 row count 與直接
+範例中的 `192.168.57.1` 與 ML published ports 是 public default candidate；Host-only
+interface 尚未建立時，該 address 不存在是預期狀態。Phase 4 必須在 provider 建立 network
+後驗證 Host bind、VM route、port conflict 與 firewall 行為。
+PseudoDriver metadata 則必須由實際 Parquet 產生；config checker 以 hash／bytes 驗證仍是
+該份已稽核檔案，並驗證 row metadata 存在，避免換檔後仍沿用舊 RAM 判斷。現有 group2
+`data.md` 記載的 row count 與直接
 掃描結果不一致，正式 bring-up 以 pinned file hash 和 machine-verified metadata 為準，並將
 該文件差異列為 component-owned follow-up。
 
@@ -1298,6 +1313,14 @@ Exit gate：新 repository 不 clone `nwdaf-resources`、不執行 renderer，�
 non-mutating preflight 與準備三 VM；renderer 輸出和手工 local set 都通過相同 consistency
 check，任何移植工具的 provenance 與 ownership 清楚。
 
+2026-08-09 implementation record：`testbed.yaml` 已將 Core／Path A／Path B 固定為
+4096／3072／3072 MiB、三顆 40 GiB dynamic logical disk，並將五個 Python backend placement
+移到 Host containers。Default native config 與 renderer 已分離 container bind address
+（`0.0.0.0`）和 VM-visible advertised endpoints；checker 會驗證 placement、port、device、
+callback/artifact URL、PseudoDriver file hash／bytes 與已稽核 row metadata。Preflight 以
+10 GiB VM allocation 加 6 GiB Host reserve 作 RAM hard gate，swap 不足改為 warning；Compose
+lifecycle 仍屬 Phase 6.5，這筆紀錄不宣稱 container 或 VM 已啟動。
+
 ### Phase 4 — 三 VM Skeleton 與 Network
 
 Deliverables：
@@ -1472,13 +1495,15 @@ state 或舊 VM process 偶然使 scenario 通過。
 
 進入 container／VM bring-up 前仍需確認：
 
-1. Host SBI 的 exact interface/address、五個 published ports，以及三台 VM 的雙向 route 和
-   firewall；範例 `192.168.57.1` 尚未凍結；
+1. 已將 Host SBI public candidate 固定為 `192.168.57.1`，並確認五個 published ports
+   目前無 listener；provider 建立 host-only network 後仍須驗證 exact interface、三台 VM
+   的雙向 route 與 firewall；
 2. NVIDIA Container Toolkit 的安裝時機與 host mutation 授權；R535 driver 不因 CUDA 12.1
    image 而先行升級；
 3. A/B PyMTLF 同時 training 的實測 VRAM 是否低於 10 GiB，以及超限時採 sequential queue
    或 fail-fast；
-4. 第一個 Vagrant provider，以及此 host 的 VirtualBox 修復或 libvirt feasibility；
+4. VirtualBox 已是第一個 provider candidate；仍須完成 Vagrant host-only network 與三台
+   VM skeleton smoke，失敗時才回頭評估 libvirt；
 5. 10 GiB guest RAM、三台 40 GiB dynamic primary disks、約 56 GiB guest used-space target
    與 6 GiB Host/ML reserve 是否通過分 stage 實測，及沒有 swap 時採 warning、explicit
    override 或 hard gate；
@@ -1498,9 +1523,10 @@ package/driver/network mutation、建立 VM 或長時間 GPU run，必須在對�
 gitlink／component lock 更新已完成。
 下一個工作包按可回復且可階段 commit 的順序執行：
 
-1. 盤點並凍結 Host SBI interface/address、可用 published ports、VM route 與 Docker
-   data-root，更新 `testbed.yaml`／local example／config checker；
-2. 建立共用 ML base/layers、兩種 image target 與 five-service `compose.yaml`，先做 build、
+1. 已完成 Host 資源／Docker data-root／port 盤點，凍結 `192.168.57.1` public candidate，並
+   更新 `testbed.yaml`、local example、native config、renderer/checker 與 preflight；VM route
+   需等 provider 建立 host-only network 後驗證；
+2. 下一步建立共用 ML base/layers、兩種 image target 與 five-service `compose.yaml`，先做 build、
    config、health 的 non-privileged/static checks；
 3. 實作 `ml-start`／`ml-status`／`ml-stop`，擴充 preflight、observe 與 logs；
 4. 取得 Host prerequisite 授權後安裝／設定 NVIDIA Container Toolkit，執行 single-GPU 與
@@ -1570,9 +1596,9 @@ toolkit，也不要求先把 R535 driver 升到 CUDA 12.8/13；Docker 實際存�
 Container Toolkit 為 activation gate。
 
 `5G_NWDAF_Infrastructure` 已以 `5924a67` 將 `ML/PyAnLF`、`ML/PyMTLF` gitlinks 前進到
-上述 commits，並同步更新 `components.lock.yaml`。Container definition、Host endpoint、ML
-lifecycle 與 guest ML removal 仍尚未實作；不得把 source pinning 或 component GPU smoke
-誤認為混合 testbed 已完成。
+上述 commits，並同步更新 `components.lock.yaml`。Host endpoint definition 已在後續 topology
+freeze 補上；Compose definition、ML lifecycle 與 guest ML removal 仍尚未實作。不得把
+source pinning 或 component GPU smoke 誤認為混合 testbed 已完成。
 
 本次架構決策將五個 ML backend 移至 Host containers，三台 VM 僅保留需要 network/kernel
 boundary 的 5GC、UPF、UERANSIM、Go NWDAF、ADRF 與 MongoDB。Consumer containerization、
@@ -1593,3 +1619,23 @@ pre-replay `MemAvailable` 設為 gate；未達或出現 reclaim/OOM 時，以 51
 另發現 `pre_data/data.md` 的 group2 row count 與 pinned file 直接掃描不一致。Infrastructure
 必須以 SHA-256、bytes 與 machine-verified rows 鎖定 dataset identity，文件差異另由 go-upf
 repository 修正，不能以過時描述估算 RAM。
+
+### 16.4 2026-08-09 Hybrid topology/config freeze
+
+Infrastructure commit：`9e24cc5`。對應 Host 清點見
+[hybrid-host-readiness-inventory-2026-08-09.md](../reports/hybrid-host-readiness-inventory-2026-08-09.md)。
+
+Infrastructure definition 已改為 Core 4096 MiB、Path A/B 各 3072 MiB，三台 VM 都使用
+40 GiB dynamic primary logical capacity。五個 PyAnLF／PyMTLF role 從 VM placement 移到
+Host containers，guest service start 不再啟動 Python units；舊 guest provisioning/unit
+仍暫留作 rollback material，待 container/GPU gate 通過後才另行移除。
+
+Host ML public candidate 使用 `192.168.57.1` 與五個不重疊的 published ports。Native config
+在 container 內 bind `0.0.0.0`，Go NWDAF backend、callback 與 artifact URL 則只使用
+advertised endpoint。Renderer 可從任一 explicit topology 重建同樣關係；checker 會驗證
+placement、port/device mapping、native endpoints 與兩份 PseudoDriver file identity。
+
+Preflight 已加入 Docker access、VirtualBox initialization、Host ML bind address／port、10 GiB
+guest allocation 加 6 GiB Host reserve 與 swap warning policy。這一批只完成 definition、
+static/non-mutating checks 和文件；沒有建立 VM、container、interface 或 route，也沒有安裝
+NVIDIA Container Toolkit。
