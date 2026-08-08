@@ -5,8 +5,9 @@
 
 狀態：本機 infrastructure baseline 與 component pinning 已實作；PyAnLF／PyMTLF 的可設定
 GPU 支援已完成並推送 component branch。三台 VM 加 Host Docker ML services 的 topology、
-native config、renderer/checker 與 non-mutating preflight 已同步；尚未實作 container
-orchestration、建立 remote、建立新 VM 或完成 privileged full-scenario E2E。
+native config、renderer/checker、non-mutating preflight、兩種 image target、five-service
+Compose 與 bounded CPU health smoke 已完成；尚未實作長時間 ML lifecycle、GPU container
+runtime、建立 remote、建立新 VM 或完成 privileged full-scenario E2E。
 
 ## 1. 目的
 
@@ -1526,9 +1527,9 @@ gitlink／component lock 更新已完成。
 1. 已完成 Host 資源／Docker data-root／port 盤點，凍結 `192.168.57.1` public candidate，並
    更新 `testbed.yaml`、local example、native config、renderer/checker 與 preflight；VM route
    需等 provider 建立 host-only network 後驗證；
-2. 下一步建立共用 ML base/layers、兩種 image target 與 five-service `compose.yaml`，先做 build、
-   config、health 的 non-privileged/static checks；
-3. 實作 `ml-start`／`ml-status`／`ml-stop`，擴充 preflight、observe 與 logs；
+2. 已完成共用 ML base/layers、兩種 image target、five-service `compose.yaml`、static checks 與
+   bounded CPU-only config/health smoke；smoke 只清除自身 containers／volumes 並保留 images；
+3. 下一步實作 `ml-start`／`ml-status`／`ml-stop`，擴充 preflight、observe 與 logs；
 4. 取得 Host prerequisite 授權後安裝／設定 NVIDIA Container Toolkit，執行 single-GPU 與
    dual-client VRAM smoke；此步可延至 CPU full-stack smoke 後，不阻擋前三步；
 5. 依 ML 與 PseudoDriver 的實測 peak 更新 Host／Path 資源 budget，再移除 guest
@@ -1639,3 +1640,32 @@ Preflight 已加入 Docker access、VirtualBox initialization、Host ML bind add
 guest allocation 加 6 GiB Host reserve 與 swap warning policy。這一批只完成 definition、
 static/non-mutating checks 和文件；沒有建立 VM、container、interface 或 route，也沒有安裝
 NVIDIA Container Toolkit。
+
+### 16.5 2026-08-09 Host ML image 與 CPU smoke
+
+Infrastructure 新增 pinned Python 3.12 slim base、共用 PyTorch 2.5.1＋CUDA 12.1 runtime、
+PyAnLF／PyMTLF 兩個 image targets，以及五個獨立 Compose services。Production definition
+只讓 PyMTLF-A/B request GPU；CPU smoke override 同時移除 GPU request 並產生 disposable config，
+將 A/B training device 改成 CPU。每個 service 使用非 root user、read-only root filesystem、
+read-only config bind、獨立 named volume、health check、CPU/RAM/PID limit 與 bounded local logs。
+
+Static checker 同時解析 production 與 CPU override，驗證 service/port/build target/source
+revision/security/config/data volume/GPU request。PyMTLF 的四個可寫目錄——artifact、model
+state、publication journal、FL workspace——全部固定在各自 named volume root；本次 smoke
+也因此找出並修正原先遺漏的 publication 絕對路徑。
+
+Bounded CPU smoke 實際建立五個 containers，全部通過 application readiness。五者都載入
+`torch 2.5.1+cu121` 且在無 GPU request 下回報 CUDA unavailable；PyMTLF-A/B effective
+training device 都是 `cpu`。空載即時 RSS 約為 PyAnLF 230 MiB/個、PyMTLF 283 MiB/個，合計
+約 1.28 GiB。這不是 training/dataset/GPU peak，不能據此縮小 full-run budget。
+
+兩個 images 的 virtual size 各約 5.42 GB，前六層（含 Python、uv、PyTorch/CUDA runtime）
+相同；Docker 當下把 5.421 GB 報為 shared size。Smoke 結束後自身 container、network、volume
+與 generated config 已移除，兩個 images 保留供下次使用；未對共用 Docker daemon 執行
+global prune。完整證據見
+[host-ml-container-cpu-smoke-2026-08-09.md](../reports/host-ml-container-cpu-smoke-2026-08-09.md)。
+
+這次沒有安裝 NVIDIA Container Toolkit、沒有讓 container 存取 GPU、沒有建立 VM 或 Host
+network，也沒有驗證 VM-to-Host published endpoints。下一個安全工作是實作日常
+`ml-start`／`ml-status`／`ml-stop` 及 observe/log integration；GPU 與 network mutation 仍需
+另行授權。
