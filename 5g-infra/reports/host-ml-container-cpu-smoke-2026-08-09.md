@@ -69,5 +69,5 @@ Docker 資源。
 - NVIDIA Container Toolkit 與 container GPU visibility；
 - PyMTLF-A/B single/dual-client training、peak Host RAM 與 10 GiB RTX 3080 VRAM；
 - `192.168.57.1` Host interface、VM-to-Host route、firewall 與 published endpoint；
-- long-lived `ml-start`／`ml-status`／`ml-stop`、observe/log integration；
+- production lifecycle 已實作並通過 CPU-only lifecycle smoke，但尚未通過 GPU activation；
 - 三台 VM 與 full-core business E2E。

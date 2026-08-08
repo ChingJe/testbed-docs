@@ -6,8 +6,9 @@
 狀態：本機 infrastructure baseline 與 component pinning 已實作；PyAnLF／PyMTLF 的可設定
 GPU 支援已完成並推送 component branch。三台 VM 加 Host Docker ML services 的 topology、
 native config、renderer/checker、non-mutating preflight、兩種 image target、five-service
-Compose 與 bounded CPU health smoke 已完成；尚未實作長時間 ML lifecycle、GPU container
-runtime、建立 remote、建立新 VM 或完成 privileged full-scenario E2E。
+Compose、正式 ML lifecycle 與 bounded CPU health/lifecycle smoke 已完成；尚未驗證 GPU
+container runtime、Host-to-VM network、建立 remote、建立新 VM 或完成 privileged
+full-scenario E2E。
 
 ## 1. 目的
 
@@ -1529,7 +1530,8 @@ gitlink／component lock 更新已完成。
    需等 provider 建立 host-only network 後驗證；
 2. 已完成共用 ML base/layers、兩種 image target、five-service `compose.yaml`、static checks 與
    bounded CPU-only config/health smoke；smoke 只清除自身 containers／volumes 並保留 images；
-3. 下一步實作 `ml-start`／`ml-status`／`ml-stop`，擴充 preflight、observe 與 logs；
+3. 已完成 `ml-start`／`ml-status`／`ml-stop`、project-scoped rollback/retention，以及
+   observe/log integration；bounded CPU lifecycle smoke 已驗證 start/status/log/stop；
 4. 取得 Host prerequisite 授權後安裝／設定 NVIDIA Container Toolkit，執行 single-GPU 與
    dual-client VRAM smoke；此步可延至 CPU full-stack smoke 後，不阻擋前三步；
 5. 依 ML 與 PseudoDriver 的實測 peak 更新 Host／Path 資源 budget，再移除 guest
@@ -1669,3 +1671,34 @@ global prune。完整證據見
 network，也沒有驗證 VM-to-Host published endpoints。下一個安全工作是實作日常
 `ml-start`／`ml-status`／`ml-stop` 及 observe/log integration；GPU 與 network mutation 仍需
 另行授權。
+
+### 16.6 2026-08-09 Host ML lifecycle 與觀測
+
+Infrastructure 已實作正式 `ml-start`／`ml-status`／`ml-stop`。Production project 固定為
+`5g-nwdaf-infrastructure`；所有 status、stop 與 Docker log selection 都以 exact Compose
+project/service label 定位，不依賴 container IP，也不掃描或操作其他 project。
+
+`ml-start` 依序驗證 native config 與 resolved Compose、確認 Host bind address、RAM reserve、
+Docker free-space 與 swap policy、記錄完整 config hash、各 build 一次 PyAnLF/PyMTLF image，
+並在 production mode 以一次性 container 執行實際 CUDA visibility probe。CUDA 不可見時不
+允許 silent CPU fallback；若 service startup 失敗，只停止本 project containers，保留 image
+與 named volume。`ml-stop` 同樣只停止該 project 的 running containers，不執行 `down` 或
+prune。
+
+`ml-status` 可在 running 或 stopped 狀態顯示五個 service 的 container state、application
+health、native config effective device、實際 CUDA visibility、即時 memory、image ID、
+component source revision、config-set 與 config hash。`observe` 已加入這張狀態表；`logs.sh`
+支援 VM、ML 或 combined source、service glob、since、tail、follow/non-follow，ML log 以
+`[ml:<service>]` prefix 呈現，離開 follower 不停止 process。
+
+Disposable CPU lifecycle smoke 使用獨立 project 與 loopback config，驗證五個 services
+healthy、status identity、ML log filter、stop 後五個 containers 與五個 volumes 仍保留，最後
+才對自己的 smoke project 執行 `down --volumes`。空載 RSS 仍約 1.28 GiB；smoke 沒有安裝或
+使用 NVIDIA toolkit，也沒有建立 VM 或 Host network。完整紀錄見
+[host-ml-lifecycle-smoke-2026-08-09.md](../reports/host-ml-lifecycle-smoke-2026-08-09.md)。
+
+PyAnLF 啟動同時回報 callback ingestion default 的高理論 memory bound（8192 entries ×
+4 MiB request ceiling）。Queue 不會在 startup 預先配置，且 container 具有 768 MiB hard
+limit，但正式 callback burst 仍可能造成 container-local OOM 或 drop-oldest。這次不在缺乏
+traffic peak evidence 時改變 queue semantics；GPU/full-stack smoke 前須量測實際 payload、
+queue depth、drop counter 與 peak RSS，再決定 capacity／request limit 或提高 container RAM。
