@@ -1551,10 +1551,10 @@ gitlink／component lock 更新已完成。
    bounded CPU-only config/health smoke；smoke 只清除自身 containers／volumes 並保留 images；
 3. 已完成 `ml-start`／`ml-status`／`ml-stop`、project-scoped rollback/retention，以及
    observe/log integration；bounded CPU lifecycle smoke 已驗證 start/status/log/stop；
-4. 取得 Host prerequisite 授權後安裝 `nvidia-container-toolkit-base`、產生並驗證 CDI spec，
-   將 production Compose 從 `gpus:` 遷移到 CDI `devices`；先通過 disposable probe，再執行
-   single-GPU 與 dual-client VRAM smoke。此步不修改／restart shared Docker daemon，可延至
-   CPU full-stack smoke 後，不阻擋前三步；
+4. 已完成 production Compose、CPU override、static checker 與 lifecycle/status 的 CDI
+   遷移；下一步取得 Host prerequisite 授權後安裝 `nvidia-container-toolkit-base`、產生並驗證
+   CDI spec，先通過 disposable probe，再執行 single-GPU 與 dual-client VRAM smoke。此步不
+   修改／restart shared Docker daemon，可延至 CPU full-stack smoke 後，不阻擋前三步；
 5. 依 ML 與 PseudoDriver 的實測 peak 更新 Host／Path 資源 budget，再移除 guest
    PyAnLF／PyMTLF provisioning、systemd 與舊 endpoint assumptions；
 6. 選定 provider，建立三台 VM 並依 Core、Path、ML、subscription、PseudoDriver E2E
@@ -1751,3 +1751,24 @@ restart 視為不影響他人的一般 prerequisite step。
 但仍缺 `uidmap`，且 Host 的 cgroup version 是 v1。即使補齊 package，仍不能依賴 rootless
 daemon 落實目前 Compose 的 CPU／RAM limits，並會重複 image store、增加固定 Host SBI port
 與 VM reachability 的網路驗證，因此不作預設部署路徑。
+
+### 16.8 2026-08-09 CDI deployment definition
+
+Infrastructure production Compose 已將 PyMTLF-A/B 的 legacy `gpus:` request 改為 CDI
+`devices: ["nvidia.com/gpu=all"]`；PyAnLF-A/B 與 PyMTLF-C 不要求 GPU。CPU smoke override
+改為清除 `devices`，resolved Compose 已證明五個 CPU services 都不殘留 CDI request。Static
+checker 同時驗證 exact CDI source／target／permissions，並禁止任何 service 保留 legacy
+`gpus:`。
+
+Production `ml-start` 在 image build 前先要求 `nvidia-ctk cdi list` 包含
+`nvidia.com/gpu=all`，避免缺 Host prerequisite 時執行無用 build；image ready 後再以
+`docker run --device nvidia.com/gpu=all` 執行 PyTorch CUDA visibility probe。任一 gate 失敗
+都發生在 production services 建立前，且 script 不修改 daemon config。`ml-status` 新增 CDI
+欄位，將 application effective device、實際 container CDI mapping 與 CUDA visibility 分開
+呈現。
+
+Static baseline／CPU Compose checks、Python/Bash syntax 與 Compose render 均通過。Disposable
+CPU lifecycle regression 再次讓五個 services 全部 healthy，running／stopped status 都顯示
+`CDI=none`，project-scoped stop/retention 與最終 `down --volumes` cleanup 通過；其他 Docker
+projects 未納入操作範圍。此結果不代表 Host CDI package 或 GPU path 已通過，下一個 gate 仍是
+另行授權的 toolkit-base installation、CDI inventory 與 disposable GPU probe。
