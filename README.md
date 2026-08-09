@@ -10,6 +10,7 @@
 `5G_NWDAF_Infrastructure` repository 建置，計畫入口如下：
 
 - [5G_NWDAF_Infrastructure 建置與遷移計畫](5g-infra/design/5g-nwdaf-infrastructure-plan.md)
+- [新版 Infrastructure 驗證報告](5g-infra/reports/5g-nwdaf-infrastructure/README.md)
 - [舊環境 local network settings inventory](5g-infra/reports/local-network-settings-inventory-2026-08-05.md)
 - [舊 VM inventory 與 removal report](5g-infra/reports/legacy-vm-inventory-and-removal-proposal-2026-08-06.md)
 
@@ -26,7 +27,7 @@ docs/
 │   │   ├── setup-sh.md     `.agent/setup.sh` 內部機制與重建指南
 │   │   ├── workflow.md     日常操作流程與常用指令
 │   │   └── troubleshooting.md  已知問題與排查方式
-│   └── reports/            事故與 bug 報告
+│   └── reports/            驗證、盤點、事故與 bug 報告（依系統分類）
 │
 ├── 5g-viz/                 即時視覺化系統（FastAPI + WebSocket + Grafana）
 │   ├── README.md           給人的入口頁，先講系統是什麼、怎麼讀這套文件

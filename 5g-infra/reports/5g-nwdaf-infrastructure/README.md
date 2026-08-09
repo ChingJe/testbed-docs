@@ -1,0 +1,23 @@
+# 5G NWDAF Infrastructure 驗證報告
+
+此目錄集中保存新版 `5G_NWDAF_Infrastructure` 的主機準備、容器 runtime、VM
+骨架與 provisioning 驗證紀錄。舊 `5G_Infrastructure`、Daisy、事件與 replay
+相關報告仍保留在上一層目錄，避免混淆兩套環境的時間線。
+
+## Host 與 ML runtime
+
+- [Hybrid Host Readiness Inventory](hybrid-host-readiness-inventory-2026-08-09.md)
+- [Host ML Container CPU Smoke](host-ml-container-cpu-smoke-2026-08-09.md)
+- [Host ML Lifecycle Smoke](host-ml-lifecycle-smoke-2026-08-09.md)
+- [Host GPU Runtime Activation](host-gpu-runtime-activation-2026-08-09.md)
+
+## VM 骨架
+
+- [Core VM Skeleton Smoke](core-vm-skeleton-smoke-2026-08-09.md)
+- [Path VM Skeleton Smoke](path-vm-skeleton-smoke-2026-08-09.md)
+
+## VM provisioning
+
+- [Core VM Provisioning Smoke](core-vm-provisioning-smoke-2026-08-09.md)
+- [Path A VM Provisioning Smoke](path-a-vm-provisioning-smoke-2026-08-09.md)
+- [Path B VM Provisioning Smoke](path-b-vm-provisioning-smoke-2026-08-09.md)

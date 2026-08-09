@@ -1664,7 +1664,7 @@ repository 修正，不能以過時描述估算 RAM。
 ### 16.4 2026-08-09 Hybrid topology/config freeze
 
 Infrastructure commit：`9e24cc5`。對應 Host 清點見
-[hybrid-host-readiness-inventory-2026-08-09.md](../reports/hybrid-host-readiness-inventory-2026-08-09.md)。
+[hybrid-host-readiness-inventory-2026-08-09.md](../reports/5g-nwdaf-infrastructure/hybrid-host-readiness-inventory-2026-08-09.md)。
 
 Infrastructure definition 已改為 Core 4096 MiB、Path A/B 各 3072 MiB，三台 VM 都使用
 40 GiB dynamic primary logical capacity。五個 PyAnLF／PyMTLF role 從 VM placement 移到
@@ -1703,7 +1703,7 @@ training device 都是 `cpu`。空載即時 RSS 約為 PyAnLF 230 MiB/個、PyMT
 相同；Docker 當下把 5.421 GB 報為 shared size。Smoke 結束後自身 container、network、volume
 與 generated config 已移除，兩個 images 保留供下次使用；未對共用 Docker daemon 執行
 global prune。完整證據見
-[host-ml-container-cpu-smoke-2026-08-09.md](../reports/host-ml-container-cpu-smoke-2026-08-09.md)。
+[host-ml-container-cpu-smoke-2026-08-09.md](../reports/5g-nwdaf-infrastructure/host-ml-container-cpu-smoke-2026-08-09.md)。
 
 這次沒有安裝 NVIDIA Container Toolkit、沒有讓 container 存取 GPU、沒有建立 VM 或 Host
 network，也沒有驗證 VM-to-Host published endpoints。下一個安全工作是實作日常
@@ -1733,7 +1733,7 @@ Disposable CPU lifecycle smoke 使用獨立 project 與 loopback config，驗證
 healthy、status identity、ML log filter、stop 後五個 containers 與五個 volumes 仍保留，最後
 才對自己的 smoke project 執行 `down --volumes`。空載 RSS 仍約 1.28 GiB；smoke 沒有安裝或
 使用 NVIDIA toolkit，也沒有建立 VM 或 Host network。完整紀錄見
-[host-ml-lifecycle-smoke-2026-08-09.md](../reports/host-ml-lifecycle-smoke-2026-08-09.md)。
+[host-ml-lifecycle-smoke-2026-08-09.md](../reports/5g-nwdaf-infrastructure/host-ml-lifecycle-smoke-2026-08-09.md)。
 
 PyAnLF 啟動同時回報 callback ingestion default 的高理論 memory bound（8192 entries ×
 4 MiB request ceiling）。Queue 不會在 startup 預先配置，且 container 具有 768 MiB hard
