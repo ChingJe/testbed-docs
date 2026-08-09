@@ -1858,3 +1858,25 @@ source/runtime 只由 Host container 負責。
 activation 或 systemd services。Host VirtualBox 6.1 與 guest additions 6.0 版本不完全一致，
 但受控 source 使用 rsync 且 `/vagrant` 已停用，因此目前不把 vboxsf compatibility 當成
 prerequisite；後續不得重新引入 shared-folder dependency。
+
+### 16.12 2026-08-09 Path VM skeleton 與三 VM network smoke
+
+在 `core` definition commit 後，以相同 pinned Jammy box 和 `--no-provision` 依序建立
+`path-a`、`path-b`。兩台均套用 3072 MiB RAM、3 vCPU、40 GiB dynamic VMDK，source
+snapshot 都是 106 MiB、沒有 `ML/` 或 `/vagrant` share，VMDK 實佔各約 1.6 GiB。
+
+Path A 的 management／SBI／N2／N3-A／N4／N6-A 位址，Path B 的
+management／SBI／N2／N3-B／N4／N6-B 位址均存在。Host 對所有 VM interface、每個 Path
+對所屬 Host `.1`，以及 Core／Path A／Path B 在 management、SBI、N2、N4 四個共享 `/24`
+的雙向 ping 都通過。Host 最終具有 `vboxnet0`–`vboxnet7`，分別承載
+`192.168.56.0/24`–`192.168.63.0/24`，沒有把八個 segment 合併成一個 `/21`。
+
+為避免把 production ML readiness 與未 provision 的 MongoDB／ADRF 混在一起，本輪沒有
+啟動 production Compose。Host 在 `192.168.57.1:9091` 開啟短暫 HTTP listener，三台 VM
+分別從 `192.168.57.2/.3/.4` 取得 HTTP 200，證明實際 VM-to-Host ML TCP path；listener 隨即
+停止且 port 無殘留。
+
+三台同時 running 時 Host 約有 24 GiB `MemAvailable`、175 GiB workspace free，八個既有
+Docker containers 狀態未受影響。完成 bounded smoke 後三台 VM 已 graceful halt，保留 disks
+供後續分階段 provisioning。這只完成 VM/network skeleton，不代表 N6 NAT、gtp5g、UERANSIM、
+NF build 或 service E2E 已通過。
