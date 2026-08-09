@@ -31,3 +31,4 @@
 
 - [Generated PseudoDriver Dataset Tooling](generated-pseudodriver-dataset-tooling-2026-08-09.md)
 - [PseudoDriver Dataset Guest Staging Smoke](pseudodriver-dataset-guest-staging-smoke-2026-08-09.md)
+- [Nupf Contract 與 PseudoDriver Runtime Smoke](nupf-contract-pseudodriver-runtime-smoke-2026-08-09.md)

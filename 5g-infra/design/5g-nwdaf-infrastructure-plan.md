@@ -1614,10 +1614,12 @@ working tree，也未建立任何新 VM。
 - consumer 以 synthetic NRF profiles 驗證 TAI A/B distinct-NF selection；
 - shell／Python syntax 與 Vagrant 2.4.3 `validate --ignore-provider` 通過。
 
-UPF 固定在 remote 可取得且包含 PseudoDriver 的
+建立此 baseline 時，UPF 固定在 remote 可取得且包含 PseudoDriver 的
 `test-EES-with-pseudodriver@9a4d95c`；`gtp5g` 因該 UPF 的版本檢查固定
 `v0.9.16@8d723c2`。先前 full-core 紀錄中的 go-upf `c69051b` 是無法從 remote
-取得的 local commit，因此目前只可稱為可重建的新基線，不可宣稱已等價重現舊 E2E。
+取得的 local commit，因此此時只可稱為可重建的新基線。UPF 後續已前進到以
+`9a4d95c` 為 parent 的 Release 18 contract 修正版 `234bae0`，runtime 結果見 16.18；
+仍不可宣稱已等價重現舊 full FL E2E。
 
 2026-08-06 preflight 當下 storage 約 176 GiB free，通過 120 GiB threshold；available
 RAM 約 20,026 MiB，低於 16,384 MiB guests 加 4,096 MiB host reserve，且 swap 幾乎用盡，
@@ -2023,3 +2025,37 @@ staging 後 Path A/B `MemAvailable` 約 2640／2627 MiB，dataset directory 各�
 是短時間啟動 guest services 與 subscription，核對實際 PDU IP、PseudoDriver matched rows、
 Event Exposure callback 及 Path RAM peak。完整證據見
 [PseudoDriver Dataset Guest Staging Smoke](../reports/5g-nwdaf-infrastructure/pseudodriver-dataset-guest-staging-smoke-2026-08-09.md)。
+
+### 16.18 2026-08-09 Nupf Contract 與 PseudoDriver Runtime Smoke
+
+Infrastructure commit `e119dc9` 將 `NFs/upf` 從
+`test-EES-with-pseudodriver@9a4d95c` 前進到
+`fix/r18-nupf-event-exposure-contract@234bae0`。新 commit 以 `9a4d95c` 為直接 parent，
+保留 shared Parquet PseudoDriver，並把 `ueIpAddress`、`repPeriod` 對齊 Release 18 Nupf
+Event Exposure contract。`go test ./internal/ees` 與 `go build ./cmd` 通過；完整 repository
+test 仍會碰到既有 root `sim_my_test.go` compile error 與需 netlink／gtp5g privilege 的測試，
+不可誤報為全套 unit tests green。
+
+兩台 Path VM 都從該 revision 重建 UPF，binary SHA-256 同為
+`931ea003d6055d0f1f20d26f19cdf7f454bf12b4139f8ae6bcacfd72e27ac0e7`。23 個 Guest
+units 全部 active，六個 PDU Session 分別取得 Path A `10.60.0.1`–`.3` 與 Path B
+`10.61.0.1`–`.3`。Consumer 經 NRF 找到兩個不同 NWDAF 並建立兩筆 subscription；SMF
+觀察到 12 次 Nsmf Event Exposure subscription POST 全部回 `201`，沒有先前的 `502`。
+兩個 UPF 各維持三筆 subscription，對各自三個 PDU IP 完成 18,006-row historical
+warm-start，接著開始 pacing 8,994-row Phase 2。PyAnLF-A/B 都接受至少兩輪、每輪三筆的
+UPF callback 並回 `204`；consumer 最終收到 A/B 各一筆 analytics notification。
+
+五個 Host ML containers 同時 healthy，runtime RSS 合計約 1.33 GiB；完整 stack 運行時
+Host 仍有約 23.7 GiB `MemAvailable`，workspace 約 164 GiB free。UPF service cgroup 的
+單次 current snapshot 約為 Path A 8.1 MiB、Path B 9.5 MiB，但 Host 使用 cgroup v1，沒有
+取得可採信的 `memory.peak`，所以本輪不關閉 Path replay peak gate。驗證後 exact DELETE
+兩筆 subscription，依序停止 consumer、五個 ML containers、23 個 Guest services 與三台
+VM；三台均為 `poweroff`，其他八個共用 containers 持續運行。
+
+本輪同時找出並修正 default UDM Internal Group range、consumer state CLI 執行身份，以及
+已移到 Host containers 後仍殘留在 Guest stop list 的 ML units。這完成短時間
+subscription／replay／analytics callback 閉環，不包含 3,000 秒 degradation、accuracy
+degradation、Model Monitor coordination、A/B training、FedAvg、ADRF publication、reprovision
+或 generation cutover。下一個 gate 應以 bounded timeout 驗證這段完整 FL business flow，
+並同步收集 Path RAM 與 RTX 3080 VRAM peak。完整證據見
+[Nupf Contract 與 PseudoDriver Runtime Smoke](../reports/5g-nwdaf-infrastructure/nupf-contract-pseudodriver-runtime-smoke-2026-08-09.md)。
