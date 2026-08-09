@@ -2202,3 +2202,35 @@ runtime 驗證。
 下一個 runtime gate 是重建五個 ML images，短時間驗證三台 Guest 到五個 Host container、
 五個 container 回到各自 NWDAF internal context API 的雙向連線，再執行 bounded full E2E。
 在這個 gate 完成前，不把舊 full-state sync smoke 當成新版 lifecycle 的驗收結果。
+
+### 16.21 2026-08-10 Stateless Full E2E 與 ADRF-only PyAnLF Policy
+
+stateless lifecycle 的雙向 transport gate 已通過。`fl-closure-smoke` 中三台 VM、23 個 Guest
+services、五個 Host ML containers 與六個 UE 正常啟動；單一 consumer 只建立 A/B 各一筆
+subscription。雙 Path 各完成 18,006 packets warm-start 與 26 個 30 秒 live windows，consumer
+累計收到 56 筆 analytics notifications。Core database 最終有 420 筆 ADRF data records，
+PyAnLF-A/B fallback collections 都是零，證明這次實際 observation path 使用 ADRF。
+
+本輪沒有完成 FL closure。PyAnLF-A/B 各只產生一筆 `matched=1`、`deviation=None` 的 accuracy
+measurement。兩筆 C→A/B monitor subscription 在 22:12:04 建立，第一筆 measurement 到
+22:13:34 才 ready，恰好撞上快速場景的 90 秒 watchdog deadline；通知再耗時約 5 秒後，A
+timeout、B 到達 C 但未被評估為 degradation，C 隨即將 A/B subscription 都視為 missing
+periodic reports 並刪除。後續沒有 report 的直接原因是 monitor resources 已不存在，下一個
+blocker 因而縮小到「首報 startup latency、notification latency 與 C watchdog policy 的時序
+不相容」。ADRF periodic NRF heartbeat 的 HTTP 400 是另一個需獨立診斷的問題。詳細 runtime 證據見
+[Stateless Full E2E Smoke](../reports/5g-nwdaf-infrastructure/stateless-full-e2e-smoke-2026-08-10.md)。
+
+後續 E2E 將 PyAnLF 的 ADRF 路徑改為 fail-closed：default A/B config 設定
+`mongodb.enabled: false`，renderer 產生的完整與快速場景繼承此值，checker 也禁止重新啟用
+fallback。Core MongoDB 仍保留給 5GC NFs 與 ADRF；這項 ADRF-only policy 不涉及 PyMTLF。
+三組 config、Compose render 與 PyAnLF config loader 均已驗證，PyAnLF config tests 24 passed。
+
+依變更邊界，目前不直接修改 PyAnLF、PyMTLF 或其他 NF/ML source。為先排除首報與 deadline
+相撞，使用者已核准只調整 PyMTLF-C deployment config：明確設定
+`watchdog_grace_seconds: 300`。快速場景 deadline 由 90 秒延長為 360 秒，完整場景則為 480
+秒；三組 config/Compose、PyMTLF loader 與 48 個 config tests 均通過。
+
+下一步用新 grace 重跑 `fl-closure-smoke`，確認第一筆 report 後 A/B monitor subscriptions
+持續存在，同時 trace notification 經 Path NWDAF 的約 5 秒 latency。若仍需要任何 NF/ML
+source change，先向使用者說明根因及修改範圍並取得同意。快速場景 closure 完成後，才進入
+較長的 `full-core-cat-transition` business example。
