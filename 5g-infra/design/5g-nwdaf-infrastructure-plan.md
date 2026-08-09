@@ -1,7 +1,7 @@
 # `5G_NWDAF_Infrastructure` 建置與遷移計畫
 
 建立日期：2026-08-05
-最近更新：2026-08-09
+最近更新：2026-08-10
 
 狀態：本機 infrastructure baseline 與 component pinning 已實作；PyAnLF／PyMTLF 的可設定
 GPU 支援已完成並推送 component branch。三台 VM 加 Host Docker ML services 的 topology、
@@ -2172,3 +2172,33 @@ minimum。以目前 model/split contract，完整 final validation 需要至少 
 新增 actual observation／train／validation counts。既有 100,000-record job ceiling 只保留作
 下載安全界線。本節是已確認的後續設計，尚未表示兩份新 profile、config override、checker
 或 runner 已實作。
+
+### 16.20 2026-08-10 Stateless Backend Lifecycle 遷移
+
+Infrastructure 對齊新版 stateless backend lifecycle，component pins 更新為 NWDAF
+`318ac19d8b027373f4468660394da1ec3338268e`、PyAnLF
+`5c305c7b69a50e9356bcfca8229f1a3cffd11a9a` 與 PyMTLF
+`49b1ef474472559a487b4cf36d312265c45b0c9a`。新版 contract 已移除 full-state
+`POST /internal/v1/sync`、`/health/live`、`SyncProjection` 與 `SYNCING` 狀態；Go NWDAF
+只以 ready 狀態和 `processInstanceId` 追蹤 backend generation，backend replacement 時清除
+舊 generation。PyAnLF／PyMTLF 在真正需要 context 時，才向所屬 NWDAF 的 thin internal
+context API 查詢，不再維護一份由週期性 sync 推送的完整投影。
+
+五個 Host ML service 的 containing-NWDAF 對應為：PyAnLF-A
+`http://192.168.57.41:8090`、PyAnLF-B `http://192.168.57.51:8090`、PyMTLF-A
+`http://192.168.57.41:8091`、PyMTLF-B `http://192.168.57.51:8091`、PyMTLF-C
+`http://192.168.57.30:8091`。這些位址由 config renderer 根據各 `nwdafcfg-*.yaml` 的
+AnLF／MTLF internal server 產生，config checker 會比對 ML 與 NWDAF 兩側設定並驗證 30 秒
+request timeout，避免 topology 改動後留下獨立寫死且不一致的 endpoint。Compose image build
+revision 與 `components.lock.yaml` 也同步前進到上述版本。
+
+靜態驗證範圍包括 NWDAF `go test ./...` 通過、PyAnLF／PyMTLF Ruff 通過，以及
+`nwdaf-resources` focused full-core support tests 10 passed。兩個 Python repository 的完整
+suite 在目前既有 `.venv` 會於空白 FastAPI `TestClient` context enter 同樣停住，因此本次
+不能宣稱完整 Python suite green，也不以修改 ML 程式規避該環境問題。先前 runtime reports
+仍是當時 revision 的歷史證據，其中 periodic sync 成功不代表新版 stateless contract 已完成
+runtime 驗證。
+
+下一個 runtime gate 是重建五個 ML images，短時間驗證三台 Guest 到五個 Host container、
+五個 container 回到各自 NWDAF internal context API 的雙向連線，再執行 bounded full E2E。
+在這個 gate 完成前，不把舊 full-state sync smoke 當成新版 lifecycle 的驗收結果。
