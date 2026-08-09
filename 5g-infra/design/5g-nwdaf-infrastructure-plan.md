@@ -587,7 +587,7 @@ config:
 
 guest:
   os: ubuntu
-  release: "24.04"
+  release: "22.04"
 
 hostSafety:
   reserveMemoryMiB: 6144
@@ -1409,8 +1409,9 @@ Deliverables：
 - Host published endpoints、VM-to-Host reachability、read-only config mount、health、source／
   lock／image identity 與 bounded log rotation；
 - `ml-start`／`ml-status`／`ml-stop`，並讓 `observe`／`logs` 同時涵蓋 guest 與 container；
-- RTX 3080 實機 smoke：A/B 單獨 GPU training、A/B 同時 training 的 peak VRAM／OOM 行為、
-  PyAnLF CPU inference，以及 PyMTLF-C CPU FedAvg／model serialization。
+- RTX 3080 實機 smoke：在 full-core 路徑直接執行一次 bounded A/B concurrent training，記錄
+  peak VRAM／OOM 行為；只有 concurrent 失敗時才拆成單 client 診斷。另驗證 PyAnLF CPU
+  inference，以及 PyMTLF-C CPU FedAvg／model serialization。
 
 Exit gate：五個 endpoint 可由所屬 Go NWDAF 到達，status 能證明 effective device 與 image
 identity；A/B GPU path 不是 silent CPU fallback；同時 training 若超過 10 GiB VRAM，必須有
@@ -1473,7 +1474,7 @@ Exit gate：新環境 fresh-clone E2E 已通過，舊 site-specific 資訊已有
 | Host | 此機器能否安全承載？ | RAM、swap、VM／Docker disk、provider、driver、port、interface preflight |
 | VM | 三個 role 能否重建？ | one-project Vagrant identity、idempotent guest setup、network reachability、restart |
 | Container | 五個 ML service 是否可重建且彼此獨立？ | two image digests、five health checks、config/source identity、restart isolation |
-| GPU | A/B 是否真的使用 GPU 且不超出單卡能力？ | container CUDA probe、effective device、single/dual-client peak VRAM、no silent CPU fallback |
+| GPU | A/B 是否真的使用 GPU 且不超出單卡能力？ | container CUDA probe、effective device、一次 bounded concurrent peak VRAM、no silent CPU fallback；失敗才做 single-client diagnosis |
 | Hybrid network | VM 與 Host ML endpoint 是否穩定互通？ | stable Host address、published ports、bidirectional route、firewall、no container-IP dependency |
 | PseudoDriver | Dataset replay 是否在 Path RAM 內安全完成？ | file hash/bytes/rows、subscription fan-out、pre-replay headroom、UPF/VM peak、no OOM/kill |
 | Core | 真實 5GC control path 是否成立？ | NRF registration、auth、registration、policy、PDU Session |
@@ -1522,7 +1523,8 @@ state 或舊 VM process 偶然使 scenario 通過。
    目前無 listener；provider 建立 host-only network 後仍須驗證 exact interface、三台 VM
    的雙向 route 與 firewall；
 2. Host toolkit、CDI spec、NVIDIA runtime CDI probe 與 PyMTLF image CUDA probe 已在 Docker
-   27.4.1 通過，R535 driver 未升級；尚待 A/B 單獨與同時 training 的 VRAM 實測；
+   27.4.1 通過，R535 driver 未升級；尚待 full-core 階段一次 bounded A/B concurrent training
+   的 VRAM 實測，失敗時才拆成單 client 診斷；
 3. A/B PyMTLF 同時 training 的實測 VRAM 是否低於 10 GiB，以及超限時採 sequential queue
    或 fail-fast；
 4. VirtualBox 已是第一個 provider candidate；仍須完成 Vagrant host-only network 與三台
@@ -1556,7 +1558,8 @@ gitlink／component lock 更新已完成。
 4. 已完成 Host toolkit、CDI spec、NVIDIA runtime registration 與 disposable `nvidia-smi`
    probe；daemon reload 沒有改變 PID 或中斷八個既有 containers。Production Compose、CPU
    override、static checker 與 lifecycle/status 已改用 NVIDIA runtime CDI mode；下一步執行
-   single-GPU 與 dual-client VRAM smoke；
+   三台 VM skeleton 與 host-only route，再把一次 bounded concurrent GPU smoke 併入 full-core
+   validation；
 5. 依 ML 與 PseudoDriver 的實測 peak 更新 Host／Path 資源 budget，再移除 guest
    PyAnLF／PyMTLF provisioning、systemd 與舊 endpoint assumptions；
 6. 選定 provider，建立三台 VM 並依 Core、Path、ML、subscription、PseudoDriver E2E
@@ -1805,5 +1808,53 @@ named runtime 與 CDI inventory，再用 PyMTLF image 做 PyTorch CUDA probe；�
 fallback。更新後的 CPU lifecycle regression 讓五個 services 全部 healthy，PyMTLF-A/B
 明確顯示 `RUNTIME=runc`、`CDI=void`、CUDA unavailable，stop／retention／cleanup 亦通過。
 
-這仍不等於 training capacity 已確認。下一個 GPU gate 是依序量測 A、B 單獨及 A/B 同時
-training 的 peak VRAM、OOM 與外部 GPU workload 影響。
+這仍不等於 training capacity 已確認。為避免先建立假的 ADRF／dataset 路徑，GPU training
+gate 延後併入 full-core validation：先執行一次有 timeout 的 A/B concurrent training，記錄
+peak VRAM、OOM 與外部 GPU workload 影響；只有該最壞情境失敗時才拆成 A、B 單獨診斷。
+
+### 16.10 2026-08-09 Guest baseline 改為 Ubuntu 22.04
+
+建立 VM 前重新對照舊 `5G_Infrastructure`：舊 5GC、gNB 與多數 network VM 使用
+`ubuntu/focal64` 20.04，較新的 `UPF-EES`／`UPF-EES2` 使用 `ubuntu/jammy64` 22.04；舊環境
+並非全數 22.04。新版不延續混合 release，而是依使用者決策將 Core、Path A、Path B 統一為
+Ubuntu 22.04。
+
+Host 已快取 `ubuntu/jammy64` `20241002.0.0`，尚未快取原定的 `bento/ubuntu-24.04`。改用
+Jammy 可避免額外 box download，並貼近曾實際使用的 UPF Event Exposure 環境。Canonical
+`testbed.yaml` 將 box 精確固定為該版本，Vagrant 關閉 automatic box update check；Vagrant
+fallback 和 operations 說明也同步改為 22.04。Core MongoDB 8.0 apt source 由 `noble` 改為
+`jammy`。後續 skeleton smoke 必須記錄實際 box version、guest kernel、gtp5g build 與
+UERANSIM build 結果，不能只因 VM 能 boot 就宣稱 guest 相容性完成。
+
+### 16.11 2026-08-09 Core VM skeleton smoke
+
+VirtualBox Host 原有 `/etc/vbox/networks.conf` 只允許 `192.168.33.0/24` 與
+`192.168.56.0/24`。舊 testbed repository／指引沒有要求此檔案，且舊有效 VM networking
+主要使用 bridged `public_network`；因此 `192.168.33.0/24` 視為未知 site range 保留，另由
+使用者將 testbed allowlist 擴為 `192.168.56.0/21`。這只允許 VirtualBox 建立 56–63 的
+host-only adapter，實際 topology 仍是八個獨立 `/24`。Host preflight 新增 generic interface
+coverage check，避免 VM import 後才因 allowlist 失敗。
+
+第一次 `core --no-provision` boot 已證明 Jammy box、NAT、SSH 與四個 host-only adapter 可用，
+但同時發現 Vagrant rsync 把 Host `.venv` 傳入 guest，且預設 `/vagrant` vboxsf 直接暴露整個
+Host working tree。同步在約 3.6 GiB 時中止；由於 dynamic VMDK 已膨脹到約 5.5 GiB 且不會因
+guest 刪檔自動縮小，經使用者明確同意後只銷毀這台尚未 provision、無資料、無 snapshot 的
+`core`，再以 cached box 乾淨重建。
+
+修正後 guest rsync 排除整個 `ML/`、virtualenv 與常見 cache，並停用預設 `/vagrant` share。
+既然 Host NVIDIA runtime、PyMTLF CUDA probe 與 CPU lifecycle 已通過，guest provisioning 和
+service dispatch 也正式移除 PyAnLF／PyMTLF staging、uv environment 與舊 service cases；ML
+source/runtime 只由 Host container 負責。
+
+乾淨 `core` skeleton 的實測結果：
+
+- Ubuntu 22.04.5、kernel 5.15.0-171、4 GiB RAM、4 vCPU；
+- NAT 加 `192.168.56.10`、`192.168.57.2`、`192.168.58.2`、`192.168.61.2`；
+- Host 對四個 IP ping、guest 對 Host `192.168.57.1` ping 與 Vagrant SSH 均通過；
+- guest source snapshot 106 MiB，`ML/` absent，`/vagrant` absent；
+- 40 GiB dynamic VMDK 實佔約 1.6 GiB，guest root used 約 1.7 GiB。
+
+此 smoke 使用 `--no-provision`，尚未驗證 apt packages、MongoDB、Go/NF build、config
+activation 或 systemd services。Host VirtualBox 6.1 與 guest additions 6.0 版本不完全一致，
+但受控 source 使用 rsync 且 `/vagrant` 已停用，因此目前不把 vboxsf compatibility 當成
+prerequisite；後續不得重新引入 shared-folder dependency。
