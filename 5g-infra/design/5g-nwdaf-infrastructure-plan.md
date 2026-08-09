@@ -1917,3 +1917,27 @@ lifecycle 分離，同時允許不改 Vagrant base network 的 process address �
 Default config 與一次 disposable rendered set 已通過相同 checker，三份產生結果與 committed
 baseline 完全一致；Python compile 與 Guest／Host shell syntax 亦通過。因三台 VM 尚未
 provision，本輪沒有宣稱實際 guest `ip address` 套用或 rollback 已完成 runtime 驗證。
+
+### 16.14 2026-08-09 Guest service lifecycle 與 six-UE registration
+
+三台完成 provisioning 的 VM 已共同執行 config activation 與完整 guest service lifecycle。
+實機整合依序找出並修正三個 bring-up blocker：config identity 不應包含 Host／Guest absolute
+root、SMF 必須明確取得 active `uerouting.yaml`、pinned UERANSIM 的六份 UE config 必須包含
+`uacAic`／`uacAcc`。啟動 rollback 也改為 success path 才解除的 `EXIT` trap，並由 UE schema
+failure 證明 partial stack 會被完整停止。
+
+UERANSIM 不會建立 operator subscription data。依 Phase 3 原規劃，只從
+`nwdaf-resources@d2634b84e8790a6b696e5b21ec1a0f660b683948` 選取 six-UE／single-group fixture
+語意，將 scoped provisioning 收進本 repository；沒有加入整個 repository 或 runtime
+dependency。Core 已有的 `mongosh` 負責 48 份 subscriber documents 與一份 Internal Group 的
+validate／plan／idempotent apply／show／scoped clear，`config-check` 先驗證 PLMN、SUPI、group、
+K/OPc、AMF、S-NSSAI 與 DNN。subscriber data 跨 service stop 保留，`services-start` 在啟動 UE
+前自動 apply。
+
+完整 stop/start 回歸後，23 個 guest units 全部 active；六個 UE 不需人工 restart 即完成
+registration 與 PSI 1 PDU Session。Path A 取得 `10.60.0.1`–`10.60.0.3/16`，Path B 取得
+`10.61.0.1`–`10.61.0.3/16`，符合 two-TAI pool boundary。完整證據與剩餘限制見
+[guest-services-and-ue-registration-smoke-2026-08-09.md](../reports/5g-nwdaf-infrastructure/guest-services-and-ue-registration-smoke-2026-08-09.md)。
+
+這完成 Phase 6 的 process、registration 與 PDU Session bring-up 子集，不宣稱 N6 traffic、
+PseudoDriver replay／Event Exposure、Host ML containers 或 subscription E2E 已通過。
