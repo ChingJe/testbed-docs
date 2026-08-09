@@ -306,6 +306,11 @@ supervisor container。PyAnLF 預設使用 CPU，是為兩個 PyMTLF client 保�
 - 同一 Internal Group 的六個 UE 分散在兩個 TAI；
 - A 可切換到 degraded traffic profile，B 保持 stable control profile。
 
+Phase 7 不以單一 dataset 同時承擔所有用途。Infrastructure 提供一個保留舊 testbed
+CAT transition 語意的主 example，以及一個縮短等待時間的 FL closure smoke；兩者共用相同
+三 VM／五 container topology、真實 subscription／collection／ADRF 路徑與兩輪 FedAvg，
+但不得互相取代 acceptance claim。詳細 profile contract 見 9.4.1。
+
 ### 8.2 為什麼不繼續採用全 VM
 
 5GC、UPF、UERANSIM 與 Go NWDAF 仍留在 VM，因為它們需要清楚的 kernel、network plane、
@@ -851,6 +856,80 @@ PseudoDriver metadata 由 Infrastructure generator 對實際 Parquet 產生；da
 重掃並驗證 traffic profile、hash、bytes、rows、UE IP、timestamp 與訓練／monitor headroom。
 舊 go-upf group2 `data.md` 的 row count 差異只保留作歷史 component 記錄，不再決定新情境
 active dataset identity。
+
+#### 9.4.1 主 E2E example 與 FL closure smoke
+
+第一版提供兩個明確命名、分開產生 identity 的 scenario。兩者都必須由 Core consumer 經
+NRF 找到 A／B、由正常 Nupf Event Exposure 與 PyAnLF prediction／ground-truth matching
+產生 WAPE，再由 C 自動建立 A／B training resources；smoke 也不得改用 private observation
+injection 或 fabricated degradation callback。
+
+| Setting | `full-core-cat-transition` | `fl-closure-smoke` |
+| --- | ---: | ---: |
+| 用途 | 公開主 example／正式 business acceptance | 快速驗證 FL control/data path 閉環 |
+| UPF／PyAnLF sampling | 30 秒 | 30 秒 |
+| historical warm-start | 900 秒／30 observations | 3000 秒／100 observations |
+| stable live lead-in | 900 秒 | 180 秒 |
+| Path A change boundary | dataset `t=1800s`，CAT1→CAT2 | dataset `t=3180s`，stable→degraded |
+| Path B | main acceptance 全程 stable control | 全程 stable control |
+| 後續資料 | `t=3600s` 可選 CAT2→CAT3；約 `5429s` 結束 | 600 秒 degraded tail；`t=3780s` 結束 |
+| accuracy report period | 90 秒 | 30 秒 |
+| minimum reference reports | 5 | 2 |
+| decision window／required hits | 5／3 | 2／1 |
+| FL fitting rounds | 2 | 2 |
+| local epochs | production 18 | scenario override 2 |
+| performance gate | 關閉但保留完整 final validation evidence | 關閉但保留完整 final validation evidence |
+| 預期用途時間 | 第一個 FL／cutover 約 30–40 分鐘內 | 約 5–10 分鐘，依實際 training 而定 |
+
+主 example 的 900 秒 Phase 1 只負責填滿 M1 的 30-step PyAnLF input window，延續舊
+testbed warm-start 的原始目的；它不負責在 subscription 成立瞬間同時填滿 PyMTLF training
+dataset。Production policy 會在 900 秒 stable live 與最快約 270 秒 degraded decisions 後
+才觸發 FL，因此理想 30 秒對齊下，preparation 時約已有：
+
+```text
+30 historical + 30 stable live + 9 degraded = 69 observations
+```
+
+以目前 `seq_length=30`、`out_seq_len=1`、`validation_ratio=0.1` 與 30-position boundary
+purge 計算，69 observations 約形成 8 個 training samples 與 1 個 validation sample。主
+example 刻意保留這個少量資料情境；只要實際資料能滿足 training 與 final validation 的
+結構需求，就不因樣本少於任意品質門檻而拒絕參與。
+
+Smoke 則允許用 3000 秒 Phase 1 同時準備 inference 與 training history。100 observations
+在相同 split contract 下約形成 36 個 training samples 與 4 個 validation samples，使測試
+可快速進入兩輪 fitting、FedAvg、final validation、publication、reprovision 與 generation
+cutover。縮短 report／policy timing 與 local epochs 只降低等待時間；它不構成 production
+policy、模型改善或長時間 CAT transition 已通過的證據。
+
+`minNumSamples` 是 C 在 Model Training data availability requirement 中對「dataset builder
+完成後的 training sample count」提出的最低要求，不是 raw packet／UPF notification／
+observation 數量、batch size、validation count 或 retrieval 上限。第一版維持
+`minNumSamples=1`，不新增先前討論過但沒有業務依據的 32-sample gate。PyTorch DataLoader
+不丟棄小於 batch size 的最後一批，因此少量 samples 仍可 training；FedAvg 依 Client 實際
+回報的正數 sample count 加權。
+
+目前完整 final validation 另有模型結構造成的 evidence 下限。對 `N` 個 aggregated
+observations：
+
+```text
+candidate = N - seq_length - out_seq_len + 1
+purge     = seq_length + out_seq_len - 1
+retained  = candidate - purge
+```
+
+使用 30-step input 與 one-step output 時，至少 31 observations 才能形成一個 sliding-window
+sample；要同時留下彼此不重疊的至少一個 training 與一個 validation sample，則需 62
+observations。62 是目前 split/final-validation contract 的計算結果，不是
+`minNumSamples` 或 Infrastructure 人工設定的 training quality threshold。Dataset checker
+必須回報每個 Path 的 actual observations、training／validation sample counts；完整 E2E
+只在無法形成正數 training 或 required validation evidence 時 fail，不以 32 或 batch size
+作 admission gate。
+
+C 現有 `preparation_data_window_seconds=3600` 是 request 的最大回溯時間範圍，不要求資料
+一定填滿 3600 秒，也不固定傳回筆數；ADRF 只回傳範圍內實際存在且符合 scope 的 records。
+正常 FL 由 C 提供 explicit time window；A／B 的 local fallback window 應對齊 3600 秒，避免
+fallback 的 1800 秒在 30 秒 sampling 下最多只有約 60 observations。`max_records_per_job`
+的 100,000-record 上限仍只是防止失控下載的 safety ceiling，不是實驗預期資料量。
 
 ### 9.5 第一版不管理 experiment history
 
@@ -1441,15 +1520,20 @@ Deliverables：
   NWDAF-A/B 建立同 group、不同 TAI 的 `UE_COMMUNICATION` subscriptions，保存各 path
   subscription start，並以兩側都成功作為共同 action barrier；
 - stable A/B baseline、A-only degradation、automatic FL trigger；
+- 實作 `full-core-cat-transition` 主 example：900 秒 warm-start 只填滿 PyAnLF input，保留
+  舊 testbed 的 15 分鐘 live CAT1→CAT2 與 optional CAT2→CAT3 時間語意；
+- 實作獨立 `fl-closure-smoke`：以 3000 秒 historical burst 與縮短的 monitor policy 快速
+  準備 training data，但仍走正常 WAPE trigger、ADRF retrieval 與 A／B participant path；
 - two-round FedAvg、validation、ADRF publication、reprovision 與 monitor cutover；
 - 證明 Go NWDAF 在三台 VM、五個 ML backend 在 Host containers 時，NRF discovery、ADRF、
   callback 與 model transfer 不依賴 Docker container IP；
 - 驗證成功／失敗條件；per-run record 與 archive format 留待後續設計。
 
-Exit gate：既有 Phase 7 business assertions 全部通過，summary 同時包含 VM／container／
-process identity、source revision、config hash、binary/image hash、effective device、sample
+Exit gate：主 example 的既有 Phase 7 business assertions 全部通過，summary 同時包含
+VM／container／process identity、source revision、config hash、binary/image hash、effective device、sample
 count、model identity、ADRF transaction 與 monitor route；不得把 PseudoDriver 宣稱為
-真實 application benchmark。
+真實 application benchmark。Smoke 成功只能證明 bounded FL closure，不可替代主 example
+的 production timing、CAT transition 或 business acceptance。
 
 ### Phase 8 — Public Release Readiness
 
@@ -1575,8 +1659,10 @@ gitlink／component lock 更新已完成。
    ML containers 的 idle/sync RSS 已量測，training 與 PseudoDriver peak 仍待後續 data-path
    gate 更新 Host／Path resource budget；
 6. 已建立並 provision 三台 VM，完成 Core／Path guest lifecycle、six-UE registration、
-   PDU Session、Host ML production activation 與雙向 sync；下一步依序驗證 subscription／callback、
-   Event Exposure／PseudoDriver，再執行有 timeout 的 concurrent training 與 business E2E。
+   PDU Session、Host ML production activation、雙向 sync，以及 subscription／Nupf Event
+   Exposure／PseudoDriver／PyAnLF／consumer analytics callback 短閉環；下一步先實作並執行
+   `fl-closure-smoke`，確認 ADRF retrieval、concurrent training、FedAvg、publication 與
+   cutover，再執行 `full-core-cat-transition` 主 example。
 
 每一步先通過該層驗證再 commit；provider 安裝／修復、Host toolkit/network mutation、新 VM
 建立與 privileged E2E 仍需在對應步驟明確執行。新 repository 不以加入
@@ -2059,3 +2145,30 @@ degradation、Model Monitor coordination、A/B training、FedAvg、ADRF publicat
 或 generation cutover。下一個 gate 應以 bounded timeout 驗證這段完整 FL business flow，
 並同步收集 Path RAM 與 RTX 3080 VRAM peak。完整證據見
 [Nupf Contract 與 PseudoDriver Runtime Smoke](../reports/5g-nwdaf-infrastructure/nupf-contract-pseudodriver-runtime-smoke-2026-08-09.md)。
+
+### 16.19 2026-08-09 雙 E2E Scenario 與 Training Data 決策
+
+後續不再讓單一 traffic profile 同時代表快速 plumbing test 與正式 example。主場景
+`full-core-cat-transition` 延續舊 testbed 的 30 秒 slot、900 秒 historical warm-start、
+15 分鐘 stable live 後 CAT1→CAT2，以及 optional CAT2→CAT3；warm-start 的唯一必要目的
+是讓 PyAnLF 立即取得完整 30-step input。快速場景 `fl-closure-smoke` 才使用 3000 秒
+historical burst，同時為 PyAnLF 與 PyMTLF 預備較多資料，並以縮短的 report/reference/hit
+policy 和兩個 local epochs 降低等待時間。
+
+兩個場景都保留正常 Consumer／NRF／NWDAF／SMF／UPF／PyAnLF／ADRF 路徑、A-only changed
+profile、B stable control、兩輪 sample-count-weighted FedAvg、final validation、publication、
+reprovision 與 monitor cutover；smoke 不使用 fabricated degradation，也不構成主 business
+acceptance。
+
+PyMTLF preparation 不新增 32-sample minimum。C 維持 `minNumSamples=1`，其計數單位是
+chronological split 後真正用於 fitting 的 training samples；batch size 32 也不是 admission
+minimum。以目前 model/split contract，完整 final validation 需要至少 62 observations 才能
+留下彼此不重疊的一筆 training 與一筆 validation evidence。主場景預期在第一次 trigger
+附近約有 69 observations，雖只形成約 8 train／1 validation，仍是應被允許的有效 FL
+輸入；smoke 的 100 observations 則約形成 36 train／4 validation。
+
+正常 distributed FL 仍由 C 提供 3600 秒 explicit preparation window；這是最大回溯範圍，
+不是要求填滿的資料量或 minimum。A／B fallback 後續需由 1800 對齊 3600 秒，dataset audit
+新增 actual observation／train／validation counts。既有 100,000-record job ceiling 只保留作
+下載安全界線。本節是已確認的後續設計，尚未表示兩份新 profile、config override、checker
+或 runner 已實作。
