@@ -1567,15 +1567,15 @@ gitlink／component lock 更新已完成。
    bounded CPU-only config/health smoke；smoke 只清除自身 containers／volumes 並保留 images；
 3. 已完成 `ml-start`／`ml-status`／`ml-stop`、project-scoped rollback/retention，以及
    observe/log integration；bounded CPU lifecycle smoke 已驗證 start/status/log/stop；
-4. 已完成 Host toolkit、CDI spec、NVIDIA runtime registration 與 disposable `nvidia-smi`
-   probe；daemon reload 沒有改變 PID 或中斷八個既有 containers。Production Compose、CPU
-   override、static checker 與 lifecycle/status 已改用 NVIDIA runtime CDI mode；下一步執行
-   三台 VM skeleton 與 host-only route，再把一次 bounded concurrent GPU smoke 併入 full-core
-   validation；
-5. 依 ML 與 PseudoDriver 的實測 peak 更新 Host／Path 資源 budget，再移除 guest
-   PyAnLF／PyMTLF provisioning、systemd 與舊 endpoint assumptions；
-6. 選定 provider，建立三台 VM 並依 Core、Path、ML、subscription、PseudoDriver E2E
-   分層驗證。
+4. 已完成 Host toolkit、CDI spec、NVIDIA runtime registration、disposable `nvidia-smi` probe，
+   以及 production PyMTLF-A/B CUDA activation；daemon reload 沒有改變 PID 或中斷八個既有
+   containers；
+5. 已移除 guest PyAnLF／PyMTLF provisioning、systemd 與舊 endpoint assumptions；五個 Host
+   ML containers 的 idle/sync RSS 已量測，training 與 PseudoDriver peak 仍待後續 data-path
+   gate 更新 Host／Path resource budget；
+6. 已建立並 provision 三台 VM，完成 Core／Path guest lifecycle、six-UE registration、
+   PDU Session、Host ML production activation 與雙向 sync；下一步依序驗證 subscription／callback、
+   Event Exposure／PseudoDriver，再執行有 timeout 的 concurrent training 與 business E2E。
 
 每一步先通過該層驗證再 commit；provider 安裝／修復、Host toolkit/network mutation、新 VM
 建立與 privileged E2E 仍需在對應步驟明確執行。新 repository 不以加入
@@ -1941,3 +1941,29 @@ registration 與 PSI 1 PDU Session。Path A 取得 `10.60.0.1`–`10.60.0.3/16`�
 
 這完成 Phase 6 的 process、registration 與 PDU Session bring-up 子集，不宣稱 N6 traffic、
 PseudoDriver replay／Event Exposure、Host ML containers 或 subscription E2E 已通過。
+
+### 16.15 2026-08-09 Host ML 與 Guest Stack 整合 Smoke
+
+三台 VM 的完整 guest stack 與五個 production Host ML containers 已同時啟動。Production
+project 使用 config identity
+`a73ef32bb621b3a20efa836f12183a95bdf0e7bd34cfb8565f8884626f5a99c0`；PyMTLF-A/B 透過
+NVIDIA runtime CDI mode 使用 `cuda:0` 並回報 CUDA available，PyAnLF-A/B 與 PyMTLF-C
+維持 CPU。五個 services 全部 healthy，空載／週期 sync 狀態合計 RSS 約 1.38 GiB；同時運行
+三台 VM 時 Host 仍有約 22 GiB `MemAvailable`。
+
+Core、Path A、Path B 分別從 `192.168.57.2/.3/.4` 對所屬五個 Host readiness endpoint
+取得 HTTP 200。三個 NWDAF 向 NRF 註冊成功並持續對 ML backend 執行
+`POST /internal/v1/sync`；PyAnLF-A/B 對各自 NWDAF 的 SMF association／training descriptor
+sync 也持續取得 204，證明 hybrid boundary 的雙向 transport 與 contract 可用。
+
+本輪沒有啟動 consumer subscription、N6 traffic、PseudoDriver replay、analytics callback、
+training 或 FL。PyAnLF 仍顯示 8192 × 4 MiB callback queue 理論上限警告；它沒有預先配置
+32 GiB，但正式 callback burst 必須量測 queue/drop/peak RSS。GPU 當時約 432 MiB 已使用且主要
+來自另一使用者 process，本 testbed 未 training，因此這次也不是雙 client VRAM capacity
+證明。
+
+驗證後依序停止 ML、guest services 與 VM；三台皆 poweroff，running Docker containers 回到
+原有八個共用 containers。另將 subscriber fixture identity 改為以 repository-relative
+filenames 計算，確保同內容在不同 clone root 仍得到
+`d30803f9c5904ae86bb222484170089cc4cf60ee3fe3f29e43c6487918113167`。完整證據見
+[host-ml-guest-stack-integration-smoke-2026-08-09.md](../reports/5g-nwdaf-infrastructure/host-ml-guest-stack-integration-smoke-2026-08-09.md)。

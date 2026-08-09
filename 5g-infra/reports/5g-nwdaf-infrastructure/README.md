@@ -25,3 +25,4 @@
 ## Guest services 與 5GC flow
 
 - [Guest Services 與 UE Registration Smoke](guest-services-and-ue-registration-smoke-2026-08-09.md)
+- [Host ML 與 Guest Stack 整合 Smoke](host-ml-guest-stack-integration-smoke-2026-08-09.md)
