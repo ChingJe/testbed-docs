@@ -378,7 +378,7 @@ baseline 與 FL 各 stage 的 guest peak RSS；若發生 guest OOM、reclaim thr
 latency，先以 512 MiB step 調整，不把偶然成功當作 sizing evidence。
 
 各 Path 的 3 GiB 也必須包含 go-upf PseudoDriver 的 dataset replay，不可只算 idle UPF。
-目前 pinned datasets 與直接 streaming probe 為：
+下表是 2026-08-09 對舊 pinned go-upf `pre_data` 的歷史 RAM probe，不再是新情境預設輸入：
 
 | Path | Dataset | Compressed bytes | 實際掃描 rows | 單 context probe peak RSS |
 | --- | --- | ---: | ---: | ---: |
@@ -390,6 +390,9 @@ latency，先以 512 MiB step 調整，不把偶然成功當作 sizing evidence�
 不足以支持直接把 Path RAM 增加數 GiB；但 probe 只隔離 PseudoDriver algorithm，不包含
 完整 UPF、Parquet page cache、gtp5g、gNB、三個 UE、NWDAF、journald 或多 subscription
 fan-out，不能當成 VM peak。
+
+新情境改由 Infrastructure 依 topology/profile 生成每 Path 27,000 rows、約 0.84 MiB 的
+content-addressed Parquet；這大幅縮小磁碟輸入，但不能直接取代完整 replay peak RAM 實測。
 
 第一輪實機必須在 subscription warm-start 前保有至少 512 MiB guest `MemAvailable`，並以
 systemd memory accounting／VM metrics 記錄 UPF replay 前、scan/aggregation peak、Phase 2
@@ -747,12 +750,10 @@ paths:
       pseudoDriver:
         enabled: true
         mode: hybrid
-        datasetProfile: group1
+        profile: fixtures/full-core/traffic/profiles/path-a.json
         dataset:
-          file: training_packets_run001.parquet
-          sha256: d9e2772de8529870e272f44a3bc02863e8831d9c90d51eb0b33961eb28a29030
-          bytes: 21830425
-          rows: 2720063
+          file: traffic.parquet
+          guestDirectory: /var/lib/5g-nwdaf-infrastructure/datasets/active
           minimumReplayHeadroomMiB: 512
     ues:
       - imsi-466920000000001
@@ -775,12 +776,10 @@ paths:
       pseudoDriver:
         enabled: true
         mode: hybrid
-        datasetProfile: group2
+        profile: fixtures/full-core/traffic/profiles/path-b.json
         dataset:
-          file: training_packets_run001.parquet
-          sha256: b8482a21f3370de491a67fa1f9908e1b8b3aec7671787bbbdb0d9287680b662e
-          bytes: 44050349
-          rows: 5759921
+          file: traffic.parquet
+          guestDirectory: /var/lib/5g-nwdaf-infrastructure/datasets/active
           minimumReplayHeadroomMiB: 512
     ues:
       - imsi-466920000000004
@@ -848,11 +847,10 @@ model policy、PyAnLF window、PyMTLF training rounds 或 log level 等 componen
 範例中的 `192.168.57.1` 與 ML published ports 是 public default candidate；Host-only
 interface 尚未建立時，該 address 不存在是預期狀態。Phase 4 必須在 provider 建立 network
 後驗證 Host bind、VM route、port conflict 與 firewall 行為。
-PseudoDriver metadata 則必須由實際 Parquet 產生；config checker 以 hash／bytes 驗證仍是
-該份已稽核檔案，並驗證 row metadata 存在，避免換檔後仍沿用舊 RAM 判斷。現有 group2
-`data.md` 記載的 row count 與直接
-掃描結果不一致，正式 bring-up 以 pinned file hash 和 machine-verified metadata 為準，並將
-該文件差異列為 component-owned follow-up。
+PseudoDriver metadata 由 Infrastructure generator 對實際 Parquet 產生；dataset checker
+重掃並驗證 traffic profile、hash、bytes、rows、UE IP、timestamp 與訓練／monitor headroom。
+舊 go-upf group2 `data.md` 的 row count 差異只保留作歷史 component 記錄，不再決定新情境
+active dataset identity。
 
 ### 9.5 第一版不管理 experiment history
 
@@ -872,14 +870,17 @@ consumer 搬出 Core VM：
 
 - `preflight.sh`：唯讀檢查 provider、RAM、swap、VM／Docker storage free space、submodule、
   testbed files、active config set、必要網段與 port；ML slice 另檢查 Docker、GPU driver、
-  NVIDIA Container Toolkit 與容器內 CUDA probe；PseudoDriver 檢查 dataset file、hash、bytes
-  與 row-count manifest，並呼叫 config checker；不安裝 toolkit、修改 host network 或建立 VM；
+  NVIDIA Container Toolkit 與容器內 CUDA probe；PseudoDriver 要求已生成且通過完整 audit
+  的 content-addressed set，並呼叫 config checker；不安裝 toolkit、修改 host network 或建立 VM；
+- `dataset.py`／`dataset-stage.sh`：由 topology/profile 生成或重掃 A/B Parquet，plan 分發
+  mapping，apply 只上傳 role-specific artifact 並要求 Guest 原子啟用；
 - `config-render.py`：選用地由 default baseline 與 explicit topology definition 產生一組
   `config/generated/<name>/` native configs 和 manifest，不覆寫 committed/default files；
 - `config-check.py`：唯讀驗證 default／generated／local config set 的跨 component network、
   identity、placement、A/B mapping 與所選 testbed definition 一致；
 - `services-start.sh`：解析 effective `TESTBED`／`CONFIG_DIR`，先 check、stage、activate 完整
-  config set；各 Guest 先套用該組 role-specific network aliases，再依 dependency order 透過
+  config set 與 Path-specific dataset；各 Guest 先套用該組 role-specific network aliases，
+  再依 dependency order 透過
   Vagrant SSH／guest service interface 啟動 Core、Path A 與 Path B 的 database、NF、RAN 與
   Go NWDAF process；不隱含啟動 ML container；
 - `services-stop.sh`：停止 experiment stack service/process，不等於 `vagrant halt`，
@@ -1348,7 +1349,7 @@ check，任何移植工具的 provenance 與 ownership 清楚。
 4096／3072／3072 MiB、三顆 40 GiB dynamic logical disk，並將五個 Python backend placement
 移到 Host containers。Default native config 與 renderer 已分離 container bind address
 （`0.0.0.0`）和 VM-visible advertised endpoints；checker 會驗證 placement、port、device、
-callback/artifact URL、PseudoDriver file hash／bytes 與已稽核 row metadata。Preflight 以
+callback/artifact URL、PseudoDriver profile／guest active path 與 dataset contract。Preflight 以
 10 GiB VM allocation 加 6 GiB Host reserve 作 RAM hard gate，swap 不足改為 warning；Compose
 lifecycle 仍屬 Phase 6.5，這筆紀錄不宣稱 container 或 VM 已啟動。
 
@@ -1390,8 +1391,8 @@ Deliverables：
 - `common.sh`／`path.sh A|B` 與 role-local source/config placement；
 - UPF-A/B、gNB-A/B、six UEs；
 - NWDAF-A/B；
-- PseudoDriver group1/group2 dataset hash／bytes／rows manifest、guest staging、systemd memory
-  accounting 與 bounded direct replay smoke；
+- topology-derived PseudoDriver Path A/B dataset、semantic manifest、guest atomic staging、
+  systemd memory accounting 與 bounded direct replay smoke；
 - TAI-aware UPF selection 與 subscriber/group test data provisioning。
 - 三台 VM clock-skew check、`observe.sh` compact status 與可過濾的跨 VM journald live
   follow。
@@ -1646,6 +1647,9 @@ boundary 的 5GC、UPF、UERANSIM、Go NWDAF、ADRF 與 MongoDB。Consumer conta
 application log 改造與 per-run archive 均延後，不混入第一個 ML deployment slice。
 
 ### 16.3 2026-08-09 PseudoDriver dataset RAM audit
+
+> 這一節保存舊 pinned go-upf `pre_data` 的歷史量測。新 full-core 情境的 active
+> dataset ownership、identity 與長度已由 16.16 的 Infrastructure generator 取代。
 
 Path RAM 重新納入 PseudoDriver warm-start。Pinned group1/group2 Parquet 分別為 21,830,425／
 44,050,349 bytes；以目前 `parquet-go` streaming implementation、30 秒 window 與一個 AnyUE
@@ -1967,3 +1971,27 @@ training 或 FL。PyAnLF 仍顯示 8192 × 4 MiB callback queue 理論上限警�
 filenames 計算，確保同內容在不同 clone root 仍得到
 `d30803f9c5904ae86bb222484170089cc4cf60ee3fe3f29e43c6487918113167`。完整證據見
 [host-ml-guest-stack-integration-smoke-2026-08-09.md](../reports/5g-nwdaf-infrastructure/host-ml-guest-stack-integration-smoke-2026-08-09.md)。
+
+### 16.16 2026-08-09 Generated PseudoDriver Dataset Tooling
+
+新版情境不再直接使用 go-upf submodule 的 `pre_data/group1`、`group2`，也不把
+`nwdaf-resources` 納入 runtime。Infrastructure 現在只提交兩份 traffic profile、Go
+generator/auditor、Host lifecycle 與 Guest activation；Parquet、resolved spec、manifest
+和 generator binary 都寫入 ignored `.generated/`。
+
+UE IP 不寫死在 profile。Generator 從 `testbed.yaml` 的 Path A/B `uePool` 與 UE 數量推導
+`10.60.0.1`–`.3`、`10.61.0.1`–`.3`，並把 seed model window、PyMTLF validation ratio、
+PyAnLF/UPF 30 秒 period、Model Monitor 90 秒 period、reference/hit policy 一起納入 dataset
+set identity。預設每 Path 4,500 秒、27,000 rows：前 3,000 秒提供 100 個歷史觀測，接著
+600 秒穩定 live lead-in；Path A 再提供 900 秒 degraded tail，Path B 同期維持 stable。
+
+`dataset-check` 會重掃 Parquet，驗證 schema、SHA-256、bytes、rows、UE IP set、timestamp
+range、每 UE row count 與 `file.json` boundary。`dataset-stage` 只把 role-specific artifact
+傳到所屬 Path；Guest 再驗 set ID、role、hash、bytes 與 breaking time，最後原子切換
+`/var/lib/5g-nwdaf-infrastructure/datasets/active`。`services-start` 在任何 process 啟動前完成
+staging，UPF 在 active dataset 缺失時拒絕啟動。
+
+靜態驗證已完成兩次獨立 deterministic generation、tampered-Parquet negative test、default
+與 rendered config check、shell/Python/Go syntax 及 staging plan；尚未啟動 VM 或執行真正
+PseudoDriver subscription/replay。完整結果見
+[Generated PseudoDriver Dataset Tooling](../reports/5g-nwdaf-infrastructure/generated-pseudodriver-dataset-tooling-2026-08-09.md)。
