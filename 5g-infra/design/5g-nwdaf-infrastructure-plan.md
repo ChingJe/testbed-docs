@@ -495,6 +495,7 @@ containers。內容涵蓋：
 - free5GC core NF、UPF-A/B 與 `uerouting`；
 - NWDAF-A/B/C、ADRF、PyAnLF、PyMTLF 與 optional webconsole；
 - gNB-A/B 與 UE1–6；
+- 由同一 topology 產生的 `network/{core,path-a,path-b}.yaml` process alias 清單；
 - SBI、PFCP、N2/N3/N4/N6 address、NRF/Mongo URI、PLMN、S-NSSAI、DNN、TAI、UE pool、
   callback 與 discovery fields。
 
@@ -532,7 +533,8 @@ make services-start TESTBED=testbed.my-lab.yaml CONFIG_DIR=config/local/my-lab
 2. 一份符合 `testbed.yaml` schema 的明確 topology definition；
 3. 僅限 provider／physical-host 欄位的 optional `testbed.local.yaml`。
 
-輸出只寫入 `config/generated/<name>/`，維持和 default 相同的 file layout，並產生
+輸出只寫入 `config/generated/<name>/`，維持和 default 相同的 file layout，產生三台
+Guest 各自的 network alias YAML，並產生
 包含 baseline hash、definition hash、generator revision、generated file list 與 effective
 network identity 的 manifest。Renderer 必須用 typed YAML/object mutation 修改已宣告欄位，
 不得用文字取代、regex 或任意 deep merge 猜測 component schema，也不得依賴另一份
@@ -541,6 +543,8 @@ network identity 的 manifest。Renderer 必須用 typed YAML/object mutation �
 `config-check.py` 同時支援 default、generated 與 local sets，至少檢查：
 
 - Vagrant/testbed network 與 component bind／advertise address 一致；
+- 每個 process alias 的 guest owner、network、prefix、anchor 與 address 均由同一份
+  testbed definition 推導且沒有重複；
 - NRF URI、NF identity／service endpoint 與 NWDAF discovery scope 一致；
 - AMF TAI、SMF AN-to-UPF mapping、UPF N3/N4／UE pool、UERANSIM gNB／UE 一致；
 - A/B/C role、Internal Group、consumer TAI subscriptions 與 callback reachability 一致；
@@ -875,8 +879,9 @@ consumer 搬出 Core VM：
 - `config-check.py`：唯讀驗證 default／generated／local config set 的跨 component network、
   identity、placement、A/B mapping 與所選 testbed definition 一致；
 - `services-start.sh`：解析 effective `TESTBED`／`CONFIG_DIR`，先 check、stage、activate 完整
-  config set，再依 dependency order 透過 Vagrant SSH／guest service interface 啟動 Core、
-  Path A 與 Path B 的 database、NF、RAN 與 Go NWDAF process；不隱含啟動 ML container；
+  config set；各 Guest 先套用該組 role-specific network aliases，再依 dependency order 透過
+  Vagrant SSH／guest service interface 啟動 Core、Path A 與 Path B 的 database、NF、RAN 與
+  Go NWDAF process；不隱含啟動 ML container；
 - `services-stop.sh`：停止 experiment stack service/process，不等於 `vagrant halt`，
   更不等於 destructive `vagrant destroy`；
 - `services-status.sh`：只彙整 core NF、UPF、gNB／UE、Go NWDAF 與 database health，並回報
@@ -912,8 +917,11 @@ Renderer／checker 在 Host 執行，因為它們在 VM 建立前決定 effectiv
 - `common.sh`：三台 VM 共用的 OS package、Go、`uv`、runtime user、directory 與基本
   observability；
 - `config-activate.sh`：驗證 staged config identity 與 guest role，在 services／consumer
-  都停止時原子切換 `/etc/5g-nwdaf-infrastructure/active` symlink，不修改
-  committed/shared source；
+  都停止時原子切換 `/etc/5g-nwdaf-infrastructure/active` symlink，並要求 network alias
+  套用成功；失敗時恢復上一組 active config，不修改 committed/shared source；
+- `network-setup.sh`：只讀 active config set 的 `network/<role>.yaml`，以 Vagrant 建立的
+  base address 作為 anchor，idempotently 新增 process aliases 並移除上一組已管理但不再
+  宣告的 aliases；不再內建固定 IP 清單；
 - `core.sh`：Core 的 MongoDB、core NF、ADRF、NWDAF-C 與 optional
   webconsole setup／build；
 - `path.sh A|B`：Path A/B 的 kernel headers、network、gtp5g、UPF、UERANSIM 與 NWDAF
@@ -1040,9 +1048,9 @@ VM 內 provisioning／build／systemd unit 安裝，不作為 Host 的使用者�
 
 1. 依 `CONFIG_DIR` explicit argument、`testbed.local.yaml.configDir`、`config/default/` 的
    優先序解析完整 config set，並解析同一次命令使用的 `TESTBED` definition；
-2. 執行 `config-check`，計算 config manifest/hash，並比對 running VM 內 provisioning 時
-   保存的 testbed/network identity；若 VM network 不相容，停止並要求明確 reload／
-   reprovision，不在 service start 時偷偷改 guest network；
+2. 執行 `config-check`，計算 config manifest/hash，並比對 Vagrant base interfaces 與
+   role-specific process alias 清單；若 base interface／Vagrant network 不相容，停止並要求
+   明確 reload／reprovision，不在 service start 時修改 VM 網卡；
 3. requested config identity 與 active config 相同時可 idempotent reuse；兩者不同時，必須
    確認三台 VM 上的 experiment services、五個 ML containers 與 Core
    consumer/subscriptions 都已停止，不得 hot switch；
@@ -1052,19 +1060,23 @@ VM 內 provisioning／build／systemd unit 安裝，不作為 Host 的使用者�
    `config-activate.sh` 原子更新 `/etc/5g-nwdaf-infrastructure/active` symlink。任一 guest
    activation 失敗時，Host 將已切換的 guest 回復到先前 link，且不啟動 process，避免
    half-activated set；
-6. systemd units 使用固定 path，例如
+6. Guest 切換 active symlink 後，`5g-nwdaf-network.service` 先由
+   `network/<role>.yaml` 套用 aliases；任一 anchor、role 或 address 驗證失敗時恢復上一組
+   active config，且不啟動 process；
+7. systemd units 使用固定 path，例如
    `ExecStart=... --config /etc/5g-nwdaf-infrastructure/active/nrfcfg.yaml`，再由既定
    dependency order 啟動；unit file 不因 config set 改變而重寫；
-7. `ml-start` 將同一 config set 中 PyAnLF／PyMTLF 所需檔案 read-only bind mount 到各自
+8. `ml-start` 將同一 config set 中 PyAnLF／PyMTLF 所需檔案 read-only bind mount 到各自
    container，並把 config hash、source commit 與 image digest 暴露給 `ml-status`；container
    不回寫 committed config；
-8. `services-status`／`ml-status`／`observe` 回報三台 VM 與五個 containers 的 active config
+9. `services-status`／`ml-status`／`observe` 回報三台 VM 與五個 containers 的 active config
    hash，任一者不同或與 Host selected config 不同時視為錯誤。
 
-因此只改 component 參數且 VM network identity 不變時，可以先 `subscriptions-stop`、
+因此只改 component 參數或 process alias、且 Vagrant base network identity 不變時，可以先
+`subscriptions-stop`、
 `ml-stop`、`services-stop`，再以另一個 `CONFIG_DIR` 重新啟動，不必重建 VM。若變更
-management/SBI/N2/N3/N4/N6
-介面或 Vagrant network，則必須先讓 VM 套用相同 `TESTBED` definition。後續
+management/SBI/N2/N3/N4/N6 的 VM base interface 或 Vagrant network，則必須先讓 VM
+套用相同 `TESTBED` definition。後續
 `subscriptions-start` 只讀 Core 已 active 的 `consumer.yaml`，不接受另一組臨時 config，
 避免 services 與 subscriptions 使用不同組合。
 
@@ -1880,3 +1892,28 @@ management／SBI／N2／N3-B／N4／N6-B 位址均存在。Host 對所有 VM int
 Docker containers 狀態未受影響。完成 bounded smoke 後三台 VM 已 graceful halt，保留 disks
 供後續分階段 provisioning。這只完成 VM/network skeleton，不代表 N6 NAT、gtp5g、UERANSIM、
 NF build 或 service E2E 已通過。
+
+### 16.13 2026-08-09 Process alias 改由 topology 產生
+
+先前 `network-setup.sh` 直接內建 Core、Path A、Path B 的 process alias IP。這能在尚未
+stage config 時於開機建立位址，但使 shell script 和 `testbed.yaml` 成為兩份 network truth；
+其中 Path `.42/.43`、`.52/.53` 與 Core `.31` 也已是 Guest ML 搬到 Host containers 後不再
+具有 owner 的舊 alias。
+
+調整後 `testbed.yaml` 仍是唯一人工維護的 topology source。`config-render.py` 會從 VM
+interface anchors、Core service endpoints、Path gNB／UPF endpoints、NWDAF SBI 與 consumer
+callback 產生 `network/core.yaml`、`network/path-a.yaml`、`network/path-b.yaml`。Public
+`config/default` 提交同 schema 的完整 baseline；generated／local set 也必須包含三份檔案並
+通過 `config-check.py` 的 exact derivation、subnet、address uniqueness 與 native config
+一致性檢查。
+
+VM boot 仍只由 Vagrant 建立 base interfaces。Config activation 切換 active symlink 後先
+restart `5g-nwdaf-network.service`；Guest script 依 machine identity 讀取自己的 YAML，以
+anchor 找到實際介面，idempotently 套用 aliases，並移除上一組由它管理但新組合不再宣告的
+位址。失敗時恢復前一組 active config，不啟動 NF process。這保留 VM power 與 service
+lifecycle 分離，同時允許不改 Vagrant base network 的 process address 組合隨完整 config set
+切換。
+
+Default config 與一次 disposable rendered set 已通過相同 checker，三份產生結果與 committed
+baseline 完全一致；Python compile 與 Guest／Host shell syntax 亦通過。因三台 VM 尚未
+provision，本輪沒有宣稱實際 guest `ip address` 套用或 rollback 已完成 runtime 驗證。
