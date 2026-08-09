@@ -30,3 +30,4 @@
 ## PseudoDriver data path
 
 - [Generated PseudoDriver Dataset Tooling](generated-pseudodriver-dataset-tooling-2026-08-09.md)
+- [PseudoDriver Dataset Guest Staging Smoke](pseudodriver-dataset-guest-staging-smoke-2026-08-09.md)

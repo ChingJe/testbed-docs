@@ -1995,3 +1995,31 @@ staging，UPF 在 active dataset 缺失時拒絕啟動。
 與 rendered config check、shell/Python/Go syntax 及 staging plan；尚未啟動 VM 或執行真正
 PseudoDriver subscription/replay。完整結果見
 [Generated PseudoDriver Dataset Tooling](../reports/5g-nwdaf-infrastructure/generated-pseudodriver-dataset-tooling-2026-08-09.md)。
+
+### 16.17 2026-08-09 PseudoDriver Dataset Guest Staging Smoke
+
+以既有 VirtualBox `core`、`path-a`、`path-b` 執行短時間 staging smoke。Preflight 在
+`VAGRANT_DEFAULT_PROVIDER=virtualbox` 下為 0 failures；free swap 約 1 MiB 是唯一 warning，
+Host `MemAvailable` 約 29 GiB 且 workspace／Docker filesystem 約 165 GiB free。三台 VM
+啟動後都沒有 active `5g-nwdaf@*.service`，consumer 也維持 inactive。
+
+`make dataset-stage` 將 set
+`3cc771b6d283ceee5927e3986dbe1920039e72ce69575389c10556a82a8be4a2` 的 role-specific
+archive 分別上傳 Path A/B。Guest 驗證後，兩邊 `active` 都原子指向自己的
+`datasets/sets/<set-id>`：Path A manifest 為 `10.60.0.1`–`.3`、SHA-256
+`4e221ac0b2197be0dad4bbfb20b34f2849d67f8c79d3115169eeb95c613d29da`；Path B 為
+`10.61.0.1`–`.3`、SHA-256
+`76a887d5b37dbce0710250785756884f9bcf080695be4b0a06bb4f329fa6e0e9`。兩者均為
+27,000 rows／841,634 bytes，Guest 實際 hash 與 manifest 相同，owner 為
+`5g-nwdaf:5g-nwdaf`。
+
+另把 Path A archive 暫時交給 Path B activation；Guest 以
+`dataset identity does not match target machine` 拒絕，且 Path B 原 active symlink 未改變。
+staging 後 Path A/B `MemAvailable` 約 2640／2627 MiB，dataset directory 各約 1 MiB且只有
+一個 set。驗證後三台 VM 已 graceful halt 並回到 poweroff。
+
+這只完成 artifact transport、Guest verification、role isolation 與 reversible activation，
+沒有啟動 UPF、建立 PDU Session／subscription、讀取 Parquet 或量測 replay peak。下一個 gate
+是短時間啟動 guest services 與 subscription，核對實際 PDU IP、PseudoDriver matched rows、
+Event Exposure callback 及 Path RAM peak。完整證據見
+[PseudoDriver Dataset Guest Staging Smoke](../reports/5g-nwdaf-infrastructure/pseudodriver-dataset-guest-staging-smoke-2026-08-09.md)。
