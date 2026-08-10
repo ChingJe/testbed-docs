@@ -869,17 +869,19 @@ injection 或 fabricated degradation callback。
 | 用途 | 公開主 example／正式 business acceptance | 快速驗證 FL control/data path 閉環 |
 | UPF／PyAnLF sampling | 30 秒 | 30 秒 |
 | historical warm-start | 900 秒／30 observations | 3000 秒／100 observations |
-| stable live lead-in | 900 秒 | 180 秒 |
-| Path A change boundary | dataset `t=1800s`，CAT1→CAT2 | dataset `t=3180s`，stable→degraded |
+| stable live lead-in | 900 秒 | 360 秒 |
+| Path A change boundary | dataset `t=1800s`，CAT1→CAT2 | dataset `t=3360s`，stable→degraded |
 | Path B | main acceptance 全程 stable control | 全程 stable control |
-| 後續資料 | `t=3600s` 可選 CAT2→CAT3；約 `5429s` 結束 | 600 秒 degraded tail；`t=3780s` 結束 |
-| accuracy report period | 90 秒 | 30 秒 |
+| 後續資料 | `t=3600s` 可選 CAT2→CAT3；約 `5429s` 結束 | 600 秒 degraded tail；`t=3960s` 結束 |
+| accuracy report period | 90 秒 | 90 秒 |
+| 每個 report 的理論 sample capacity／minimum | 3／2 | 3／2 |
 | minimum reference reports | 5 | 2 |
 | decision window／required hits | 5／3 | 2／1 |
 | FL fitting rounds | 2 | 2 |
 | local epochs | production 18 | scenario override 2 |
+| trigger 後 closure budget | 1800 秒 | 300 秒 |
 | performance gate | 關閉但保留完整 final validation evidence | 關閉但保留完整 final validation evidence |
-| 預期用途時間 | 第一個 FL／cutover 約 30–40 分鐘內 | 約 5–10 分鐘，依實際 training 而定 |
+| 預期用途時間 | 第一個 FL／cutover 約 30–40 分鐘內 | 約 10–15 分鐘，依實際 training 而定 |
 
 主 example 的 900 秒 Phase 1 只負責填滿 M1 的 30-step PyAnLF input window，延續舊
 testbed warm-start 的原始目的；它不負責在 subscription 成立瞬間同時填滿 PyMTLF training
@@ -898,8 +900,15 @@ example 刻意保留這個少量資料情境；只要實際資料能滿足 train
 Smoke 則允許用 3000 秒 Phase 1 同時準備 inference 與 training history。100 observations
 在相同 split contract 下約形成 36 個 training samples 與 4 個 validation samples，使測試
 可快速進入兩輪 fitting、FedAvg、final validation、publication、reprovision 與 generation
-cutover。縮短 report／policy timing 與 local epochs 只降低等待時間；它不構成 production
+cutover。較少的 reference／hit policy 與 local epochs 只降低等待時間；它不構成 production
 policy、模型改善或長時間 CAT transition 已通過的證據。
+
+Scenario audit 不再只用 `minimumReferenceReports × reportPeriod` 當作 stable lead 下限。
+PyAnLF 第一個 report window 可能因 startup phase 或 ground truth 尚未齊全而不可評估，因此
+minimum stable lead 另保留一個完整 report period 與一個 sampling interval。Smoke 的最低值
+為 `2 × 90 + 90 + 30 = 300` 秒，實際配置 360 秒；bounded trigger 為 dataset live time
+570 秒，對應絕對 dataset time 3570 秒，仍落在 3600 秒 preparation window 內。A-only
+degraded tail 另包含 300 秒 closure budget，最低 510 秒，實際配置 600 秒。
 
 `minNumSamples` 是 C 在 Model Training data availability requirement 中對「dataset builder
 完成後的 training sample count」提出的最低要求，不是 raw packet／UPF notification／
@@ -1522,7 +1531,7 @@ Deliverables：
 - stable A/B baseline、A-only degradation、automatic FL trigger；
 - 實作 `full-core-cat-transition` 主 example：900 秒 warm-start 只填滿 PyAnLF input，保留
   舊 testbed 的 15 分鐘 live CAT1→CAT2 與 optional CAT2→CAT3 時間語意；
-- 實作獨立 `fl-closure-smoke`：以 3000 秒 historical burst 與縮短的 monitor policy 快速
+- 實作獨立 `fl-closure-smoke`：以 3000 秒 historical burst 與較少的 reference／hit policy 快速
   準備 training data，但仍走正常 WAPE trigger、ADRF retrieval 與 A／B participant path；
 - two-round FedAvg、validation、ADRF publication、reprovision 與 monitor cutover；
 - 證明 Go NWDAF 在三台 VM、五個 ML backend 在 Host containers 時，NRF discovery、ADRF、
@@ -2152,8 +2161,8 @@ degradation、Model Monitor coordination、A/B training、FedAvg、ADRF publicat
 `full-core-cat-transition` 延續舊 testbed 的 30 秒 slot、900 秒 historical warm-start、
 15 分鐘 stable live 後 CAT1→CAT2，以及 optional CAT2→CAT3；warm-start 的唯一必要目的
 是讓 PyAnLF 立即取得完整 30-step input。快速場景 `fl-closure-smoke` 才使用 3000 秒
-historical burst，同時為 PyAnLF 與 PyMTLF 預備較多資料，並以縮短的 report/reference/hit
-policy 和兩個 local epochs 降低等待時間。
+historical burst，同時為 PyAnLF 與 PyMTLF 預備較多資料，並以較少的 reference/hit policy
+和兩個 local epochs 降低等待時間。兩個場景都維持 90 秒 accuracy report period。
 
 兩個場景都保留正常 Consumer／NRF／NWDAF／SMF／UPF／PyAnLF／ADRF 路徑、A-only changed
 profile、B stable control、兩輪 sample-count-weighted FedAvg、final validation、publication、
@@ -2227,10 +2236,58 @@ fallback。Core MongoDB 仍保留給 5GC NFs 與 ADRF；這項 ADRF-only policy 
 
 依變更邊界，目前不直接修改 PyAnLF、PyMTLF 或其他 NF/ML source。為先排除首報與 deadline
 相撞，使用者已核准只調整 PyMTLF-C deployment config：明確設定
-`watchdog_grace_seconds: 300`。快速場景 deadline 由 90 秒延長為 360 秒，完整場景則為 480
-秒；三組 config/Compose、PyMTLF loader 與 48 個 config tests 均通過。
+`watchdog_grace_seconds: 300`。當時 30 秒 smoke report period 的 deadline 由 90 秒延長為
+360 秒，完整場景則為 480 秒；三組 config/Compose、PyMTLF loader 與 48 個 config tests
+均通過。
 
-下一步用新 grace 重跑 `fl-closure-smoke`，確認第一筆 report 後 A/B monitor subscriptions
-持續存在，同時 trace notification 經 Path NWDAF 的約 5 秒 latency。若仍需要任何 NF/ML
-source change，先向使用者說明根因及修改範圍並取得同意。快速場景 closure 完成後，才進入
-較長的 `full-core-cat-transition` business example。
+後續 bounded rerun 證明 grace 調整有效：A/B monitor subscriptions 越過舊 90 秒 deadline，
+連續 report 都立即送達 C，沒有再出現 5 秒 timeout。但每個 30 秒 report window 只產生一個
+group-level prediction/ground-truth pair；三個 UE 是同一 pair 內的 contributors，不是三個
+matched samples。因此每輪固定為 `matched=1`，低於既有 minimum 2，所有 report 都是
+`deviation=None`。
+
+為保留既有 accuracy 語意，不把 smoke 的 minimum 降為 1。`fl-closure-smoke` report period
+恢復為 90 秒，讓每個 window 正常累積約三個 group-level time-slot pairs；minimum reference
+reports 2、decision window 2、required hit 1 與 local epochs 2 仍保留快速場景特性。兩個場景
+的 watchdog deadline 現在都為 `90 × 2 + 300 = 480` 秒。
+
+恢復後的 bounded rerun 已確認 A/B 第一份可評估 report 都為 `matched=2`，後續為
+`matched=3`，並帶有非空 deviation；C 在第三輪 report 正常偵測 A-only degradation 並自動
+啟動 FL。A/B 都從 ADRF 取得 27 筆 records、以 44 個 samples 在 GPU 完成 round 0 與 round 1
+local training，C 也完成 round 0 FedAvg。
+
+C self-origin 已經使用者確認後加入 infrastructure default、config renderer 與 checker；三組
+config check、兩種 Compose check 與 PyMTLF 48 個 config tests 均通過。後續 rerun 證明原本的
+origin blocker 已排除：C 能下載自己的 round 0 global artifact，A/B 在 GPU 完成兩輪 local
+training，C 也完成兩輪 FedAvg。
+
+新的 blocker 位於 final validation。GPU 支援 commit 將 `LocalTrainer._predict` 改為必須接收
+`device`，但 `fl_client.py` 的 base/candidate validation 呼叫仍沿用舊簽名，A/B 因
+`TypeError: LocalTrainer._predict() missing 1 required positional argument: 'device'` 回報
+`NOT_AVAILABLE_ML_TRAIN`。使用者核准後，PyMTLF client 已從 configured training device
+resolve 一次執行裝置，並在 base／candidate final-validation prediction 都傳入同一 device；新增
+regression test 會實際執行 validation 並確認兩次 prediction 的 device。Targeted FL client、
+trainer、server、dataset、scope、workspace、artifact、wire 與 config tests 均通過；完整 suite
+仍受既有 FastAPI/TestClient shutdown hang 阻擋，不能宣稱全套通過。
+
+### 16.22 Configuration Contract Hardening
+
+在下一次 runtime 前，先針對重複出現的簡單配置錯誤完成跨層 contract hardening：
+
+- `reportPeriodSeconds` 必須整除 sampling interval，且單一 report 的理論 sample capacity 必須
+  大於等於 PyAnLF `min_matched_predictions`；
+- stable lead、degraded tail、bounded trigger、preparation window 與 scenario-owned closure
+  budget 必須同時成立；
+- C artifact allowlist 必須包含 A、B 與 C self-origin；PyAnLF／PyMTLF public URL、callback、
+  MongoDB、interoperability 與 seed model shape 必須逐欄對齊；
+- topology 的 `gtpInterface` 必須實際 render 為 UPF `gtpu.ifList[].ifname`；
+- generated manifest 的 baseline hash、topology hash 與 file inventory 必須仍對應目前來源；
+- A/B FL fallback deadlines 必須與 C preparation／round deadlines 相同，monitor missed-report
+  threshold 也改為 deployment config 明確值，不依賴 library default。
+
+另新增 temporary negative contract smoke，刻意破壞 report capacity、C self-origin、GTP
+interface、FL public URL、Consumer callback、manifest baseline hash 與 config generator hash，
+七種錯誤均確認會被 checker 拒絕。修正後 smoke dataset identity 為
+`2915b05719f997d135d8a64c40f7d684e1f78e0ab2a3c483595b2bf545de4029`；完整場景 identity 為
+`c3b428ea763834f34b2ff3a7e7674b5d082a2685e3825595f0b5cc33c356bb49`。下一個 gate 才是以
+修正後 image 與 dataset 重跑 bounded smoke；若再需要 NF／ML source change，仍先停止回報。

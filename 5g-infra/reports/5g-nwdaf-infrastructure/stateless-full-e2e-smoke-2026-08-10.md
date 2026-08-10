@@ -107,19 +107,86 @@ checker；PyAnLF loader 確認六份 A/B config 都能解析且 fallback 為 fal
 `tests/test_config.py` 為 24 passed。
 
 為先排除首報恰好撞上 deadline 的問題，使用者另行核准 PyMTLF-C deployment config 明確設定
-`watchdog_grace_seconds: 300`，沒有修改 PyMTLF source。快速場景的 deadline 因而從 90 秒
-延長為 `30 × 2 + 300 = 360` 秒；完整場景為 `90 × 2 + 300 = 480` 秒。三組 config 均通過
-PyMTLF loader，PyMTLF `tests/test_config.py` 為 48 passed。
+`watchdog_grace_seconds: 300`，沒有修改 PyMTLF source。當時 30 秒快速場景的 deadline 因而
+從 90 秒延長為 `30 × 2 + 300 = 360` 秒；完整場景為 `90 × 2 + 300 = 480` 秒。三組 config
+均通過 PyMTLF loader，PyMTLF `tests/test_config.py` 為 48 passed。
 
 這項調整只提供足夠的 startup margin，不代表 5 秒 notification latency 已解決；若後續仍無
 週期報告，watchdog 仍會正常清除 subscription。
 
+後續短 rerun 中，A/B subscriptions 成功越過舊 deadline，連續兩輪 accuracy notifications
+均立即由 C 回 204，沒有再出現 5 秒 timeout。新 blocker 是 30 秒 window 每輪只包含一個
+group-level time-slot pair；三個 UE 已聚合為該 pair 的 contributors，因此 report 固定為
+`matched=1`、`deviation=None`。
+
+最終決策是不降低 `min_matched_predictions=2`，而是把 `fl-closure-smoke` report period 恢復為
+90 秒。這可讓每輪累積約三個 time-slot pairs，並使 smoke 與完整場景的 watchdog deadline
+同為 480 秒；快速性仍由 reference/hit policy、stable lead-in 與 local epochs 控制。
+
+### 90 秒 rerun 結果
+
+恢復 90 秒後，A/B 第一份可評估 measurement 都是 `matched=2`，後續 report 為
+`matched=3`，且 deviation 均非空。C 依序處理 baseline reports，並在
+`2026-08-09T23:44:51Z` 由 Path A degradation 自動啟動 federated process
+`9564de02-8464-41a3-ba29-cb66ac605234`。
+
+A/B 各自從 ADRF 取得 27 筆 records，實際 local training 各使用 44 個 samples；兩個 GPU
+clients 都產生 round 0 與 round 1 local artifacts。C 在 round 0 成功完成 FedAvg，證明
+90 秒 monitor、automatic trigger、ADRF retrieval、雙 client preparation 與 GPU local training
+路徑都已跑通。
+
+流程在 C 準備 round 1 FedAvg 時停止。C 會重新下載自己發布於 `http://192.168.57.1:9292`
+的 round 0 global artifact，但 rendered `pymtlf-c.yaml` 的
+`federated_learning.artifact_download.allowed_origins` 只有 A `:9092` 與 B `:9091`，因此既有
+安全檢查回報 `FL artifact origin is not allowed`。這是 infrastructure config 漏掉 C self-origin，
+不是 PyMTLF source failure。經使用者確認後，C self-origin 已加入 default、renderer 與 checker；
+三組 config check、兩種 Compose check 與 PyMTLF 48 個 config tests 均通過。
+
+### Self-origin 修正後 rerun
+
+更新後 C 能正常下載自己的 round 0 global artifact；A/B 都完成 round 0、round 1 GPU local
+training，C 也完成兩輪 FedAvg，原本的 allowlist blocker 已排除。流程下一步進入 client final
+validation，但 A/B 都在相同呼叫點失敗：
+
+```text
+TypeError: LocalTrainer._predict() missing 1 required positional argument: 'device'
+```
+
+PyMTLF GPU 支援 commit `e9c5b08` 將 `_predict` 改為明確接收 device，但
+`fl_client.py` 的 base/candidate final-validation 呼叫仍使用舊簽名。現有 test 只確認 validation
+task 被排程，沒有實際執行該路徑，因此 48 個 config tests 不會涵蓋這個 runtime error。A/B
+最終回報 `NOT_AVAILABLE_ML_TRAIN`，C 在 degradation 持續存在時會於後續 report 再次觸發 FL；
+本輪因此主動停止。
+
+## Runtime 後的配置契約修正
+
+使用者核准後，PyMTLF client 已 resolve configured training device，並把同一 device 傳入
+base／candidate final-validation prediction；新增 regression test 實際執行 validation 並確認
+兩個 call sites。Targeted PyMTLF FL client、trainer、server、dataset、scope、workspace、
+artifact、wire 與 config tests 通過；完整 suite 仍受既有 FastAPI/TestClient shutdown hang
+阻擋，因此不列為 full-suite pass。
+
+Infrastructure audit 同時確認舊 smoke 的 180 秒 stable lead 只是
+`2 references × 90 seconds`，沒有保留第一個不可評估 window 或 sampling phase。修正後：
+
+- sampling 30 秒、report 90 秒、report capacity 3、minimum matched 2；
+- historical 3000 秒、stable lead 360 秒、Path A boundary `t=3360s`；
+- minimum stable lead 300 秒，bounded trigger 570 秒，絕對 dataset time 3570 秒；
+- degraded tail 600 秒，其中明確保留 300 秒 closure budget，minimum tail 510 秒；
+- dataset 於 `t=3960s` 結束，新的 set identity 是
+  `2915b05719f997d135d8a64c40f7d684e1f78e0ab2a3c483595b2bf545de4029`。
+
+Checker 新增 endpoint/callback、C self-origin、GTP ifname、model shape/interoperability、MongoDB、
+FL deadline 與 generated manifest hash/file inventory 對照。Negative contract smoke 分別破壞
+report capacity、self-origin、GTP interface、FL public URL、Consumer callback、baseline hash
+與 config generator hash，七個 case 均被拒絕。這一輪只產生 audit dataset，未啟動 VM 或
+containers。
+
 ## 下一個 gate
 
-1. 以新的 300 秒 grace 重跑快速場景，確認首報後 subscription 能持續存在並收到後續 report。
-2. 同步 trace notification 經 Path NWDAF 的約 5 秒 latency，再核對
-   `StaleRuntimeRevisionError` 是否只屬於正常 cutover race。
+1. 重跑 `fl-closure-smoke`，確認 final validation、ADRF model publication、A/B reprovision 與
+   monitor generation cutover。
+2. 核對 `StaleRuntimeRevisionError` 是否只屬於正常 cutover race。
 3. 分開診斷 ADRF heartbeat HTTP 400，不把它和已驗證成功的 ADRF data path 混為同一問題。
-4. 若診斷需要修改 PyAnLF、PyMTLF 或其他 NF/ML source，先停下回報；核准後才修正並重跑
-   `fl-closure-smoke`。
+4. 若再需要修改 PyAnLF、PyMTLF 或其他 NF/ML source，重新停下回報並取得核准。
 5. 快速場景成功後，再執行較長的 `full-core-cat-transition` business example。
