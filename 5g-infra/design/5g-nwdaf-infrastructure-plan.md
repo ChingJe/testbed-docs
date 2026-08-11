@@ -967,8 +967,8 @@ consumer 搬出 Core VM：
 - `config-check.py`：唯讀驗證 default／generated／local config set 的跨 component network、
   identity、placement、A/B mapping 與所選 testbed definition 一致；
 - `services-start.sh`：解析 effective `TESTBED`／`CONFIG_DIR`，先 check、stage、activate 完整
-  config set 與 Path-specific dataset；各 Guest 先套用該組 role-specific network aliases，
-  再依 dependency order 透過
+  config set 與 Path-specific dataset；各 Guest 先驗證 active config 所產生的 persistent
+  Netplan aliases 已由 networkd 套用，只有 drift 時才 reconcile，再依 dependency order 透過
   Vagrant SSH／guest service interface 啟動 Core、Path A 與 Path B 的 database、NF、RAN 與
   Go NWDAF process；不隱含啟動 ML container；
 - `services-stop.sh`：停止 experiment stack service/process，不等於 `vagrant halt`，
@@ -1006,11 +1006,15 @@ Renderer／checker 在 Host 執行，因為它們在 VM 建立前決定 effectiv
 - `common.sh`：三台 VM 共用的 OS package、Go、`uv`、runtime user、directory 與基本
   observability；
 - `config-activate.sh`：驗證 staged config identity 與 guest role，在 services／consumer
-  都停止時原子切換 `/etc/5g-nwdaf-infrastructure/active` symlink，並要求 network alias
-  套用成功；失敗時恢復上一組 active config，不修改 committed/shared source；
+  都停止時原子切換 `/etc/5g-nwdaf-infrastructure/active` symlink，並同步原子更新該組 config
+  產生的 persistent Netplan fragment；失敗時恢復上一組 active config 與 fragment，不修改
+  committed/shared source；
 - `network-setup.sh`：只讀 active config set 的 `network/<role>.yaml`，以 Vagrant 建立的
-  base address 作為 anchor，idempotently 新增 process aliases 並移除上一組已管理但不再
-  宣告的 aliases；不再內建固定 IP 清單；
+  base address 作為 anchor 找到實際介面，產生由 infrastructure 管理的
+  `/etc/netplan/60-5g-nwdaf-aliases.yaml`。候選檔先在隔離 root 通過 `netplan generate`，再原子
+  安裝，要求 networkd reload／只 reconfigure 受影響介面並驗證 effective addresses；切換時
+  移除上一組不再宣告的 aliases，`--clear` 則移除整份 fragment。它不內建固定 IP 清單，也不再
+  用 `ip address add` 建立只存在於 runtime 的位址；
 - `core.sh`：Core 的 MongoDB、core NF、ADRF、NWDAF-C 與 optional
   webconsole setup／build；
 - `path.sh A|B`：Path A/B 的 kernel headers、network、gtp5g、UPF、UERANSIM 與 NWDAF
@@ -1027,6 +1031,28 @@ path-b -> common.sh -> path.sh B
 Provisioning 與 deployment 仍是不同 lifecycle 語意，但不各占一個頂層目錄；scripts
 內部以 idempotent setup／build／start／stop action 區分。Guest 不自行 clone branch、
 不編輯 submodule source，也不把 generated data copy 回 source tree。
+
+#### Guest network ownership
+
+Vagrant、active config 與 Guest OS 的責任必須分開：
+
+- Vagrantfile／`testbed.yaml` 管理 VM adapters、host-only segments 與每張介面的 base／anchor
+  address，並由 Vagrant 產生 `/etc/netplan/50-vagrant.yaml`；
+- active config 的 `network/<role>.yaml` 管理該 role 應具有的 NF／database／consumer aliases；
+- infrastructure renderer 管理單一 `60-5g-nwdaf-aliases.yaml` fragment；
+- Netplan／systemd-networkd 管理 anchor 加 aliases 的 effective persistent addresses。
+
+後置 fragment 只宣告 aliases，不複製 Vagrant 的 anchors。Netplan 將兩份 address sequence
+合併，因此 Vagrant 每次完成自己的 `50-vagrant.yaml` 並執行 `netplan apply` 時，也會自然把
+aliases 一起套用。不得把全部 NF aliases 寫進 Vagrantfile，也不得再依賴 Vagrant post-up
+hook、Make wrapper 或 boot-time `ip address add` 修補時序。
+
+`5g-nwdaf-network.service` 保留為 config activation、manual repair 與 NF dependency 可呼叫的
+oneshot reconciler，但 boot correctness 不再依賴它早於或晚於 Vagrant 執行。既有 VM 遷移後
+應取消 unconditional boot-time imperative alias mutation；`services-start` 先做 effective
+address verification，只有 fragment、networkd output 或實際 address drift 時才呼叫
+reconcile。候選套用不得廣泛重設 NAT／management SSH 介面，優先使用 `netplan generate`、
+`networkctl reload` 與受影響 host-only interfaces 的 targeted reconfigure。
 
 ### 10.3 Guest 與 Host build responsibility
 
@@ -1149,9 +1175,10 @@ VM 內 provisioning／build／systemd unit 安裝，不作為 Host 的使用者�
    `config-activate.sh` 原子更新 `/etc/5g-nwdaf-infrastructure/active` symlink。任一 guest
    activation 失敗時，Host 將已切換的 guest 回復到先前 link，且不啟動 process，避免
    half-activated set；
-6. Guest 切換 active symlink 後，`5g-nwdaf-network.service` 先由
-   `network/<role>.yaml` 套用 aliases；任一 anchor、role 或 address 驗證失敗時恢復上一組
-   active config，且不啟動 process；
+6. Guest 切換 active symlink 後，`5g-nwdaf-network.service` 由 `network/<role>.yaml` 產生
+   persistent Netplan fragment，先在隔離 root 驗證，再原子安裝並要求 networkd targeted
+   reconfigure。任一 anchor、role、address、Netplan generation 或 effective address 驗證失敗
+   時，同時恢復上一組 active config 與 fragment，且不啟動 process；
 7. systemd units 使用固定 path，例如
    `ExecStart=... --config /etc/5g-nwdaf-infrastructure/active/nrfcfg.yaml`，再由既定
    dependency order 啟動；unit file 不因 config set 改變而重寫；
@@ -2015,6 +2042,10 @@ anchor 找到實際介面，idempotently 套用 aliases，並移除上一組由�
 lifecycle 分離，同時允許不改 Vagrant base network 的 process address 組合隨完整 config set
 切換。
 
+本節記錄的是當時已完成的 imperative implementation；後續實機 cold-boot audit 證明
+boot-time `ip address add` 會被 Vagrant 最後一次 Netplan apply 清除。新的 persistent
+ownership 與遷移方案以 16.23 為準，topology-derived YAML 與 anchor resolution 決策則保留。
+
 Default config 與一次 disposable rendered set 已通過相同 checker，三份產生結果與 committed
 baseline 完全一致；Python compile 與 Guest／Host shell syntax 亦通過。因三台 VM 尚未
 provision，本輪沒有宣稱實際 guest `ip address` 套用或 rollback 已完成 runtime 驗證。
@@ -2291,3 +2322,46 @@ interface、FL public URL、Consumer callback、manifest baseline hash 與 confi
 `2915b05719f997d135d8a64c40f7d684e1f78e0ab2a3c483595b2bf545de4029`；完整場景 identity 為
 `c3b428ea763834f34b2ff3a7e7674b5d082a2685e3825595f0b5cc33c356bb49`。下一個 gate 才是以
 修正後 image 與 dataset 重跑 bounded smoke；若再需要 NF／ML source change，仍先停止回報。
+
+### 16.23 2026-08-12 Persistent Netplan Alias Ownership 計畫
+
+Core VM 以 `vagrant up core --no-provision` 進行 cold-boot audit，實際證實 alias 問題不是
+reset 或 Makefile 本身造成，而是 Guest boot 與 Vagrant post-SSH network configuration 的
+固定時序衝突：
+
+- `5g-nwdaf-network.service` 於 `17:13:25 UTC` 成功加入 Core 的 14 個 aliases，並將清單寫入
+  `/run/5g-nwdaf-infrastructure/network-aliases`；
+- Vagrant 於 `17:13:31 UTC` 覆寫 `/etc/netplan/50-vagrant.yaml`，networkd 在
+  `17:13:32`–`17:13:33 UTC` reconfigure 四張 host-only interfaces；
+- 最終 `ip address` 只剩 `.56.10`、`.57.2`、`.58.2`、`.61.2` anchors，14 個 aliases 全部
+  消失，但 oneshot 因 `RemainAfterExit=yes` 仍回報 `active (exited)`。
+
+Host 上的 Vagrant 2.4.3 implementation 也確認 Debian／Ubuntu guest capability 只會覆寫
+`50-vagrant.yaml`，接著執行 `netplan apply`，不會刪除其他 Netplan fragments。Jammy Guest
+使用 Netplan `0.106.1`；隔離 `--root-dir` 測試加入
+`60-5g-nwdaf-aliases.yaml` 後，`netplan get` 與生成的 networkd unit 都同時保留 Vagrant
+anchor `.57.2` 和測試 aliases `.57.10`、`.57.18`。因此採用後置 Netplan fragment 是已由
+目前實際版本驗證的 merge path，不是假設未來 Vagrant hook 行為。
+
+預定調整分六個 bounded steps：
+
+1. 將 `network-setup.sh` 改為 candidate render、隔離 generate、atomic install、targeted
+   networkd reconfigure、effective address verification 與 fragment rollback；`--clear` 改為
+   移除 fragment 後重新產生並套用，不再依賴 `/run` state file。
+2. 調整 `config-activate.sh`，讓 active symlink 與 persistent fragment 成為同一個 rollback
+   boundary；candidate config 不得在任何 NF、consumer 或 ML backend 運行時 hot switch。
+3. 調整 `5g-nwdaf-network.service`／`common.sh`，移除 boot correctness 對 early oneshot 的
+   依賴；保留手動 reconcile 與 service dependency，並為既有 VM 清理舊 runtime state。
+4. 調整 `services-start.sh` 與 reset repair guidance：正常路徑先驗證 addresses，不再每次
+   unconditional restart；drift 或 migration 狀態才 reconcile。
+5. 先在 Core 驗證 config activation、同 config idempotence、alias removal、invalid candidate
+   rollback、Guest reboot，以及不經 Makefile 的直接 `vagrant halt`／`vagrant up`。其中 reset
+   必須能在 services-start 之前直接連上 MongoDB `.57.18`。
+6. Core gate 通過後才擴至 Path A／B，驗證 SBI、N2、N3、N4、N6 aliases、三 VM cold boot、
+   config-set switch 與一次 bounded guest stack smoke；最後確認三台 VM 回到預期 power state。
+
+此重構只涉及 `5G_NWDAF_Infrastructure` 的 Guest/Host scripts、systemd unit、focused tests 與
+對應 `testbed-docs`。它不變更 NF／ML source、component revisions、Vagrant adapter topology、
+public IP plan 或 `nwdaf-docs`。實作必須分階段 commit；若 isolated Netplan validation、targeted
+reconfigure 或 rollback 無法避免影響 management／SSH，應停下來回報，不以 full
+`netplan apply` 靜默擴大變更範圍。
