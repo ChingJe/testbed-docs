@@ -2683,3 +2683,16 @@ SUPI、UE routing、NSSF PLMN、SMF TAI 與 Consumer Group 的獨立 drift 均�
 拒絕。完整 repository tests 除 sandbox 內 Vagrant home 權限外全部通過；`vagrant validate`
 已在正常 home 權限下獨立通過，沒有啟動 VM 或 process。證據見
 [PLMN Single-Source Config Regression](../reports/5g-nwdaf-infrastructure/plmn-single-source-config-regression-2026-08-12.md)。
+
+### 16.28 2026-08-12 Submodule HTTPS Transport
+
+為移除公開環境對個人 SSH key 的預設依賴，Infrastructure 已將 9 個
+`Intelligent-Systems-Lab` submodule URL 從 `git@github.com:...` 改為
+`https://github.com/...`；原本 7 個 public upstream submodules 亦維持 HTTPS。branch hint、parent
+gitlink 與 `components.lock.yaml` revision 均未變更，且沒有使用 `submodule update --remote`。
+
+本機執行 `git submodule sync --recursive` 後，16 個既有 submodule 的 `origin` 全部為 HTTPS；
+逐一執行 remote `HEAD` read 及 pinned `git submodule update --init --recursive` 均成功，working
+trees 仍位於原本的 16 個 revisions。現階段 9 個 team repositories 仍為 private，因此這項結果
+證明的是 authenticated HTTPS transport；只有各 component visibility 與 license blocker 解決後，
+才能另作無 credential 的 fresh recursive checkout acceptance。
