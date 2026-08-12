@@ -21,6 +21,7 @@
 - [Core VM Provisioning Smoke](core-vm-provisioning-smoke-2026-08-09.md)
 - [Path A VM Provisioning Smoke](path-a-vm-provisioning-smoke-2026-08-09.md)
 - [Path B VM Provisioning Smoke](path-b-vm-provisioning-smoke-2026-08-09.md)
+- [Guest Provisioning Version Lock](guest-provisioning-version-lock-2026-08-12.md)
 
 ## Guest services 與 5GC flow
 

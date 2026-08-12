@@ -2696,3 +2696,44 @@ gitlink 與 `components.lock.yaml` revision 均未變更，且沒有使用 `subm
 trees 仍位於原本的 16 個 revisions。現階段 9 個 team repositories 仍為 private，因此這項結果
 證明的是 authenticated HTTPS transport；只有各 component visibility 與 license blocker 解決後，
 才能另作無 credential 的 fresh recursive checkout acceptance。
+
+### 16.29 2026-08-12 Guest Provisioning Version Policy
+
+公開準備、license、remote、CI 與 anonymous checkout 依使用者決定延後；N6 topology 與現有
+`egress` 宣告保留，不納入本工作包。下一個 bounded change 只處理 Guest provisioning 使用的
+Go toolchain 與 MongoDB packages，避免未來重新建立 VM 時 silent 取得不可追溯版本。
+
+Infrastructure 將新增單一 `provisioning.lock.yaml`，保存 Go archive version／URL／official
+SHA-256，以及 MongoDB preferred packages、相容 `8.0` series、repository 與 signing-key
+fingerprint。Guest scripts 不再保存第二份版本常數；Host repository test 驗證 lock schema、版本、
+URL、checksum 與 package coverage。provision 完成後，Guest 保存 requested／resolved identity、
+lock hash、OS／kernel 與 drift reason，供後續稽核與 evidence 使用。
+
+失敗政策區分 compatibility drift 與 artifact integrity：
+
+- Go archive checksum、解壓後 binary version、MongoDB signing-key fingerprint、architecture 或
+  必要 package 缺失不符時 fail closed；這些不能降級為 warning。
+- MongoDB 優先使用目前已通過 E2E 的 exact package versions；preferred version 不可取得或現有
+  VM 已是不同 patch 時，只要所有必要 packages 仍位於 `8.0.x` compatible series，就保留／解析
+  實際版本、顯示 warning 並將 `drift: true` 寫入 manifest，不自動升降級既有 database。
+- MongoDB 跨出 compatible series、混合 incompatible component series 或無法解析 version 時
+  停止，不 silent fallback。
+
+驗證順序為 repository static/negative contract、官方 Go artifact checksum、MongoDB package
+availability、現有 Core VM installed identity、disposable Ubuntu 22.04 clean-install smoke，以及
+same-version existing-VM regression；真正 fresh Core provisioning 可併入下一次 VM rebuild gate。
+現有 Core database 不為測試移除。若需啟動已關閉 VM、建立 disposable container／VM 或執行
+package mutation，先回報當下資源與 exact action。
+
+Repository 文件整體重構另作單一 atomic 工作包：建立新的 `docs/` canonical hierarchy、更新
+所有入口與連結後，直接移除被取代的過期文件，不保留舊 `OPERATIONS.md` 或其他 stale
+compatibility copies。本工作包只維護必要的版本 contract 與本計畫，不提前進行部分搬移。
+
+2026-08-12 bounded implementation 與驗證已完成。Infrastructure 新增
+`provisioning.lock.yaml`、共用 lock validator/resolver、Guest manifest、repository negative
+regression 與 disposable Ubuntu 22.04 clean-install smoke。現有 Core 的 Go 1.26.2、MongoDB
+server 8.0.28、mongosh 2.9.2、database tools 100.17.0 和 signing key 全部符合 preferred
+identity，resolver 回報 installed/no-drift；沒有為 audit 修改既有 package、hold 或 runtime
+service。乾淨容器亦成功以 exact versions 安裝全部九個 MongoDB packages，並驗證 official Go
+archive checksum／binary identity 與 MongoDB key fingerprint。詳細證據見
+[Guest Provisioning Version Lock](../reports/5g-nwdaf-infrastructure/guest-provisioning-version-lock-2026-08-12.md)。
