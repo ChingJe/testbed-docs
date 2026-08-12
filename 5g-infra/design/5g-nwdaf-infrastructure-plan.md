@@ -2638,3 +2638,48 @@ subscriber read、Core-loopback FTP listener、獨立 stop、23 個 Guest servic
 `admin/free5gc`，Host lifecycle 已明確警告；config-owned subscriber records 不受此動作取代。
 三台 VM 最後均 graceful poweroff。詳細證據見
 [Optional WebConsole Lazy-Build Smoke](../reports/5g-nwdaf-infrastructure/optional-webconsole-lazy-build-smoke-2026-08-12.md)。
+
+### 16.27 PLMN 單一來源與 Mobile Identity 衍生計畫
+
+使用者確認下一個工作包收斂目前只套用一半的 PLMN customization。現況 renderer 已將
+`mobileNetwork.plmn` 寫入大部分 NF、gNB、UE MCC/MNC、NWDAF 與 Consumer，但 Path TAI
+另存 `plmn`、六個 UE 另存完整 SUPI、Mobile Network 與 Consumer 各自另存完整 Internal
+Group ID，subscriber/group fixtures 也仍是 baseline `466/92`。checker 會阻止混合 config
+啟動，因此不會 silent 使用錯誤 PLMN，但只修改 canonical 欄位尚無法產生可執行 config。
+
+本工作包採以下 contract：
+
+- `mobileNetwork.plmn.mcc/mnc` 是唯一 MCC/MNC 來源；MCC 必須為 3 digits、MNC 必須為 2 或
+  3 digits。
+- Path TAI 只保存 TAC，不再重複 PLMN。
+- Path UE 只保存正整數 subscriber number。renderer 以 15-digit IMSI 總長計算 MSIN width，
+  將 number 補零後產生 `imsi-<MCC><MNC><MSIN>`；因此二位與三位 MNC 都不會產生 16-digit
+  IMSI，default number 1–6 仍得到現有六個 SUPI。
+- Internal Group 只保存 8-hex Group Service Identifier 與 2–20-hex、偶數長度 Local Group
+  ID；renderer 依 TS 23.003／TS 29.571 組成 `<service>-<MCC>-<MNC>-<local>`，Mobile Network、
+  UDM、Consumer 與 fixture 不再各自保存完整 group string。
+- GPSI/MSISDN 不是 PLMN，不從 MCC/MNC 衍生。現有六筆 GPSI 保留為獨立 fixture identity；
+  文件與 topology comments 明確避免把表面相同的數字前綴誤當 PLMN contract。
+- renderer 在每個完整 config set 內重寫 subscriber `servingPlmnId`、SUPI list、S-NSSAI、DNN，
+  以及 group ID/member list；authentication、GPSI、AMBR、PDU/QoS defaults 保持 baseline。
+
+實作與驗證只修改 `5G_NWDAF_Infrastructure` 與 `testbed-docs`，不修改任何 NF／ML／RAN
+submodule。`configlib.py` 提供共用 PLMN、SUPI、Internal Group ID derivation，renderer、checker
+與 dataset UE count 共用同一 topology contract。repository tests 新增非預設二位 MNC
+`001/01`、三位 MNC `001/001` positive cases，以及 derived SUPI／group／TAI drift negative cases；
+全部使用 temporary topology/config，不啟動 VM 或 process。完成後更新 config/operations 文件並
+以既有 `466/92` regression 證明 committed default identities 不變。
+
+2026-08-12 實作與 isolated regression 已完成。topology 現在只保存 canonical MCC/MNC、
+Internal Group 的 service/local portions、Path TAC 與 subscriber numbers；renderer 同步重寫
+NRF、AUSF、NSSF、AMF、SMF、ADRF、NWDAF-A/B、UERANSIM、UE routing、UDM、Consumer 與
+subscriber/group fixtures。checker 對同一批欄位逐項反向核對，並拒絕 topology 重新加入完整
+SUPI、TAI PLMN 或完整 Group ID 等第二來源。
+
+repository regression 分別以 `001/01` 與 `001/001` 只替換 canonical PLMN，完整 render/check
+皆通過；第一筆 SUPI 分別為 `imsi-001010000000001` 與 `imsi-001001000000001`，Group ID 分別為
+`00000001-001-01-01` 與 `00000001-001-001-01`。六筆既有 GPSI 在兩案均維持不變。derived
+SUPI、UE routing、NSSF PLMN、SMF TAI 與 Consumer Group 的獨立 drift 均被 negative tests
+拒絕。完整 repository tests 除 sandbox 內 Vagrant home 權限外全部通過；`vagrant validate`
+已在正常 home 權限下獨立通過，沒有啟動 VM 或 process。證據見
+[PLMN Single-Source Config Regression](../reports/5g-nwdaf-infrastructure/plmn-single-source-config-regression-2026-08-12.md)。
