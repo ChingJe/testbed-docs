@@ -2586,3 +2586,44 @@ teardown 後 23 個 Guest units inactive、五個 containers exited、consumer i
 均 graceful poweroff。本輪只使用 ignored CPU config，因 Host NVIDIA driver 當時不可用；這不
 影響 teardown contract，也不構成 GPU runtime 回歸。完整 timing、identity、state 與資源證據見
 [Runtime Helper Sync 與 FL Lifecycle 回歸](../reports/5g-nwdaf-infrastructure/runtime-helper-sync-and-fl-lifecycle-regression-2026-08-12.md)。
+
+### 16.26 Optional WebConsole Lazy-Build 計畫
+
+使用者確認跳過 CPU full FL closure，下一個工作包改為 optional free5GC WebConsole。現有
+Infrastructure 已固定 upstream WebConsole submodule `70d282f`，並保存指向 Core MongoDB、NRF
+及 management address `192.168.56.10:5000` 的 `webuicfg.yaml`，但尚未建立 config enable
+contract、Guest build artifact、systemd unit、Host lifecycle 或實際 smoke。
+
+WebConsole 的 optional 語意同時涵蓋 build 與 runtime：
+
+- 完整 config 的 `optionalServices.webconsole.enabled` 預設為 `false`；disabled 時不安裝
+  Node／Yarn、不建置 frontend／Go server，也不啟動 process。
+- enabled 時，`webconsole-start` 以 WebConsole source revision、frontend lock 與 build helper
+  identity 計算 artifact identity。artifact 缺少或 identity 不符才在 Core 安裝固定 toolchain 並
+  lazy build；相符時直接重用，不因每次 experiment start 重建。
+- config 後續改回 disabled 只停止／略過 process，不自動刪除既有 artifact、toolchain 或 cache；
+  任何空間回收另作明確 cleanup，不隱含在 lifecycle。
+- WebConsole 僅監聽 VirtualBox host-only management address，不對實驗室 LAN 或 Internet 暴露。
+  Billing、TLS、certificate、OAuth 與 subscriber write path 不在第一版驗收範圍。
+
+實作分為五個 bounded gates：
+
+1. 在 default manifest、renderer 與 checker 加入 boolean enable flag，並逐欄驗證 WebConsole
+   MongoDB database／URI、NRF URI、HTTP management endpoint、billing disabled 及 config identity；
+   negative contract smoke 必須拒絕 endpoint 或 billing drift。
+2. 新增 Core-only lazy-build helper。它只在 enabled start 路徑安裝 Node.js 20、Corepack／Yarn，
+   build frontend 與 Go server，原子發布 runtime directory 及 identity；啟動階段不接受 stale
+   artifact，也不修改 upstream WebConsole submodule。
+3. 新增獨立 `webconsole-start`／`status`／`stop` 與 Core systemd unit。start 必須要求 Core VM、
+   MongoDB、NRF、active config 與 port ready；stop 不得停止 5GC。status 顯示 config enable、unit、
+   HTTP 與 artifact identity。
+4. 將 optional domain 納入 `experiment-start` rollback、aggregate status、cleanup-safe stop、logs 與
+   Make help；disabled path 必須維持既有 experiment behavior，不能引入 Node／Yarn 或 build。
+5. 先跑 repository tests 與 disabled-path regression，再用 enabled local config 做 bounded Core
+   smoke：frontend HTTP、`admin/free5gc` login token、authenticated subscriber list 可讀、billing
+   未啟動、獨立 stop 後其他 Guest services 仍 active。若需要修改 WebConsole、NRF 或其他 NF
+   source，依既定邊界先停止並回報。
+
+本工作包只修改 `5G_NWDAF_Infrastructure` 與 `testbed-docs`。現有 VM 的第一次 enabled smoke
+會在 Core 安裝 guest packages 並產生 build artifact；執行此 privileged Guest mutation 前另行
+回報實際命令與資源狀態。
