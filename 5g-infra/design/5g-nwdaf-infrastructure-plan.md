@@ -2737,3 +2737,60 @@ identity，resolver 回報 installed/no-drift；沒有為 audit 修改既有 pac
 service。乾淨容器亦成功以 exact versions 安裝全部九個 MongoDB packages，並驗證 official Go
 archive checksum／binary identity 與 MongoDB key fingerprint。詳細證據見
 [Guest Provisioning Version Lock](../reports/5g-nwdaf-infrastructure/guest-provisioning-version-lock-2026-08-12.md)。
+
+### 16.30 Single Testbed Definition
+
+目前 `testbed.local.yaml` 並不是 `testbed.yaml` 的一般 overlay，只由不同入口零散讀取
+provider、Host bind address、storage expectation 與 default config directory。檔名卻暗示它能
+覆寫完整 testbed；未支援欄位即使存在也會被忽略。實際部署從未建立此檔，最初 provisioning
+以 `VAGRANT_DEFAULT_PROVIDER=virtualbox` 選擇 provider，後續既有 VM 則由 `.vagrant`
+metadata 辨識。這個隱藏的 fallback 結構不適合作為公開操作 contract。
+
+下一個 bounded change 將移除 local layer，建立以下單一來源規則：
+
+- `TESTBED` 選擇一份完整且自足的 testbed definition；未指定時使用 committed
+  `testbed.yaml`。VM resources、network、Host ML endpoint、NF／RAN／NWDAF topology、mobile
+  identity、host safety threshold 與 default config directory 全由該檔案提供。
+- `CONFIG_DIR` 只負責選擇這次要啟用的完整 generated/native config set；顯式參數優先，未指定
+  時只 fallback 至 selected testbed 的 `config.directory`。不再存在第三個 hidden default。
+- reference runtime 只支援 VirtualBox，因此 provider 是程式能力而非使用者 topology 選項；
+  Vagrantfile 與 preflight 直接採 VirtualBox，並拒絕衝突的 provider environment。
+- VirtualBox machine folder 與 Docker data root 從各 runtime 實際查詢後執行 free-space gate，
+  不保存重複的 expected path。這些 discovery result 是 Host 狀態，不是可重現 topology。
+- Host ML bind address 直接使用 selected testbed 的 `mlRuntime.bindAddress`；
+  `advertisedAddress` 仍代表 VM／NF 看見的 endpoint，兩者繼續由 config checker 驗證可用性。
+
+欄位處理如下：
+
+| 舊 local 欄位 | 新行為 |
+|---|---|
+| `provider.name` | 移除；reference implementation 固定 VirtualBox |
+| `provider.expectedVmStorage` | 移除；由 `VBoxManage` discovery 並檢查實際 filesystem |
+| `host.mlBindAddress` | 移除；使用 selected testbed 的 `mlRuntime.bindAddress` |
+| `host.dockerDataRoot` | 移除；由 `docker info` discovery 並檢查實際 filesystem |
+| `config.directory` | 移除；使用顯式 `CONFIG_DIR` 或 selected testbed 的 `config.directory` |
+
+實作範圍包括刪除 `testbed.local.example.yaml` 與 `.gitignore` ignore rule，移除
+`configlib.py` 的 local settings loader，收斂 Vagrantfile／preflight／config／ML helpers 的
+resolution path，並清除 README、OPERATIONS 與 script comments 中所有 local-layer 指引。
+若 working tree 存在舊 `testbed.local.yaml`，preflight 應 fail with migration guidance，避免使用者
+誤以為其中設定仍生效；本機目前沒有此檔，因此不需要刪除使用者資產。
+
+替代環境使用完整檔案，例如 `TESTBED=testbed.my-lab.yaml`，而不是 partial override。renderer
+將 selected testbed path 與 canonical hash 寫入 generated config manifest；checker 維持以同一
+selected definition 驗證 topology hash，避免建立 config 後切換 testbed。所有同一 lifecycle 的
+commands 必須傳入相同 `TESTBED` 與 `CONFIG_DIR`。
+
+驗證包括 local reference elimination、selected-testbed／explicit-config precedence、替代完整
+testbed positive case、stale local file negative case、config render/check、dataset、ML Compose、
+repository test 與 `vagrant validate`。此變更只修改 Host orchestration 與文件，不修改 config
+內容、N6、submodule、既有 VM definition 或 Guest runtime；不需重建或啟動 VM。
+
+2026-08-13 bounded implementation 與驗證已完成。`testbed.local.example.yaml`、ignore rule、
+local config/bind/storage/provider resolution 均已移除；VirtualBox 與 Docker storage 由 runtime
+discovery，Host ML bind 與 default config 只由 selected testbed 提供。repository regression
+證明 alternate `TESTBED`、explicit `CONFIG_DIR` precedence、stale local rejection、non-VirtualBox
+provider rejection 與正常 Vagrant definition。實際無 local/provider environment 的 Host preflight
+為 0 failures、1 個既有 low-swap warning，並正確找到 VirtualBox、Docker、Host SBI address、
+config、component locks 與 dataset。詳細證據見
+[Single Testbed Definition Regression](../reports/5g-nwdaf-infrastructure/single-testbed-definition-regression-2026-08-13.md)。
