@@ -13,8 +13,10 @@ reprovision 與 monitor generation cutover。第一個 closure 及 post-cutover 
 停止」的 bounded runner。持續的 Path A degradation 在約四分半後再次觸發第二個 FL
 process，符合實驗保持 active 時持續監測與再次訓練的語意，不是 lifecycle 問題。第二個
 candidate 品質較差，但 smoke 明確關閉 deployment policy enforcement，因此仍被發布。
-正常 teardown 則在 PyMTLF-C 留下一次 monitor subscription DELETE `503`，暴露五個 ML
-containers 同時停止時的短暫下游不可用。
+原始 teardown 在 PyMTLF-C 留下一次 monitor subscription DELETE `503`，暴露五個 ML
+containers 同時停止時的短暫下游不可用。後續 active-runtime regression 證明只調整 container
+停止順序無效；Infrastructure 加入 consumer exact DELETE 後的固定 40 秒 grace，再次實測時
+所有相關 cleanup 均在 container shutdown 前回覆 `204`，沒有重現 `503`。
 
 本輪沒有修改 NF／ML source 或 component revision。PseudoDriver 只提供可重現的 traffic
 stimulus，本結果不代表真實 application traffic benchmark，也不取代
@@ -147,10 +149,38 @@ MTLF backend unavailable 回覆 `503`。NWDAF-C 隨後執行 backend-loss cleanu
 deletes 於 `12:48:29Z` 回覆 `204`。
 
 因此根因不是單純「A／B 比 C 早停止」，而是 cleanup 尚未收斂就對任一相關 backend 送出
-SIGTERM。Infrastructure 已恢復原本的 project-scoped stop，避免保留無效 ordering。現有
-PyAnLF／PyMTLF health API 沒有 resource counts，NWDAF context API 也沒有 route counts；下一
-個可靠方案需提供可輪詢的 runtime cleanup／drain contract，再由 Host 於 timeout 內等到零後
-停止 containers。這會涉及 ML 或 NWDAF source，尚未獲得本輪授權，因此沒有直接修改。
+SIGTERM。Infrastructure 已恢復原本的 project-scoped `ml-stop`，避免保留無效 ordering。
+
+### 固定 cleanup grace 修正與 active-runtime regression
+
+使用者選擇先以 deployment lifecycle 的固定 grace 解決，不新增 ML／NWDAF runtime API。
+`experiment-stop` 現在於 consumer exact DELETE 成功後，保持全部 ML containers 與 Guest
+services 可用 40 秒，再執行原有 `ml-stop` 與 `services-stop`。等待可由非負整數
+`ML_CLEANUP_GRACE_SECONDS` 覆寫；非法值會在查詢或修改 runtime state 前以 exit 2 拒絕。
+預設 40 秒高於前次觀察到約 30 秒的 late reconciliation window。
+
+修正後以同一 `fl-closure-smoke` contract 產生 ignored CPU config
+`fl-cleanup-grace:06df80cc579d`。使用 CPU 是因本輪 Host `nvidia-smi` 無法連線 driver；測試
+目標只涵蓋 resource cleanup 與 teardown ordering，沒有修改提交的 GPU 預設、lock 或任何
+NF／PyAnLF／PyMTLF source。Repository tests、config validation 與 CPU runtime preflight 都
+通過；起跑時約 22 GiB available RAM、218 GiB filesystem free，低 swap 仍只作既有 warning。
+
+實測證據如下：
+
+- PyMTLF-C 於 `13:08:48Z` 建立 A／B monitor subscriptions
+  `9bd59817-642a-4201-9e71-0b4ab9d4b7e6` 與
+  `bad7030e-23ed-46d1-9fd0-f85a497af988`；
+- `experiment-stop` 於 `13:10:08Z` 開始，A／B consumer subscriptions 於
+  `13:10:11Z` exact DELETE 且 consumer `lastError=null`；
+- A／B 的 Model Provision subscription、Model Monitor registration，以及 C 持有的兩條
+  internal Model Monitor subscription 均於 `13:10:11Z` 回覆 `204`；
+- PyMTLF-C 到 `13:10:53Z` 才完成 shutdown，Core NWDAF-C 到 `13:11:16Z` 才收到 stop，
+  因此 cleanup 明確發生在第一個 backend unavailable 之前；
+- 本次時段沒有 DELETE `503`、ERROR 或 traceback；最終 23 個 Guest units inactive、五個
+  containers exited、consumer inactive，三台 VM graceful poweroff。
+
+這個結果驗證目前 testbed 的固定等待方案。它不是 protocol-level convergence proof；若未來
+cleanup window 可能超過本地觀察值，可提高環境變數，或另案設計可輪詢的 drain contract。
 
 本輪保留 150 筆 ADRF data records、2 筆 model records、2 個 model artifacts，以及五個
 ML state volume contents，供後續查驗。下一次實驗仍應先使用 confirmation-gated scoped

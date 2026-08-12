@@ -2572,10 +2572,17 @@ repository tests 與 stopped-container no-op 路徑雖通過，但 active-runtim
 `503`，稍後才由 NWDAF backend-loss cleanup 收斂。
 
 Infrastructure 隨後恢復原本的 project-scoped stop，避免保留一個增加關機時間卻無法解決
-問題的 ordering。下一個 gate 不再是調換 `docker stop` 順序，而是在任何 backend 收到
-SIGTERM 前建立可輪詢的 cleanup convergence contract。現有 PyAnLF／PyMTLF health API 不
-提供 active／desired resource counts，NWDAF context API 也不提供 route counts，因此不能用
-health check 證明 drain，也不應以固定 sleep 或 log parsing 取代正式狀態。若需新增 ML／NWDAF
-runtime-state 或 drain contract，依既定變更邊界先取得使用者同意。完整 timing、identity、state
-與資源證據見
+問題的 ordering。使用者決定先在 Infrastructure lifecycle 採固定 grace，不為此新增
+PyAnLF／PyMTLF／NWDAF runtime API：`experiment-stop` 完成 consumer exact DELETE 後，預設
+保持所有 ML containers 與 Guest services 可用 40 秒，再呼叫原本的 project-scoped
+`ml-stop`；`ML_CLEANUP_GRACE_SECONDS` 可設非負整數覆寫，非法值會在任何 runtime mutation
+前拒絕。40 秒高於前一輪約 30 秒的 late reconciliation window；`0` 只供明確除錯使用。
+
+後續 CPU active-runtime regression 於 `13:08:48Z` 建立 A／B 兩條 Model Monitor
+subscriptions。consumer resources 於 `13:10:11Z` exact DELETE，同一秒內 A／B Model
+Provision、Monitor registration 與 C 持有的兩條 monitor subscription 全部回覆 `204`；第一個
+ML container 到約 `13:10:53Z` 才 shutdown。完整時段沒有 DELETE `503`、ERROR 或 traceback。
+teardown 後 23 個 Guest units inactive、五個 containers exited、consumer inactive，三台 VM
+均 graceful poweroff。本輪只使用 ignored CPU config，因 Host NVIDIA driver 當時不可用；這不
+影響 teardown contract，也不構成 GPU runtime 回歸。完整 timing、identity、state 與資源證據見
 [Runtime Helper Sync 與 FL Lifecycle 回歸](../reports/5g-nwdaf-infrastructure/runtime-helper-sync-and-fl-lifecycle-regression-2026-08-12.md)。
