@@ -483,9 +483,9 @@ network 與 lifecycle 定義管理，不代表合併成一台 VM。相較舊環�
 一份 `Vagrantfile`，可減少 box、network 與 shared setting 重複。
 
 Repository 的 `.vagrant/machines/{core,path-a,path-b}/` 只保存 Vagrant ID、SSH 與
-provider metadata，必須 gitignore；它不是虛擬磁碟。若採 VirtualBox，真正的 VM
-disk 位於 VirtualBox global machine folder，box cache 則位於 Vagrant 自己的 cache。
-若採 libvirt，disk 位於選定 storage pool。兩者都在 repository 外。
+provider metadata，必須 gitignore；它不是虛擬磁碟。第一版使用 VirtualBox，真正的 VM
+disk 位於 VirtualBox global machine folder，box cache 則位於 Vagrant 自己的 cache，兩者
+都在 repository 外。
 
 `testbed.local.yaml` 可以記錄預期 provider 與 VM storage location，讓 preflight 回報
 實際位置和 free space；它不應在 `vagrant up` 時靜默修改 provider 的 global machine
@@ -570,16 +570,16 @@ Root `testbed.yaml` 是 public default topology definition，描述：
 - component 到 VM／Host container 的 placement，以及 Host published ML endpoints；
 - PLMN、S-NSSAI、DNN、TAI、UPF／UE pools 與生成 component config 所需的 network
   identity；
-- Vagrant/provider-neutral defaults 與 two-TAI／two-UPF reachability。
+- Vagrant／VirtualBox defaults 與 two-TAI／two-UPF reachability。
 
 需要另一組完整 topology 時，使用者可複製 `testbed.yaml` 到自選 definition file，經
 Makefile 的 explicit `TESTBED=<path>` 選用；同一個 definition 同時交給 Vagrant、renderer
 與 config checker，避免兩份網路 source of truth。
 
 `testbed.local.example.yaml` 說明可覆寫欄位；`testbed.local.yaml` gitignored，只保存
-physical host／provider 差異與 active `configDir`，例如 VirtualBox/libvirt、physical
-bridge/interface、expected VM／Docker storage、Host SBI bind address、host port forwarding
-與 optional outbound gateway。
+physical Host 差異與 active `configDir`，包含 VirtualBox storage、Docker storage 與 Host SBI
+bind address。未被程式讀取的 bridge/interface、port-forwarding 或 gateway 欄位不預先放進
+example；確有 deployment contract 時才另案加入。
 Local bind override 不改變 VM 所使用的 advertised address；兩者不同時，Host 必須具備
 對應 route／forwarding。Local override 不直接改變 TAI、UE identity、NWDAF ownership 或
 FL assertion；這些語意變更必須放進 explicit topology definition 和完整 config set。
@@ -1573,16 +1573,161 @@ count、model identity、ADRF transaction 與 monitor route；不得把 PseudoDr
 
 ### Phase 8 — Public Release Readiness
 
-Deliverables：
+第一版公開介面以「固定且可修改的 reference deployment」為目標，不宣稱為任意拓撲框架：
 
-- 從全新 checkout 執行的 quick start；
-- prerequisite／resource sizing／troubleshooting／architecture 文件；
-- `testbed.local.example.yaml`，不含實驗室 IP、SSH key、private path 或 production secret；
-- CI smoke、issue template、contribution policy、versioned release manifest；
-- certificate／TLS／OAuth 明確列為第一版 non-goal。
+- 正式 reference topology 固定為 Core、Path A、Path B 三台 VM、雙 TAI、五個 Host ML
+  containers 與單一 consumer；
+- VirtualBox 是第一版唯一正式支援的 provider；使用者文件、example 與 validation 都以
+  VirtualBox 為準；
+- `466/92`、既有 subnet、TAI、S-NSSAI、DNN、subscriber identity 與資源值是 committed
+  建議設定，不是 infrastructure 不可變常數；使用者可從 example 建立完整 config 後修改；
+- CPU 或 GPU 是使用者在 config 中明確選擇的 runtime policy。兩者都是正式操作路徑，不能以
+  Host 自動偵測結果靜默切換；effective config/status 必須記錄實際 device；
+- `full-core-cat-transition` 與 `fl-closure-smoke` 只作為已驗證的 example configs。它們使用
+  同一套 lifecycle，不各自擁有 runner 或特殊啟動指令；
+- WebConsole 保留為 optional component，加入獨立 build／start／status／stop 與 bounded
+  smoke；第一版只驗證 frontend、登入、MongoDB subscriber read path，不包含 billing、TLS
+  或 certificate；
+- reset 永遠維持獨立的 confirmation-gated destructive operation，不隱含在 experiment start。
 
-Exit gate：非原開發機使用者能依公開文件完成至少 core smoke 與一個 bounded scenario；
-release artifact 與 component commits 可追溯。
+#### Phase 8.1 — 公開 command surface
+
+Make targets 分成一般實驗、進階工具與 repository tests。底層 Host／Guest scripts、systemd
+units 與 MongoDB helpers 是 implementation details，不列為使用者指令。舊 targets 在新入口
+驗證完成前可保留為 compatibility aliases，但不出現在預設 help；確認沒有文件或 automation
+依賴後才分批移除。
+
+一般使用者由 `make help` 看到：
+
+| 指令 | 是否改變狀態 | 功能 |
+| --- | --- | --- |
+| `make help` | 否 | 顯示一般實驗流程與常用指令。 |
+| `make experiment-validate CONFIG_DIR=...` | 否 | 檢查 VirtualBox、Docker、submodules／locks、RAM、磁碟、ports、CPU/GPU prerequisites、config contract、Compose wiring 與既有 dataset；不建立 VM、不啟動服務，也不偷偷產生缺少的 dataset。 |
+| `make vm-up` | 是 | 建立或啟動三台 VM；首次建立會 provision/build，但不啟動實驗 processes。 |
+| `make vm-status` | 否 | 顯示三台 VM 為 running、poweroff 或不存在。 |
+| `make vm-halt` | 是 | Graceful shutdown 三台 VM，不刪 VM 或 virtual disks。 |
+| `make experiment-start CONFIG_DIR=...` | 是 | 重新驗證必要 gates，產生／驗證／載入 dataset，啟動 Guest services、config 指定的 CPU/GPU ML containers、optional WebConsole、consumer 與兩筆 subscriptions；失敗時只反向停止本次已啟動項目。 |
+| `make experiment-status` | 否 | 集中顯示 VM、23 個 Guest services、五個 ML containers、effective device、WebConsole、consumer、subscriptions、config identity 與基本 Host resources。 |
+| `make experiment-stop` | 是 | 精確刪除兩筆 subscriptions，停止 consumer、optional WebConsole、ML 與 Guest services；保留 VM、dataset、MongoDB、ADRF/model state、containers、images 與 volumes。 |
+| `make logs` | 否 | 依來源、VM、service、時間與 follow mode 查看 Guest、ML、consumer 與 WebConsole logs。 |
+
+一般流程為：
+
+```sh
+make experiment-validate CONFIG_DIR=config/local/my-experiment
+make vm-up
+make experiment-start CONFIG_DIR=config/local/my-experiment
+make experiment-status
+make logs
+make experiment-stop
+make vm-halt
+```
+
+`experiment-start` 是便利 orchestration，不改變 VM、Guest services、ML containers、WebConsole
+與 subscriptions 仍可分開控制的 ownership。它不能自動開機、reset state 或關閉 VM。
+
+#### Phase 8.2 — Config 與 dataset 工具
+
+由 `make help-advanced` 顯示：
+
+| 指令 | 是否改變狀態 | 功能 |
+| --- | --- | --- |
+| `make config-create NAME=<name> FROM=<example>` | 本機檔案 | 從 committed example 建立可編輯的完整 `config/local/<name>/`；`NAME` 是新 config 名稱，`FROM` 是 `full-core-cat-transition` 或 `fl-closure-smoke` 等起點，省略時使用主要 reference example。 |
+| `make config-validate CONFIG_DIR=...` | 否 | 對照指定 config、`testbed.yaml`、manifest-selected scenario、config-specific subscriber fixtures、PyMTLF seed metadata 與所有 NF／ML／UERANSIM configs，驗證 PLMN、TAI、S-NSSAI、DNN、endpoints、callbacks、network aliases、FL policy、timeouts 與 source hashes。只有自訂 topology 時才另傳 `TESTBED=...`。 |
+| `make dataset-generate CONFIG_DIR=...` | 本機檔案 | 依 UE pools、traffic profiles、sampling、warm-start、degradation、monitor 與 model shape 產生 content-addressed Path A/B Parquet artifacts。 |
+| `make dataset-validate CONFIG_DIR=...` | 否 | 驗證實際 Parquet，而不只驗證 config 欄位；包含 dataset ID、schema、SHA-256、bytes、rows、UE IP、timestamps、breaking time、training／validation capacity 與 bounded trigger／closure。Dataset 不存在時失敗。 |
+| `make dataset-show CONFIG_DIR=...` | 否 | 顯示實際 dataset identity、hash、大小、rows、時間範圍、trigger window 與 closure budget。 |
+| `make dataset-load CONFIG_DIR=...` | Guest state | 將已驗證的 Path A/B artifacts 上傳到所屬 VM，Guest 再驗證 identity/hash 後原子切換 active dataset。 |
+
+`experiment-start` 會依序執行 generate、validate 與 load；上述 targets 保留給 config 作者與
+data-path 除錯。`466/92` 要真正成為可替換的建議值，subscriber/group fixtures 不能繼續是
+repository-global fixed files；Phase 8 應由完整 config 產生或包含 config-specific fixtures，
+並讓 config identity 同時涵蓋 authentication、subscriber 與 Internal Group input。
+
+#### Phase 8.3 — 分域 lifecycle
+
+分域 targets 是 `experiment-*` 的底層能力，也供進階除錯：
+
+| 執行域 | 指令 | 功能 |
+| --- | --- | --- |
+| Guest | `services-start CONFIG_DIR=...` | 載入 config/dataset、套用 scoped subscriber data，啟動 MongoDB、5GC NFs、ADRF、三個 NWDAF、兩個 UPF、兩個 gNB 與六個 UE；不啟動 ML、WebConsole 或 consumer。 |
+| Guest | `services-status`／`services-stop` | 顯示 23 個 units，或反向停止它們並保持 VM running。 |
+| ML | `ml-start CONFIG_DIR=...` | 依 config 明確選擇 CPU 或 GPU，build images 並啟動五個 containers；CPU 路徑不要求 NVIDIA，GPU 路徑 fail-fast 驗證 runtime/CDI/CUDA。 |
+| ML | `ml-status`／`ml-stop` | 顯示 health、device、CUDA、memory、image revision、config hash，或停止 containers 並保留 state。 |
+| Consumer | `subscriptions-start` | 啟動單一 consumer，經 NRF 找到兩個不同的 TAI-specific NWDAFs 並建立兩筆 subscriptions。 |
+| Consumer | `subscriptions-status`／`subscriptions-stop` | 顯示 callback/notification/exact locations，或 DELETE 兩個 exact resources 後停止 consumer。 |
+| WebConsole | `webconsole-start CONFIG_DIR=...` | 在 Core build／啟動 optional free5GC WebConsole，使用該 config 的 MongoDB 與 NRF；不成為主要 Guest stack 的 hard dependency。 |
+| WebConsole | `webconsole-status`／`webconsole-stop` | 顯示 unit、HTTP frontend、登入 API 與 MongoDB connectivity，或獨立停止 WebConsole。 |
+
+WebConsole 是否隨 `experiment-start` 啟動，由完整 config 中明確的 enable flag 決定。現有
+`webuicfg.yaml` 只有未驗證 asset，不能在 smoke 通過前宣稱正式可用。
+
+#### Phase 8.4 — Subscriber 與 experiment state
+
+| 指令 | 是否改變狀態 | 功能 |
+| --- | --- | --- |
+| `make subscriber-data-show CONFIG_DIR=...` | 否 | 對照 config-specific expected documents 與 MongoDB scoped records，列出 matching、missing、different，以及 apply／clear 的影響數量。 |
+| `make subscriber-data-apply CONFIG_DIR=...` | DB 寫入 | Idempotent upsert config 宣告的 SUPIs 與 Internal Group，不影響其他 subscribers。 |
+| `make subscriber-data-clear CONFIG_DIR=...` | Scoped 刪除 | 只刪除 config 宣告的 SUPIs 與 group，不 drop database 或 collections。 |
+| `make reset-show CONFIG_DIR=...` | 否 | 顯示 reset 會清除的五個 ML state mounts、ADRF data/model records、model files 與 NRF ADRF registration，也明列會保留的 VM、containers、images、volume objects、dataset 與 subscriber data。 |
+| `make reset CONFIG_DIR=... RESET_CONFIRM=<scenario>` | Scoped 刪除 | 在相關 processes 全停後清除上述 experiment state，完成後自動 verify；不刪 VM、containers、volumes、images、dataset 或 subscriber data。 |
+
+公開介面不保留 `subscriber-data-validate`：目前該 action 只檢查 fixture schema，沒有比對
+MongoDB；fixture/config contract 應由 `config-validate` 負責。`subscriber-data-show` 則需從目前
+只有 collection counts 的輸出擴充為 expected-vs-actual diff。
+
+`RESET_CONFIRM` 使用 config manifest 的 scenario name；`reset-show` 必須顯示 exact value 與
+可直接複製的完整 reset command，避免使用者自行猜測。舊 `plan/apply/verify` 字樣不成為公開
+命名：`reset-show` 是唯讀影響清單，`reset` 內建 post-delete verification。
+
+#### Phase 8.5 — Repository tests 與 command 精簡
+
+現有 contract/network/dataset/Compose/container smoke 的覆蓋仍有價值，但它們驗證的是
+repository implementation，不是使用者實驗，不能與 user-facing validation 全部叫 `check`。
+公開 developer surface 只保留：
+
+| 指令 | 功能 |
+| --- | --- |
+| `make test` | 聚合 config negative contracts、Netplan renderer/collision/stale alias、dataset deterministic generation/tamper rejection、Compose wiring、Vagrant definition 與 Python/shell static checks；不建立 VM。 |
+| `make test-containers` | 合併現有 `ml-cpu-smoke` 與 `ml-lifecycle-smoke`，使用獨立 project/config 啟動五個 disposable CPU containers，驗證 build、health、non-root UID、device、status/log/stop 與 retained-state semantics，最後只清理自身 containers/volumes。 |
+
+`config-contract-smoke`、`network-config-smoke`、`dataset-smoke`、`ml-compose-check`、
+`ml-cpu-smoke` 與 `ml-lifecycle-smoke` 不再是 help 中的獨立公開 targets；底層測試程式可保留，
+供聚合入口與 failure isolation 使用。`fl-closure-smoke` 則改以 bounded example config 描述，
+不是 repository test target。
+
+Help 分層固定為：
+
+| 指令 | 顯示內容 |
+| --- | --- |
+| `make help` | 一般實驗 lifecycle。 |
+| `make help-advanced` | Config、dataset、分域控制、subscriber 與 reset。 |
+| `make help-dev` | `test` 與 `test-containers`。 |
+| `make help-all` | 所有仍受支援的公開 targets；不列底層 scripts。 |
+
+#### Phase 8.6 — Fresh-checkout 與 release artifacts
+
+其他 deliverables：
+
+- 從隔離 fresh checkout 執行 submodule initialization、config creation/validation、dataset
+  generation、repository tests、VirtualBox validation 與至少一個 bounded scenario；
+- prerequisite、CPU/GPU 選擇、resource sizing、troubleshooting、architecture 與 WebConsole
+  optional path 文件；
+- `testbed.local.example.yaml` 只保留實際被程式使用的 Host settings；實作
+  `expectedVmStorage` 的 filesystem gate，移除沒有 consumer 的 `bridgeInterface`；
+- 不含實驗室 IP、SSH key、private path 或 production secret；公開 clone 前處理目前
+  Intelligent-Systems-Lab submodules 的 SSH URLs、repository visibility 與 fetchability；
+- 修正 README 過時的 FL gate、dataset rows、GPU-only 與 provider 描述；
+- CI、issue template、contribution policy、versioned release manifest；
+- parent、NWDAF、ADRF、PyAnLF、PyMTLF license 與第三方 compatibility 是 public release hard
+  blocker；certificate／TLS／OAuth 仍為第一版 non-goal；
+- 固定 Guest Go archive checksum 與可重現 MongoDB package policy，降低 fresh provisioning 的
+  supply-chain 漂移。
+
+Exit gate：非原開發機使用者能以 VirtualBox、CPU 或 GPU 任一明確選擇，從 fresh checkout
+建立 reference topology，依同一套 `experiment-*` lifecycle 完成 bounded scenario 並安全
+teardown；WebConsole optional smoke 有清楚成功／失敗邊界；release artifact、component commits、
+licenses、effective config 與 dataset identity 全部可追溯。
 
 ### Phase 9 — Legacy Retirement
 
@@ -1644,33 +1789,29 @@ state 或舊 VM process 偶然使 scenario 通過。
 - repository 名稱使用 `5G_NWDAF_Infrastructure`，目前只保留本機 `main`，暫不設定 remote；
 - 舊 local VM 已依使用者授權永久移除，舊 source repository 保留；
 - 第一版採三台 network VM 加五個 Host ML containers，不採全 VM 或第四台 GPU VM；
-- PyAnLF-A/B 預設 CPU、PyMTLF-A/B 使用單張 RTX 3080、PyMTLF-C 使用 CPU；
+- PyAnLF-A/B 與 PyMTLF-C 維持 CPU；PyMTLF-A/B 目前 validated reference 使用單張 RTX 3080，
+  Phase 8 將 CPU/GPU 改為完整 config 的明確使用者選擇，兩者都不得 silent fallback；
 - GPU activation 採既有 rootful Docker 加 NVIDIA runtime CDI mode；不另建 rootless daemon、
   不改變 `default-runtime`，也不以 restart 共用 daemon 作為正常流程；
 - consumer 第一版仍為 Core VM 的單一 process，未來可另案 containerize；
+- v0.1 固定三 VM／雙 TAI reference topology，`466/92` 與既有網路、subscriber、resource values
+  是可修改的 committed 建議設定；
+- VirtualBox 是 v0.1 唯一正式 provider；
+- WebConsole 保留為 optional component 並納入獨立 bounded smoke，不測 billing、TLS 或 cert；
 - `nwdaf-resources` 不成為 submodule/runtime dependency；certificate、TLS、OAuth 暫不支援。
 
-進入 container／VM bring-up 前仍需確認：
+Phase 7 runtime gates 已完成；Phase 8 尚需確認或完成：
 
-1. 已將 Host SBI public candidate 固定為 `192.168.57.1`，並確認五個 published ports
-   目前無 listener；provider 建立 host-only network 後仍須驗證 exact interface、三台 VM
-   的雙向 route 與 firewall；
-2. Host toolkit、CDI spec、NVIDIA runtime CDI probe 與 PyMTLF image CUDA probe 已在 Docker
-   27.4.1 通過，R535 driver 未升級；尚待 full-core 階段一次 bounded A/B concurrent training
-   的 VRAM 實測，失敗時才拆成單 client 診斷；
-3. A/B PyMTLF 同時 training 的實測 VRAM 是否低於 10 GiB，以及超限時採 sequential queue
-   或 fail-fast；
-4. VirtualBox 已是第一個 provider candidate；仍須完成 Vagrant host-only network 與三台
-   VM skeleton smoke，失敗時才回頭評估 libvirt；
-5. 10 GiB guest RAM、三台 40 GiB dynamic primary disks、約 56 GiB guest used-space target
-   與 6 GiB Host/ML reserve 是否通過分 stage 實測，及沒有 swap 時採 warning、explicit
-   override 或 hard gate；
-6. open-source license 與第三方 component/license compatibility；
-7. guest source 採 provider shared folder、受控 source snapshot upload 或其他同步方式；
-8. webconsole 是否列入 v0.1 release gate，或只先固定 submodule／文件；
-9. public default 是否允許 outbound NAT，以及 scenario data network 的隔離政策；
-10. 哪些 `nwdaf-resources` 小工具確實屬於 infrastructure ownership，應移植、重寫或保留
-    在原 repo。
+1. CPU production mode 的 config/Compose/runtime contract 與 bounded full-stack E2E；
+2. WebConsole Core build、optional lifecycle、frontend/login/MongoDB read smoke；
+3. config-specific subscriber/group fixtures，讓非 `466/92` reference config 可生成、驗證與套用；
+4. public submodule URLs、repository visibility、parent remote 與 fresh recursive checkout；
+5. parent／NWDAF／ADRF／PyAnLF／PyMTLF license 與第三方 compatibility；
+6. Host prerequisite installer boundary、Go checksum、MongoDB version reproducibility；
+7. public default 的 outbound NAT 與 scenario data-network isolation policy；
+8. `expectedVmStorage` gate、未使用 local fields 移除，以及實際 disk growth 的 release sizing；
+9. CI、contribution、issue templates、release manifest 與 fresh-checkout acceptance；
+10. compatibility targets 的 deprecation window，以及是否有外部 automation 仍使用舊名稱。
 
 這些決策不阻擋先建立 non-privileged container definition 和 static checks，但凡涉及 Host
 package/driver/network mutation、建立 VM 或長時間 GPU run，必須在對應步驟明確確認。
@@ -1700,6 +1841,13 @@ gitlink／component lock 更新已完成。
    `full-core-cat-transition` 都已完成 ADRF retrieval、concurrent GPU training、two-round
    FedAvg、publication、A／B reprovision 與 monitor cutover。Phase 7 的下一步是把既有操作與
    identity evidence 收斂成可由非原開發機執行的 Phase 8 quick start 與 release checks。
+7. Phase 8 先實作分層 Make interface：一般使用者只接觸 `experiment-*`、`vm-*` 與 `logs`；
+   config/dataset、分域 lifecycle、subscriber/reset 放在 advanced help；repository regression
+   收斂為 `test` 與 `test-containers`。先以 aliases 保持相容，再依使用紀錄移除重複 targets。
+8. 接著完成 config-owned CPU/GPU policy、config-specific subscriber fixtures 與 optional
+   WebConsole lifecycle；每項先做 isolated/CPU smoke，再分別通過 bounded full-stack gate。
+9. 最後才做 fresh-checkout acceptance、公開 URLs/licenses、release metadata 與文件收斂；在
+   license、component fetchability 與 fresh-checkout E2E 通過前，不宣稱 repository 已可公開發布。
 
 每一步先通過該層驗證再 commit；provider 安裝／修復、Host toolkit/network mutation、新 VM
 建立與 privileged E2E 仍需在對應步驟明確執行。新 repository 不以加入
