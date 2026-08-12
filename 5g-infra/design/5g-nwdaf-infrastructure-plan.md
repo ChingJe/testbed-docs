@@ -2365,3 +2365,8 @@ anchor `.57.2` 和測試 aliases `.57.10`、`.57.18`。因此採用後置 Netpla
 public IP plan 或 `nwdaf-docs`。實作必須分階段 commit；若 isolated Netplan validation、targeted
 reconfigure 或 rollback 無法避免影響 management／SSH，應停下來回報，不以 full
 `netplan apply` 靜默擴大變更範圍。
+
+上述六步已於同日完成。三台 migration、cold boot、Core reset-before-services、drift recovery、
+failure-injection rollback 與 23-unit bounded Guest stack smoke 全部通過；驗證後 services 與 VM
+均停止。實際證據與 revision identity 見
+[Persistent Netplan Alias Migration](../reports/5g-nwdaf-infrastructure/persistent-netplan-alias-migration-2026-08-12.md)。
