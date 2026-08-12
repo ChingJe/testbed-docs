@@ -2539,3 +2539,32 @@ available RAM。五個 ML containers 沒有 ERROR、traceback 或 collection fai
 subscriptions 精確 DELETE，ML／Guest services 依序停止，三台 VM 均 graceful poweroff；本輪
 state 保留供後續查驗。完整 identity、timing、resource 與 teardown 證據見
 [FL Closure Smoke 與 Persistent Netplan 回歸](../reports/5g-nwdaf-infrastructure/fl-closure-smoke-netplan-regression-2026-08-12.md)。
+
+### 16.25 2026-08-12 Runtime Helper Sync 與 FL Lifecycle Regression
+
+為避免既有 VM 沿用 provision 當時的 stale runtime scripts，Infrastructure 將 helper 安裝集中
+到單一 Guest installer。全新 provision 與 `services-start` 前的 Host sync 共用同一份 allowlist；
+Host 上傳 archive 後，Guest 驗證完整 SHA-256 才安裝 Consumer、config／network／dataset
+helpers、subscriber projection 與 systemd definitions。同步只執行 `daemon-reload`，不啟動或
+重啟 NF。三台既有 VM 已實測安裝相同 bundle identity，config activation 與 subscriber apply
+也確實經過新 helper；repository tests、cold boot、28 個 aliases 與 23-unit startup 均通過。
+
+同一輪 GPU `fl-closure-smoke` 再次完成 A-only degradation、A／B 兩輪 local training、C
+FedAvg、ADRF publication、A／B adoption 與 post-cutover accuracy report。第一個 candidate
+WAPE `0.2464` 優於 base `1.8398`，trigger 後約四秒完成 cutover，因此 helper sync 沒有破壞
+既有 closure。
+
+延長運行也釐清兩項 lifecycle 邊界。第一，`experiment-start` 是持續運行入口，不會在首次
+closure 後自動停止；持續 degradation 約四分半後再次觸發 FL。第二次 candidate WAPE
+`0.4575` 劣於 base `0.2467`，但 smoke 的 deployment enforcement=false，因此仍依 config
+語意發布。bounded acceptance 應在首次 cutover 後等待一個新 generation report window 便
+停止；若要無人值守，後續應以通用 closure condition／watcher 表達，不重新增加多組
+scenario-specific smoke commands。
+
+正常 teardown 已精確 DELETE 兩筆 consumer subscriptions，停止五個 containers、23 個
+Guest units，並 graceful poweroff 三台 VM；但 PyMTLF-C 在 Compose shutdown 期間留下單次
+monitor subscription DELETE `503`。下一個 implementation gate 是診斷並讓 teardown 在停止
+ML backend 前等候 monitor delete convergence。此工作先限於 lifecycle orchestration；若確認
+需要修改 PyMTLF／NWDAF source，仍必須先向使用者說明原因並取得同意。完整 timing、identity、
+state 與資源證據見
+[Runtime Helper Sync 與 FL Lifecycle 回歸](../reports/5g-nwdaf-infrastructure/runtime-helper-sync-and-fl-lifecycle-regression-2026-08-12.md)。
