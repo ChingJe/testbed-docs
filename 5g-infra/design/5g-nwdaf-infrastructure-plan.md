@@ -1657,7 +1657,7 @@ repository-global fixed files；Phase 8 應由完整 config 產生或包含 conf
 | Consumer | `subscriptions-start` | 啟動單一 consumer，經 NRF 找到兩個不同的 TAI-specific NWDAFs 並建立兩筆 subscriptions。 |
 | Consumer | `subscriptions-status`／`subscriptions-stop` | 顯示 callback/notification/exact locations，或 DELETE 兩個 exact resources 後停止 consumer。 |
 | WebConsole | `webconsole-start CONFIG_DIR=...` | 在 Core build／啟動 optional free5GC WebConsole，使用該 config 的 MongoDB 與 NRF；不成為主要 Guest stack 的 hard dependency。 |
-| WebConsole | `webconsole-status`／`webconsole-stop` | 顯示 unit、HTTP frontend、登入 API 與 MongoDB connectivity，或獨立停止 WebConsole。 |
+| WebConsole | `webconsole-status`／`webconsole-stop` | 顯示 config enable、unit、HTTP frontend、artifact 與 source identity，或獨立停止 WebConsole。登入與 MongoDB read path 由 bounded smoke 驗證，不隱含在一般 status。 |
 
 WebConsole 是否隨 `experiment-start` 啟動，由完整 config 中明確的 enable flag 決定。現有
 `webuicfg.yaml` 只有未驗證 asset，不能在 smoke 通過前宣稱正式可用。
@@ -2604,13 +2604,16 @@ WebConsole 的 optional 語意同時涵蓋 build 與 runtime：
 - config 後續改回 disabled 只停止／略過 process，不自動刪除既有 artifact、toolchain 或 cache；
   任何空間回收另作明確 cleanup，不隱含在 lifecycle。
 - WebConsole 僅監聽 VirtualBox host-only management address，不對實驗室 LAN 或 Internet 暴露。
-  Billing、TLS、certificate、OAuth 與 subscriber write path 不在第一版驗收範圍。
+  鎖定的 upstream revision 因 boolean validator regression 無法接受
+  `billingServer.enable: false`，因此暫時保留 `true`，但 FTP control listener 固定只綁 Core
+  loopback `127.0.0.1:2121`，不對 Host 或實驗室網路暴露；不修改 upstream submodule。
+  Billing transfer、TLS、certificate、OAuth 與 subscriber write path 不在第一版驗收範圍。
 
 實作分為五個 bounded gates：
 
 1. 在 default manifest、renderer 與 checker 加入 boolean enable flag，並逐欄驗證 WebConsole
-   MongoDB database／URI、NRF URI、HTTP management endpoint、billing disabled 及 config identity；
-   negative contract smoke 必須拒絕 endpoint 或 billing drift。
+   MongoDB database／URI、NRF URI、HTTP management endpoint、billing compatibility settings 及
+   config identity；negative contract smoke 必須拒絕 endpoint 或 billing drift。
 2. 新增 Core-only lazy-build helper。它只在 enabled start 路徑安裝 Node.js 20、Corepack／Yarn，
    build frontend 與 Go server，原子發布 runtime directory 及 identity；啟動階段不接受 stale
    artifact，也不修改 upstream WebConsole submodule。
@@ -2620,10 +2623,18 @@ WebConsole 的 optional 語意同時涵蓋 build 與 runtime：
 4. 將 optional domain 納入 `experiment-start` rollback、aggregate status、cleanup-safe stop、logs 與
    Make help；disabled path 必須維持既有 experiment behavior，不能引入 Node／Yarn 或 build。
 5. 先跑 repository tests 與 disabled-path regression，再用 enabled local config 做 bounded Core
-   smoke：frontend HTTP、`admin/free5gc` login token、authenticated subscriber list 可讀、billing
-   未啟動、獨立 stop 後其他 Guest services 仍 active。若需要修改 WebConsole、NRF 或其他 NF
-   source，依既定邊界先停止並回報。
+   smoke：frontend HTTP、`admin/free5gc` login token、authenticated subscriber list 可讀、FTP
+   listener 只綁 loopback、獨立 stop 後其他 Guest services 仍 active。若需要修改 WebConsole、
+   NRF 或其他 NF source，依既定邊界先停止並回報。
 
 本工作包只修改 `5G_NWDAF_Infrastructure` 與 `testbed-docs`。現有 VM 的第一次 enabled smoke
 會在 Core 安裝 guest packages 並產生 build artifact；執行此 privileged Guest mutation 前另行
 回報實際命令與資源狀態。
+
+2026-08-12 實作與 bounded smoke 已完成。disabled regression 證明不接觸 VM、toolchain 或
+artifact；enabled config 完成首次 Node.js 20／Yarn 4.1 lazy build、HTTP frontend、登入、六筆
+subscriber read、Core-loopback FTP listener、獨立 stop、23 個 Guest services 保持 active，以及
+第二次啟動 artifact reuse。upstream 每次 startup 會重建其 `admin` tenant/user 並重設為
+`admin/free5gc`，Host lifecycle 已明確警告；config-owned subscriber records 不受此動作取代。
+三台 VM 最後均 graceful poweroff。詳細證據見
+[Optional WebConsole Lazy-Build Smoke](../reports/5g-nwdaf-infrastructure/optional-webconsole-lazy-build-smoke-2026-08-12.md)。

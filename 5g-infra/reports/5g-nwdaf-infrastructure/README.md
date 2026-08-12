@@ -28,6 +28,10 @@
 - [Host ML 與 Guest Stack 整合 Smoke](host-ml-guest-stack-integration-smoke-2026-08-09.md)
 - [Persistent Netplan Alias Migration](persistent-netplan-alias-migration-2026-08-12.md)
 
+## Optional management
+
+- [Optional WebConsole Lazy-Build Smoke](optional-webconsole-lazy-build-smoke-2026-08-12.md)
+
 ## PseudoDriver data path
 
 - [Generated PseudoDriver Dataset Tooling](generated-pseudodriver-dataset-tooling-2026-08-09.md)
