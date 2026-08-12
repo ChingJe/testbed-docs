@@ -1696,9 +1696,10 @@ gitlink／component lock 更新已完成。
    gate 更新 Host／Path resource budget；
 6. 已建立並 provision 三台 VM，完成 Core／Path guest lifecycle、six-UE registration、
    PDU Session、Host ML production activation、雙向 sync，以及 subscription／Nupf Event
-   Exposure／PseudoDriver／PyAnLF／consumer analytics callback 短閉環；下一步先實作並執行
-   `fl-closure-smoke`，確認 ADRF retrieval、concurrent training、FedAvg、publication 與
-   cutover，再執行 `full-core-cat-transition` 主 example。
+   Exposure／PseudoDriver／PyAnLF／consumer analytics callback 短閉環；`fl-closure-smoke` 與
+   `full-core-cat-transition` 都已完成 ADRF retrieval、concurrent GPU training、two-round
+   FedAvg、publication、A／B reprovision 與 monitor cutover。Phase 7 的下一步是把既有操作與
+   identity evidence 收斂成可由非原開發機執行的 Phase 8 quick start 與 release checks。
 
 每一步先通過該層驗證再 commit；provider 安裝／修復、Host toolkit/network mutation、新 VM
 建立與 privileged E2E 仍需在對應步驟明確執行。新 repository 不以加入
@@ -2370,3 +2371,23 @@ reconfigure 或 rollback 無法避免影響 management／SSH，應停下來回�
 failure-injection rollback 與 23-unit bounded Guest stack smoke 全部通過；驗證後 services 與 VM
 均停止。實際證據與 revision identity 見
 [Persistent Netplan Alias Migration](../reports/5g-nwdaf-infrastructure/persistent-netplan-alias-migration-2026-08-12.md)。
+
+### 16.24 2026-08-12 FL Closure Smoke 與 Netplan Regression
+
+在 `7699574` 的 Persistent Netplan implementation 上，以 fresh rendered
+`fl-closure-smoke`、confirmation-gated clean state 與三台 VM poweroff 起點完成 bounded E2E。
+Cold boot 後 network unit 沒有執行，Core 14、Path A／B 各 7 個 aliases 已由 Netplan
+持久恢復；reset-before-services、23-unit startup 與 Host ML startup 都不需額外 reconcile。
+
+單一 consumer 建立兩筆 TAI-specific subscriptions。A-only degradation 在 subscription 後約
+481 秒觸發唯一 federated process；A／B 各以 49 samples 完成兩輪 GPU local training，C 完成
+FedAvg、final validation 與 ADRF publication。Candidate WAPE 為 `0.2464`，低於 base 的
+`1.8398`；新 model `1786505512331` 被 A／B 採用，trigger 後約四秒完成 monitor generation
+cutover。A 隨後產生 `matched=2` 的新 model report，證明 post-cutover inference 與 monitor
+route 持續運作。
+
+Concurrent training 的兩個 GPU processes 各約使用 400 MiB VRAM，Host 最低觀察到約 24 GiB
+available RAM。五個 ML containers 沒有 ERROR、traceback 或 collection failure。完成後兩筆
+subscriptions 精確 DELETE，ML／Guest services 依序停止，三台 VM 均 graceful poweroff；本輪
+state 保留供後續查驗。完整 identity、timing、resource 與 teardown 證據見
+[FL Closure Smoke 與 Persistent Netplan 回歸](../reports/5g-nwdaf-infrastructure/fl-closure-smoke-netplan-regression-2026-08-12.md)。

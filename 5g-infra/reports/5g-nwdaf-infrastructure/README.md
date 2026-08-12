@@ -38,3 +38,4 @@
 
 - [Stateless Full E2E Smoke](stateless-full-e2e-smoke-2026-08-10.md)
 - [Full-core Business FL E2E](full-core-business-fl-e2e-2026-08-11.md)
+- [FL Closure Smoke 與 Persistent Netplan 回歸](fl-closure-smoke-netplan-regression-2026-08-12.md)
