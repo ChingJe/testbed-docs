@@ -10,11 +10,11 @@ reprovision 與 monitor generation cutover。第一個 closure 及 post-cutover 
 均通過。
 
 本輪同時確認 `experiment-start` 是持續運行的通用 lifecycle，不是「首次 closure 後自動
-停止」的 bounded runner。為收集 post-cutover 與 retained-state 證據而繼續運行時，持續的
-Path A degradation 在約四分半後再次觸發第二個 FL process。第二個 candidate 品質較差，
-但 smoke 明確關閉 deployment policy enforcement，因此仍被發布。正常 teardown 也在
-PyMTLF-C 留下一次 monitor subscription DELETE `503`。這兩點不推翻第一個 closure，卻表示
-無人值守 bounded acceptance 與 teardown convergence 仍有後續工作。
+停止」的 bounded runner。持續的 Path A degradation 在約四分半後再次觸發第二個 FL
+process，符合實驗保持 active 時持續監測與再次訓練的語意，不是 lifecycle 問題。第二個
+candidate 品質較差，但 smoke 明確關閉 deployment policy enforcement，因此仍被發布。
+正常 teardown 則在 PyMTLF-C 留下一次 monitor subscription DELETE `503`，暴露五個 ML
+containers 同時停止時的短暫下游不可用。
 
 本輪沒有修改 NF／ML source 或 component revision。PseudoDriver 只提供可重現的 traffic
 stimulus，本結果不代表真實 application traffic benchmark，也不取代
@@ -119,10 +119,8 @@ cutover。這是 example config 的既有語意；若測試目標是驗證「品
 必須使用 enforcement=true 的使用者 config，不能把本結果解讀為 production deployment
 policy 驗收。
 
-因此目前 bounded acceptance 的操作界線應是：觀察到第一個 cutover，等一個新 generation
-accuracy report window，隨即執行 `experiment-stop`。若要無人值守，後續應在不增加多組
-scenario-specific public commands 的前提下，提供可觀察 closure condition 的 runner 或明確
-的外部 watcher。
+因此第二次 trigger 是持續運行同一實驗的預期結果；實驗何時停止仍由使用者決定，不需要讓
+通用 `experiment-start` 在首次 cutover 後自動結束。
 
 ## Teardown、保留 state 與後續項目
 
@@ -138,9 +136,13 @@ GPU 為 21 MiB idle。本專案沒有 running container。
 teardown 過程中，PyMTLF-C 於 `08:49:08Z` 記錄一次 monitor subscription DELETE `503`。
 時間點在兩筆 consumer subscriptions 已刪除、Compose 正在停止五個 ML containers 期間；
 初步判斷是非同步 monitor reconciliation 與 shutdown 相撞。它不影響先前兩次 closure 或
-exact consumer DELETE，但代表 lifecycle 還不是 error-free teardown。後續應先
-確認 monitor delete convergence，再停止相關 ML backend；若診斷顯示需要修改 PyMTLF 或
-NWDAF source，依既定邊界先回報並取得使用者同意。
+exact consumer DELETE，但代表當時的並行 shutdown 不是 error-free teardown。
+
+後續 Infrastructure commit `a2da93a` 已把 `ml-stop` 改為 ordered shutdown：先同步等待
+PyMTLF-C 完整退出，使它仍可經 NWDAF-C 對存活中的 A／B ML backends 完成 Model Monitor
+清理，再平行停止其餘 project containers。這不使用固定 sleep、不變更 PyMTLF／NWDAF
+source，也不影響其他 Compose projects。Repository tests 與既有 stopped-container no-op
+路徑已通過；DELETE `503` 是否消失仍待下一次 active runtime teardown 回歸確認。
 
 本輪保留 150 筆 ADRF data records、2 筆 model records、2 個 model artifacts，以及五個
 ML state volume contents，供後續查驗。下一次實驗仍應先使用 confirmation-gated scoped

@@ -2554,17 +2554,19 @@ FedAvg、ADRF publication、A／B adoption 與 post-cutover accuracy report。�
 WAPE `0.2464` 優於 base `1.8398`，trigger 後約四秒完成 cutover，因此 helper sync 沒有破壞
 既有 closure。
 
-延長運行也釐清兩項 lifecycle 邊界。第一，`experiment-start` 是持續運行入口，不會在首次
-closure 後自動停止；持續 degradation 約四分半後再次觸發 FL。第二次 candidate WAPE
-`0.4575` 劣於 base `0.2467`，但 smoke 的 deployment enforcement=false，因此仍依 config
-語意發布。bounded acceptance 應在首次 cutover 後等待一個新 generation report window 便
-停止；若要無人值守，後續應以通用 closure condition／watcher 表達，不重新增加多組
-scenario-specific smoke commands。
+延長運行也確認 `experiment-start` 的持續 lifecycle 語意：它不會在首次 closure 後自動停止；
+持續 degradation 約四分半後再次觸發 FL 是預期行為。第二次 candidate WAPE `0.4575` 劣於
+base `0.2467`，但 smoke 的 deployment enforcement=false，因此仍依 config 語意發布。實驗
+何時停止由使用者決定，不需要為首次 cutover 加入自動停止或 scenario-specific command。
 
 正常 teardown 已精確 DELETE 兩筆 consumer subscriptions，停止五個 containers、23 個
 Guest units，並 graceful poweroff 三台 VM；但 PyMTLF-C 在 Compose shutdown 期間留下單次
-monitor subscription DELETE `503`。下一個 implementation gate 是診斷並讓 teardown 在停止
-ML backend 前等候 monitor delete convergence。此工作先限於 lifecycle orchestration；若確認
-需要修改 PyMTLF／NWDAF source，仍必須先向使用者說明原因並取得同意。完整 timing、identity、
+monitor subscription DELETE `503`。診斷確認原因是五個 ML containers 同時停止，使 C 在
+graceful shutdown 刪除 A／B Model Monitor subscriptions 時，下游 PyAnLF 已不可用。
+
+Infrastructure `a2da93a` 已將 `ml-stop` 改為先同步等待 PyMTLF-C 退出，再平行停止其餘四個
+containers。這項 ordered shutdown 不使用固定 sleep、不修改 NF／ML source，也不觸及其他
+Compose projects。Repository tests 與 stopped-container no-op 路徑已通過；下一個 runtime
+gate 只需在 active stack teardown 確認不再出現 monitor DELETE `503`。完整 timing、identity、
 state 與資源證據見
 [Runtime Helper Sync 與 FL Lifecycle 回歸](../reports/5g-nwdaf-infrastructure/runtime-helper-sync-and-fl-lifecycle-regression-2026-08-12.md)。
