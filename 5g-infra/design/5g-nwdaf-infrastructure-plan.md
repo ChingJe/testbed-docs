@@ -2564,9 +2564,18 @@ Guest units，並 graceful poweroff 三台 VM；但 PyMTLF-C 在 Compose shutdow
 monitor subscription DELETE `503`。診斷確認原因是五個 ML containers 同時停止，使 C 在
 graceful shutdown 刪除 A／B Model Monitor subscriptions 時，下游 PyAnLF 已不可用。
 
-Infrastructure `a2da93a` 已將 `ml-stop` 改為先同步等待 PyMTLF-C 退出，再平行停止其餘四個
-containers。這項 ordered shutdown 不使用固定 sleep、不修改 NF／ML source，也不觸及其他
-Compose projects。Repository tests 與 stopped-container no-op 路徑已通過；下一個 runtime
-gate 只需在 active stack teardown 確認不再出現 monitor DELETE `503`。完整 timing、identity、
-state 與資源證據見
+Infrastructure `a2da93a` 曾嘗試先同步等待 PyMTLF-C 退出，再平行停止其餘四個 containers；
+repository tests 與 stopped-container no-op 路徑雖通過，但 active-runtime regression 證明此
+順序不足。PyMTLF-C 收到 SIGTERM 後，NWDAF-C 已將 MTLF backend 視為 unavailable；C 約
+30 秒後才執行 pending monitor DELETE，因此即使 A／B containers 仍存活，NWDAF-C 仍回覆
+`503`。A／B 的 asynchronous Model Provision／Monitor registration cleanup 同時也遇到
+`503`，稍後才由 NWDAF backend-loss cleanup 收斂。
+
+Infrastructure 隨後恢復原本的 project-scoped stop，避免保留一個增加關機時間卻無法解決
+問題的 ordering。下一個 gate 不再是調換 `docker stop` 順序，而是在任何 backend 收到
+SIGTERM 前建立可輪詢的 cleanup convergence contract。現有 PyAnLF／PyMTLF health API 不
+提供 active／desired resource counts，NWDAF context API 也不提供 route counts，因此不能用
+health check 證明 drain，也不應以固定 sleep 或 log parsing 取代正式狀態。若需新增 ML／NWDAF
+runtime-state 或 drain contract，依既定變更邊界先取得使用者同意。完整 timing、identity、state
+與資源證據見
 [Runtime Helper Sync 與 FL Lifecycle 回歸](../reports/5g-nwdaf-infrastructure/runtime-helper-sync-and-fl-lifecycle-regression-2026-08-12.md)。

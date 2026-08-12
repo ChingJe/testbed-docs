@@ -138,11 +138,19 @@ teardown 過程中，PyMTLF-C 於 `08:49:08Z` 記錄一次 monitor subscription 
 初步判斷是非同步 monitor reconciliation 與 shutdown 相撞。它不影響先前兩次 closure 或
 exact consumer DELETE，但代表當時的並行 shutdown 不是 error-free teardown。
 
-後續 Infrastructure commit `a2da93a` 已把 `ml-stop` 改為 ordered shutdown：先同步等待
-PyMTLF-C 完整退出，使它仍可經 NWDAF-C 對存活中的 A／B ML backends 完成 Model Monitor
-清理，再平行停止其餘 project containers。這不使用固定 sleep、不變更 PyMTLF／NWDAF
-source，也不影響其他 Compose projects。Repository tests 與既有 stopped-container no-op
-路徑已通過；DELETE `503` 是否消失仍待下一次 active runtime teardown 回歸確認。
+後續 Infrastructure commit `a2da93a` 曾把 `ml-stop` 改為先等待 PyMTLF-C 退出，再停止其餘
+project containers。Repository tests 與 stopped-container no-op 路徑通過，但 active-runtime
+regression 失敗：兩條 Model Monitor subscriptions 於 `12:47:16Z` active；兩筆 consumer
+subscriptions 於 `12:47:57Z` exact DELETE 後，C 收到 SIGTERM。C 到 `12:48:27Z` 才執行
+pending monitor DELETE，此時 A／B containers 仍到約 `12:48:28Z` 才退出，但 NWDAF-C 已因
+MTLF backend unavailable 回覆 `503`。NWDAF-C 隨後執行 backend-loss cleanup，A／B 的部分
+deletes 於 `12:48:29Z` 回覆 `204`。
+
+因此根因不是單純「A／B 比 C 早停止」，而是 cleanup 尚未收斂就對任一相關 backend 送出
+SIGTERM。Infrastructure 已恢復原本的 project-scoped stop，避免保留無效 ordering。現有
+PyAnLF／PyMTLF health API 沒有 resource counts，NWDAF context API 也沒有 route counts；下一
+個可靠方案需提供可輪詢的 runtime cleanup／drain contract，再由 Host 於 timeout 內等到零後
+停止 containers。這會涉及 ML 或 NWDAF source，尚未獲得本輪授權，因此沒有直接修改。
 
 本輪保留 150 筆 ADRF data records、2 筆 model records、2 個 model artifacts，以及五個
 ML state volume contents，供後續查驗。下一次實驗仍應先使用 confirmation-gated scoped
