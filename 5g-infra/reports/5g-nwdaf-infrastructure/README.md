@@ -31,6 +31,11 @@
 - [PLMN Single-Source Config Regression](plmn-single-source-config-regression-2026-08-12.md)
 - [Single Testbed Definition Regression](single-testbed-definition-regression-2026-08-13.md)
 
+## Repository contract 與文件
+
+- [Atomic Repository Documentation Restructure](atomic-repository-documentation-restructure-2026-08-13.md)
+- [Operator Command And Test Layout Cleanup](operator-command-and-test-layout-cleanup-2026-08-13.md)
+
 ## Optional management
 
 - [Optional WebConsole Lazy-Build Smoke](optional-webconsole-lazy-build-smoke-2026-08-12.md)

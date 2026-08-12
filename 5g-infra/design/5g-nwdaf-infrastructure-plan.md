@@ -2794,3 +2794,270 @@ provider rejection 與正常 Vagrant definition。實際無 local/provider envir
 為 0 failures、1 個既有 low-swap warning，並正確找到 VirtualBox、Docker、Host SBI address、
 config、component locks 與 dataset。詳細證據見
 [Single Testbed Definition Regression](../reports/5g-nwdaf-infrastructure/single-testbed-definition-regression-2026-08-13.md)。
+
+### 16.31 Atomic Repository Documentation Restructure
+
+2026-08-13 read-only audit 確認 Infrastructure `main` 位於 `10400a5`、working tree clean，
+`testbed-docs` `main` 位於 `fbac1f7`、working tree clean；parent repository 尚未設定 remote。
+目前 parent-owned 說明分散在 11 份 Markdown、共 1,064 行：root `README.md`、
+`OPERATIONS.md`、`COMPONENTS.md`，四個分類 README、config／Host／Guest scripts README，
+以及 Consumer README。它們沒有形成可巡覽的文件 hierarchy，且只有 root README 三個
+cross-document links。
+
+盤點確認以下內容問題：
+
+- root README 同時承擔 quick start、架構、操作、歷史 smoke、容量觀察與 validation ledger，
+  使新使用者無法快速分辨 current contract 與過去 evidence。
+- `OPERATIONS.md` 同時描述安裝、config、VM build、WebConsole、reset、dataset、GPU、
+  subscription、logs 與 non-goals；相同資訊又散落在 config／scripts README。
+- `OPERATIONS.md` 仍說 production integration 未驗證 concurrent training，`COMPONENTS.md`
+  仍說目前 UPF lock 尚未建立 FL closure；但相同 component revisions 已有 business E2E、
+  bounded smoke 與 runtime-helper regression 證明 training、FedAvg、publication、reprovision
+  與 cutover。這些句子已是 stale boundary。
+- `NFs/`、`ML/`、`RAN/`、`kernel/` 四份 parent README 合計只有 17 行，只增加入口數量；
+  config、Host scripts、Guest scripts 與 Consumer README 的有效內容可由 topic guides 完整吸收。
+- `.gitmodules` 的 16 個 URL 已全為 HTTPS，但 `components.lock.yaml` 內 9 個 team remote
+  metadata 仍是 SSH。preflight 目前只比對 installed submodule HEAD 與 lock commit，沒有驗證
+  lock path set、`.gitmodules` URL／branch hint 或 parent gitlink，因此先前未發現這項 drift。
+- 現有 user docs 沒有獨立的 prerequisite/install guide、完整 Make command reference、
+  troubleshooting guide、link checker 或 command-coverage regression。
+
+本工作包採一次性最終 layout：
+
+```text
+README.md
+docs/
+├── README.md
+├── architecture.md
+├── installation.md
+├── configuration.md
+├── operations.md
+├── commands.md
+├── components.md
+├── validation.md
+└── troubleshooting.md
+```
+
+公開 repository 文件延續既有英文；`testbed-docs` 繼續保存中文計畫、逐次驗證 evidence 與
+歷史時間線。兩者責任不同：Infrastructure `docs/` 只描述目前使用者 contract，不複製逐次
+runtime logs；`testbed-docs` 的 dated reports 不搬入公開 repository，也不因過時就改寫歷史結果。
+
+各文件責任如下：
+
+- root `README.md`：專案目的、三 VM＋五 container 摘要、可直接執行的最短標準實驗流程、
+  quick stop、文件導航與目前 license；移除長篇 validation chronology 與深入操作細節。
+- `docs/README.md`：依「第一次安裝、建立實驗、執行、診斷、開發／驗證」提供唯一導航表。
+- `architecture.md`：placement、network planes、Host/Guest boundary、六個 lifecycle domains、
+  Consumer/NRF subscription、ADRF/FL data flow 與 retained-state ownership。另設「Reference
+  experiment flow」，依序描述 UE registration／PDU Session、Consumer 經 NRF 找到 A/B、Nupf
+  Event Exposure、PyAnLF analytics、C Model Monitor、A/B federated training、FedAvg、ADRF
+  publication、reprovision 與 generation cutover。N6 只按目前 topology contract 描述為保留的
+  private plane 與 UPF alias；PseudoDriver 明確描述為可重現 stimulus。
+- `installation.md`：Linux／VirtualBox／Vagrant／Docker／Python prerequisites、private HTTPS
+  submodule authentication、VirtualBox allowlist、CPU/GPU paths、resource gates、submodule init、
+  first validation 與 VM provisioning。Docker/VirtualBox storage 由 runtime discovery，不再引入
+  Host-local settings file。
+- `configuration.md`：single `TESTBED` contract、`CONFIG_DIR` precedence、default/generated/local
+  sets、scenario ownership、PLMN／SUPI／Group derivation、WebConsole/device policy、dataset generate／
+  audit／stage、manifest hashes 與 config activation。
+- `operations.md`：第一節即為「Standard experiment workflow」，完整列出 config create、dataset
+  generate、read-only validate、VM up、首次／後續 clean-run state handling、aggregate start、status／
+  logs、aggregate stop 與 optional VM halt，並說明每一步成功後應看到什麼。後續再描述 VM、Guest
+  services、optional WebConsole、Host ML、Consumer/subscriptions 的分域 start/status/stop、40-second
+  cleanup grace、subscriber projection、guarded reset、observation/logs 與 destructive boundary。
+- `commands.md`：Makefile 所有 targets 的完整分級表。primary、advanced、developer/internal alias
+  分開，每個 target 記錄參數、state mutation、prerequisite 與保留內容；正常使用者不需直接操作
+  Host／Guest helper scripts。
+- `components.md`：parent gitlink ownership、`.gitmodules` transport、`components.lock.yaml` metadata、
+  branch/tag hint、UPF/gtp5g compatibility、Guest `provisioning.lock.yaml`、private visibility 與 license
+  blocker。revision／URL／version 數值以 lock files 為唯一來源，不在 prose 重抄完整表格。
+- `validation.md`：只記錄目前已通過且仍適用的 static test、Host preflight、clean-install smoke、
+  existing-VM provisioning、business E2E、bounded closure 與 cleanup regression。它是 verified
+  capability summary，不放未完成項目、未來 roadmap，也不把舊 smoke limitation 誤寫為 current
+  capability。
+- `troubleshooting.md`：resource gate／low swap、dirty 或 mismatched submodule、stale
+  `testbed.local.yaml`、config/hash/dataset mismatch、missing Netplan alias、gtp5g kernel drift、Docker
+  permission、GPU CDI/runtime、WebConsole billing workaround、subscription cleanup retry 與 safe log
+  collection。
+
+Atomic migration 直接刪除被新 hierarchy 完整取代的十份文件：`OPERATIONS.md`、
+`COMPONENTS.md`、`NFs/README.md`、`ML/README.md`、`RAN/README.md`、`kernel/README.md`、
+`config/README.md`、`scripts/host/README.md`、`scripts/guest/README.md` 與
+`tools/nwdaf-consumer/README.md`。不保留 redirect、compatibility copy 或 archive；submodule 內由
+各 upstream 擁有的 README 不在 parent change scope。root README 原地重寫，所有 old-path links
+在同一 change 內切到 `docs/`。
+
+在撰寫文件前，將 `components.lock.yaml` 的 9 個 team remotes 改為與 `.gitmodules` 相同的
+HTTPS URL，不改 branch hints、gitlinks 或 submodule working trees。既有 preflight 繼續負責
+installed HEAD 與 readable lock commit 的必要比對；不為 metadata 或文件增加額外使用者命令與
+獨立 Host scripts。
+
+文件驗證直接納入本次 review，而不擴張 command surface：確認十份 canonical Markdown 都存在、
+十個舊路徑已移除、relative links 指向有效檔案、Makefile targets 全部在 `docs/commands.md` 有
+說明，並搜尋過時 local override、舊 backend sync contract 與已被 E2E 推翻的 limitation。歷史
+report 不套用 current-doc rule。
+
+實作與驗證順序：
+
+1. 修正 component remote metadata，確認不改 branch、gitlink 或 submodule worktree。
+2. 建立全部九份 target documents 與精簡 root README；內容以 testbed、Makefile、scripts、locks、
+   scenarios 和 current component source 為依據。
+3. 在同一 working tree 刪除十份舊文件、更新所有 links；不留下半遷移入口。
+4. 執行 `make help-all`、完整 `make test`、read-only Host preflight 與
+   `vagrant validate`。不執行 container lifecycle、VM up/provision 或 E2E。
+5. 在 `testbed-docs` 新增 dated restructure report、更新 report index 與本節完成結果。
+6. 依 repository boundary review。Infrastructure 可分為一個 component-metadata fix commit 與一個
+   atomic documentation commit；`testbed-docs` 另作 documentation commit。使用者確認前不 push。
+
+本工作包只修改 `5G_NWDAF_Infrastructure` 與 `testbed-docs`，不修改 NF／ML／RAN／gtp5g／
+WebConsole source，不變更 gitlinks、testbed/config/scenario、N6、VM、container 或 runtime state。
+公開文件只陳述現在可使用、可操作或已有 evidence 的內容，不建立未完成清單。
+
+2026-08-13 atomic implementation 與驗證已完成。Infrastructure 現在只保留 root README 與
+`docs/` 九份 canonical guides；root、operations、architecture 分別提供最短流程、詳細 operator
+流程與 full-core FL 概念流程。十份舊文件已直接移除。`components.lock.yaml` 的九個 team
+remotes 已與 `.gitmodules` 對齊 HTTPS，沒有新增使用者命令或維護用 Host script。
+
+本次 review 確認 10 份 canonical Markdown、全部相對連結與現有 Make targets 的 command
+coverage。完整 repository test 與 Vagrant validation 通過；實際 Host
+preflight 為 0 failures、1 個既有 low-swap warning，沒有啟動 VM、container 或 service。
+詳細證據見
+[Atomic Repository Documentation Restructure](../reports/5g-nwdaf-infrastructure/atomic-repository-documentation-restructure-2026-08-13.md)。
+
+### 16.32 Operator Command And Test Layout Cleanup
+
+2026-08-13 audit 確認 Infrastructure 現有 55 個 Make targets，其中真正顯示於 `help`、
+`help-advanced` 與 `help-dev` 的使用者入口已相對精簡，但 Makefile 與 `docs/commands.md` 仍公開
+多個只供 repository regression 使用的 smoke target，以及多組指向同一實作的 alias。另一方面，
+九個 test-only runner/helper 與正式 Host lifecycle scripts 混放在 `scripts/host/`，使檔案位置看不出
+production operation 與 regression 的差別。
+
+本輪清理採以下原則：
+
+- 使用者 Make surface 只保留可操作 environment、建立 input、觀察狀態或執行完整測試的命令。
+- 細項 regression 由 `make test` 統一執行，不各自暴露 Make target。
+- container lifecycle test 因耗時、會建立 disposable containers，保留獨立且明確的
+  `make test-containers`，不混入 Host-only `make test`。
+- production validation 不因整理而刪除：`config-check.py`、`preflight.sh`、
+  `ml-compose-check.py` 與 `gtp5g-preflight.sh` 仍由 start／validate 流程在必要時直接呼叫。
+- 不把 test code 併成單一大型腳本，也不增加 wrapper；只把既有 test-only files 移至清楚的
+  `tests/` hierarchy 並修正引用。
+- `fl-closure-smoke` 是可執行的 bounded experiment example，不是 repository test，scenario 與
+  traffic profiles 保留原名及位置。
+
+#### Make command surface
+
+移除以下只供內部 regression 使用的 targets；對應檢查仍由 `make test` 執行：
+
+- `config-contract-smoke`
+- `network-config-smoke`
+- `dataset-smoke`
+- `ml-compose-check`
+
+移除以下重複 alias，只保留 `make test-containers`：
+
+- `ml-cpu-smoke`
+- `ml-lifecycle-smoke`
+
+同時收斂只為暴露內部 implementation name 而存在的 targets：
+
+| 移除 target | 保留的使用者入口 | 內部行為 |
+|---|---|---|
+| `config-check` | `config-validate` | Make 直接呼叫 `scripts/host/config-check.py` |
+| `config-render` | `config-create` | renderer script 仍由 `config-create` 與 tests 使用 |
+| `dataset-check` | `dataset-validate` | Make 直接呼叫 `dataset.py ... check` |
+| `dataset-stage` | `dataset-load` | Make 直接呼叫 `dataset-stage.sh apply` |
+| `dataset-stage-plan` | `dataset-show`／`dataset-load` | staging plan 留在 helper 內供診斷，不另作 Make command |
+| `subscriber-data-validate` | `subscriber-data-show` | `show` 已包含 fixture validation 與 expected/actual comparison |
+| `subscriber-data-plan` | `subscriber-data-show` | `show` 已顯示 apply/clear scope |
+| `experiment-reset-plan` | `reset-show` | Make 直接執行 reset helper 的 `plan` action |
+| `experiment-reset` | `reset` | `reset` 直接執行 guarded apply |
+| `experiment-reset-verify` | `reset` | apply 後仍自動 verify，不提供拆開的正常入口 |
+| `preflight` | `experiment-validate` | preflight script 仍由 aggregate validation/start 使用 |
+
+`observe` 是持續狀態觀察而非測試，保留並補進 advanced help；`experiment-status` 繼續提供單次
+snapshot，`logs` 提供即時 log channel。VM、services、ML、WebConsole、subscriptions、subscriber
+data 與 reset 的正常操作 targets 全部保留。
+
+整理後 Makefile 預計只留下 38 個入口：四個 help、四個 aggregate experiment、兩個 config、
+四個 dataset、三個 VM、各三個 services／ML／WebConsole／subscriptions、三個 subscriber-data、
+兩個 reset、`observe`、`logs`、`test` 與 `test-containers`。`docs/commands.md` 只記錄這些使用者可
+直接使用的入口，不再把內部 Python/shell implementation 描述成額外命令。
+
+#### Test layout
+
+新增單一 `tests/` 分類，但不新增測試種類：
+
+```text
+tests/
+├── repository.sh
+├── config-contract.py
+├── dataset-determinism.sh
+├── mobile-identity.py
+├── network-config.py
+├── provisioning-lock.py
+├── testbed-definition.py
+├── ml-container-lifecycle.sh
+└── support/
+    └── ml-cpu-config.py
+```
+
+既有檔案以 `git mv` 語意一對一搬移並去掉 `smoke` 命名；runner 仍執行相同 assertions：
+
+- config contract test 保留，因它會攔截 report capacity、endpoint、callback、PLMN、ADRF、
+  WebConsole 與 manifest 等實際曾發生的簡單 config mismatch。
+- mobile identity test 保留，確保二位／三位 MNC 下 PLMN、TAI、SUPI 與 Internal Group 一起生成。
+- network config test 保留，覆蓋 persistent Netplan alias、stale address 與 collision regression。
+- dataset determinism test 保留，證明兩次生成相同且篡改 Parquet 會被拒絕。
+- provisioning lock 與 single-testbed definition tests 保留，分別保護 Guest dependency contract 與
+  已移除 local overlay 的 resolution contract。
+- ML container lifecycle test 保留為唯一獨立 container test，helper 移至 `tests/support/`。
+
+`scripts/host/provisioning-install-smoke.sh` 沒有 Make target、沒有被 runner 或任何其他腳本引用，
+且其一次性 Ubuntu 22.04 clean-install 結果已保存在 dated report。它會重新下載並安裝完整 Go／
+MongoDB package set，成本高且不是日常 regression，因此直接刪除，不搬入 `tests/`。
+
+#### Runtime script boundary
+
+整理後 `scripts/host/` 只保留下列 production responsibilities：
+
+- aggregate experiment validate/start/status/stop；
+- VM 以外的 services、ML、WebConsole 與 subscriptions lifecycle；
+- config render/check 與 shared config library；
+- dataset generate/audit/stage 與 shared dataset library；
+- subscriber projection、guarded reset、Host preflight、gtp5g preflight；
+- guest helper sync、observation、logs 與共用 shell/Python helpers。
+
+`scripts/guest/` 不調整；其中 setup、activation、systemd runtime 與 scoped data operations 都是 Guest
+實際行為，不是多餘 tests。`tools/nwdaf-consumer/consumer.py` 亦是 runtime component，不移入
+tests。
+
+#### Implementation and validation
+
+實作採一個 bounded Infrastructure change，不修改 submodule、gitlink、config、scenario、VM 或
+runtime state：
+
+1. 先建立 `tests/` 並搬移九個 runner/helper；修正 `ROOT`、imports 與 runner paths。
+2. 刪除未引用的 provisioning install smoke。
+3. 精簡 Makefile targets，讓 user-facing aliases 直接呼叫既有 implementation；確認 aggregate
+   scripts 不依賴被移除的 Make names。
+4. 更新 README、`docs/commands.md`、validation 與 troubleshooting，只呈現最終 command surface；
+   不為舊 target 保留 compatibility alias。
+5. 執行 shell/Python syntax、搜尋舊 target/path、`make help-all`、完整 `make test`、read-only
+   `make experiment-validate CONFIG_DIR=config/default`。`make test-containers` 會建立 disposable
+   containers，另列為需使用者決定是否執行的 runtime validation，不自動加入本輪 static test。
+6. 在 `testbed-docs` 新增 dated result report 並依 repository boundary review；使用者確認前不
+   commit 或 push。
+
+2026-08-13 bounded implementation 與 read-only validation 已完成。Make targets 已由 55 個收斂
+為 38 個；細項 regression 與 implementation-name aliases 已移除，`observe` 則保留並加入
+advanced help。九個既有 test-only files 已整理至 `tests/`，未新增測試種類；沒有 caller 且會執行
+完整外部 package installation 的 `provisioning-install-smoke.sh` 已刪除。
+
+新 layout 下完整 `make test` 通過，read-only
+`make experiment-validate CONFIG_DIR=config/default` 亦以 0 failures、1 個既有 low-swap warning
+通過，並確認 preflight、Compose、GPU CDI/runtime 與 Vagrant validation 仍由正式 aggregate 流程
+執行。後續 `make test-containers` 亦完成五個 CPU services 的 health、non-root identity、device、
+logs、status、stop、retention 與 scoped cleanup regression；測試 project 的 containers、volumes、
+network 與 generated config 已清除，沒有建立 VM 或改變 production services。詳細結果見
+[Operator Command And Test Layout Cleanup](../reports/5g-nwdaf-infrastructure/operator-command-and-test-layout-cleanup-2026-08-13.md)。
