@@ -115,6 +115,15 @@ remote GET驗證；目前NFs沒有提供適合的GET/list介面，不能用healt
    Compose service identity。文件以UTC `Z`為canonical log time，並說明Host status仍可顯示
    Asia/Shanghai local time。
 
+2026-08-13本項已在Infrastructure實作：owned-unit resolver明確涵蓋template
+services、Core Consumer及三台VM的Network unit，`--since`由Host timezone解析一次後轉為UTC，
+journald與Docker均輸出timestamp。完整`make test`與disposable CPU `make test-containers`通過，後者
+實際確認ML focused logs含UTC engine timestamp。後續短暫啟動既有三台VM，在不啟動experiment
+services的情況下完成實機spot check：Core Consumer特殊unit、三台Network特殊unit、一般NRF
+template unit與預設wildcard均成功查詢並輸出UTC timestamp；Ubuntu 22.04 journald不接受RFC3339
+`T...Z`輸入的相容性也在測試中發現並改用等值的`YYYY-MM-DD HH:MM:SS UTC`表示。測試後三台VM
+graceful halt。
+
 **B. UE business readiness**
 
 1. `services-status`保留23-unit表，另加六UE summary。
