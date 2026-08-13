@@ -85,14 +85,16 @@ During training, PyMTLF-A/B remained healthy at about 706 MiB container memory e
 The two GPU processes used about 400 MiB VRAM each; total GPU memory reported about
 829 MiB of 10 GiB.
 
-Because an all-source log query was allowed to continue for roughly another nine
-minutes, degraded replay later triggered a second FL process. It also completed two
-rounds, publication, adoption, cutover, and post-cutover accuracy. Its candidate WAPE
-was worse than the current model (`0.264009146534429` to `0.35605916968210677`), but
-the bounded smoke profile intentionally had `enforcePerformanceGate=false`, so the
-candidate was still published. This does not invalidate the first closure; it shows
-that the smoke run should be stopped promptly after the first accepted post-cutover
-evidence when only one closure is under test.
+During the following observation step, elevated execution awaited user approval while
+the degraded replay remained active. A second FL process later triggered and completed
+two rounds, publication, adoption, cutover, and post-cutover accuracy. Its candidate
+WAPE was worse than the current model (`0.264009146534429` to
+`0.35605916968210677`), but the bounded smoke profile intentionally had
+`enforcePerformanceGate=false`, so the candidate was still published. The available
+timestamps establish that the experiment remained active long enough for a second
+closure; they do not attribute that interval to log-query execution. This does not
+invalidate the first closure, but it shows that a single-closure acceptance should
+stop promptly after its first accepted post-cutover evidence.
 
 ## Observability acceptance
 
@@ -110,19 +112,24 @@ The new interfaces behaved as follows:
 - `ml-status` limited evidence to matching config identities and current Container
   starts, then displayed the complete first FL closure and post-cutover accuracy.
 
-Two performance/concurrency limitations were exposed:
+One status scaling limitation and two observations requiring controlled measurement
+were exposed:
 
 1. `ml-status` reads all PyMTLF-A/B/C logs since each Container `StartedAt`. Once the
    run accumulated descriptor and health traffic, a query took about 54–70 seconds.
    The result remained correct, but cost grows with current-run log volume.
-2. An all-source, no-follow log query with `--tail 1` took about 578 seconds. The
-   implementation launches three Vagrant SSH commands concurrently; a separate test
-   that ran two Vagrant-backed status commands concurrently caused one to fail with
-   `failed to query Vagrant machine states`, while an immediate serial retry passed.
-   Vagrant CLI contention is therefore the leading explanation for the delay, though
-   this is an inference rather than a captured Vagrant lock error. Also, `--tail 1`
+2. The tool call containing the all-source, no-follow `--tail 1` query reported about
+   578 seconds of wall time, but that interval included waiting for elevated-execution
+   approval. It is not a measurement of `logs.sh` execution time and provides no
+   evidence that the logger itself took 578 seconds. A pre-authorized, command-only
+   benchmark is required before making a performance claim. Independently, `--tail 1`
    applies to the combined owned-unit journal per VM, so it cannot visibly list every
    selected unit even though focused queries prove Consumer and Network selection.
+3. One concurrent observation attempt returned `failed to query Vagrant machine
+   states` for `services-status`, while an immediate serial retry passed. The logger
+   implementation also launches one Vagrant SSH process per VM concurrently. These
+   facts make Vagrant CLI contention a hypothesis worth testing, not a confirmed cause
+   of either the status failure or the tool-call wall time.
 
 ## Teardown and cleanup evidence
 
@@ -158,8 +165,9 @@ VMs stopped normally. Final state:
 Infrastructure-only follow-up can improve the two read paths without changing
 NWDAF, PyAnLF, or PyMTLF:
 
-1. avoid concurrent Vagrant CLI processes in the all-VM logger, or use one resolved
-   SSH transport per VM without Vagrant state contention;
+1. benchmark pre-authorized serialized and concurrent all-VM log queries before
+   deciding whether to serialize Vagrant CLI calls or replace them with resolved SSH
+   transports;
 2. make FL summaries incremental or bounded by a retained cursor/current-process
    window rather than reparsing all current-container logs;
 3. ensure runtime acceptance stops immediately after the first post-cutover success

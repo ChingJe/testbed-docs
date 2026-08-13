@@ -198,8 +198,9 @@ Fixture tests涵蓋完整里程碑、cutover前後accuracy排序、空logs、精
 active monitor開始，依序顯示degradation、雙scope process、A/B rounds 0/1、validation、publication、
 兩scope adoption、cutover及post-cutover evaluated accuracy；六UE、雙Path callback counters與focused
 special-unit logs亦通過。正常teardown成功刪除Consumer resources，但internal Model Monitor DELETE
-持續503並在210秒後留下兩筆pending IDs；另發現current-run完整log重掃與並行Vagrant logger的效能
-問題。完整證據、資源數字與後續邊界見
+持續503並在210秒後留下兩筆pending IDs；另發現current-run完整log重掃的scaling限制。All-source
+logger的工具wall time包含使用者批准等待，不能視為command duration；Vagrant concurrency只保留為
+需要受控量測的假設。完整證據、資源數字與後續邊界見
 [Observability Runtime Acceptance](../../reports/5g-nwdaf-infrastructure/observability-runtime-acceptance-2026-08-13.md)。
 
 ### Validation and delivery
