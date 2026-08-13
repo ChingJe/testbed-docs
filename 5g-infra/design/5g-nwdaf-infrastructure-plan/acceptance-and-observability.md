@@ -185,6 +185,16 @@ exited的現場執行`experiment-status`成功且所有Guest-related sections誠
 3. Summary只讀既有logs並標示`not-seen`／timestamp／identity，不把缺少log推論為component failure，
    也不新增獨立smoke/watcher command。
 
+2026-08-13本項已在Infrastructure實作並整合至既有`ml-status`及aggregate status，沒有新增公開
+command。查詢以各PyMTLF container的`StartedAt`限制Docker logs，並要求A/B/C的config-set與hash
+identity一致；輸出monitor lifecycle、degradation、process、preparation、A/B local rounds、aggregation、
+validation、publication、adoption、cutover、post-cutover evaluated accuracy及明確failure signature。
+Fixture tests涵蓋完整里程碑、cutover前後accuracy排序、空logs、精確`StartedAt`傳遞與mixed-config
+拒絕；完整`make test`及disposable CPU `make test-containers`通過。另對保留的
+`cleanup-convergence-20260813` production containers執行唯讀查詢，成功還原雙scope、A/B rounds
+0/1、validation、publication、兩scope adoption、cutover及post-cutover evaluated accuracy。最後仍需
+在下一次完整runtime acceptance確認摘要會隨實驗即時推進，而不是只在retained completed logs上成立。
+
 ### Validation and delivery
 
 1. 擴充現有`make test`，加入unit resolver、wildcard expansion、absolute-time normalization、UE current-
