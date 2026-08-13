@@ -133,6 +133,12 @@ graceful halt。
    `failed`、`inactive`。若service active但尚無成功證據，必須是`pending`而非成功。
 4. Parser採fixture tests，不改UERANSIM或Guest service runtime。
 
+2026-08-13本項已在Infrastructure實作：`services-status`保留23-unit表並加入六UE readiness表，
+只以active service的systemd `InvocationID`查詢本次journal；InvocationID或journal查詢失敗會使
+command失敗，不會降級成看似正常的`pending`。Fixtures涵蓋inactive、fresh pending、registration-
+only、完整成功、reject、procedure failure及失敗後恢復，完整`make test`通過。實際running UE的
+current-invocation輸出保留到下一次正常`experiment-start`驗證，不為本項單獨啟動full stack。
+
 **C. Consumer state integrity and per-path callbacks**
 
 1. 將state操作改為Linux file lock保護的跨thread／跨process atomic transaction；lock涵蓋完整
