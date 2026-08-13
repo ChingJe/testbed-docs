@@ -3099,5 +3099,12 @@ Fresh black-box run顯示固定40秒grace可能在第二條internal Model Monito
 
 實作新增`ML_CLEANUP_TIMEOUT_SECONDS`（預設210）與內部poll interval，舊
 `ML_CLEANUP_GRACE_SECONDS`只保留deprecated fallback。Parser與convergence wait已整合到既有
-repository runner，完整`make test`通過；未啟動VM或production containers。下一次完整實驗應
-確認兩條IDs都在ML stop前收斂，並將結果補入新的dated report。
+repository runner，完整`make test`通過。
+
+同日下午以GPU `fl-closure-smoke`完成production runtime驗證。兩條cutover後subscriptions在
+Consumer DELETE後分別立即removed與約97秒後removed；較慢者歷經三次`503`，最後retry得到
+`404`並在PyMTLF-C shutdown前留下明確removed evidence。兩筆Consumer resources、23個Guest
+units、五個ML containers及三台VM依序正常停止，沒有pending-ID timeout warning。這證實log
+correlation能處理本次實際延遲，且210秒涵蓋本次觀察值；持續`503`仍由bounded timeout避免永久
+阻塞。完整證據見
+[Model Monitor Cleanup Runtime Validation](../reports/5g-nwdaf-infrastructure/model-monitor-cleanup-runtime-validation-2026-08-13.md)。
