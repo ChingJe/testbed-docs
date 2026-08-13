@@ -152,6 +152,14 @@ current-invocation輸出保留到下一次正常`experiment-start`驗證，不�
    `unknown`，不要求migration。
 5. 移除吞錯行為；Core unreachable、Consumer CLI失敗與state parse失敗需明確輸出原因並回傳非零。
 
+2026-08-13本項已在Infrastructure實作：Consumer state以process-local reentrant lock加Linux
+`flock`保護完整transaction，並維持fsync、atomic replace及directory fsync；create、callback與
+delete均以merge update避免覆蓋並行通知。State保留legacy global fields，新增Path A/B request count
+與last callback UTC time，未知correlation獨立告警。`subscriptions-status`不再吞錯，並明確標示
+resource state是local saved ownership而非remote GET。Regression以threads及processes並行寫入80次、
+early callback、DELETE overlap、legacy state、unknown correlation和malformed status驗證，完整
+`make test`通過；實際雙Path counters留到最終runtime acceptance驗證。
+
 **D. Aggregate status honesty**
 
 1. `observe`continuous mode保留best-effort特性，但每個失敗section必須印出明確`unavailable`原因；
