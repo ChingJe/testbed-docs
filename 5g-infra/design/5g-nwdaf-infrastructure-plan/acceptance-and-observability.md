@@ -192,8 +192,15 @@ validation、publication、adoption、cutover、post-cutover evaluated accuracy�
 Fixture tests涵蓋完整里程碑、cutover前後accuracy排序、空logs、精確`StartedAt`傳遞與mixed-config
 拒絕；完整`make test`及disposable CPU `make test-containers`通過。另對保留的
 `cleanup-convergence-20260813` production containers執行唯讀查詢，成功還原雙scope、A/B rounds
-0/1、validation、publication、兩scope adoption、cutover及post-cutover evaluated accuracy。最後仍需
-在下一次完整runtime acceptance確認摘要會隨實驗即時推進，而不是只在retained completed logs上成立。
+0/1、validation、publication、兩scope adoption、cutover及post-cutover evaluated accuracy。
+
+同日晚間以新的GPU `fl-closure-smoke` config完成live runtime acceptance。Current-run summary從兩筆
+active monitor開始，依序顯示degradation、雙scope process、A/B rounds 0/1、validation、publication、
+兩scope adoption、cutover及post-cutover evaluated accuracy；六UE、雙Path callback counters與focused
+special-unit logs亦通過。正常teardown成功刪除Consumer resources，但internal Model Monitor DELETE
+持續503並在210秒後留下兩筆pending IDs；另發現current-run完整log重掃與並行Vagrant logger的效能
+問題。完整證據、資源數字與後續邊界見
+[Observability Runtime Acceptance](../../reports/5g-nwdaf-infrastructure/observability-runtime-acceptance-2026-08-13.md)。
 
 ### Validation and delivery
 
