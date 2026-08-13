@@ -4,6 +4,13 @@
 骨架與 provisioning 驗證紀錄。舊 `5G_Infrastructure`、Daisy、事件與 replay
 相關報告仍保留在上一層目錄，避免混淆兩套環境的時間線。
 
+目前整體驗證狀態先看：
+
+- [Current Runtime Validation Baseline（2026-08-14）](current-runtime-validation-baseline-2026-08-14.md)
+
+以下文件是各階段的詳細或歷史證據；結果應連同報告日期、Infrastructure 與
+component revision 解讀，不能視為目前所有 revision 的永久保證。
+
 ## Host 與 ML runtime
 
 - [Hybrid Host Readiness Inventory](hybrid-host-readiness-inventory-2026-08-09.md)
@@ -39,6 +46,7 @@
 ## Optional management
 
 - [Optional WebConsole Lazy-Build Smoke](optional-webconsole-lazy-build-smoke-2026-08-12.md)
+- [WebConsole Runtime Revalidation](webconsole-runtime-revalidation-2026-08-14.md)
 
 ## PseudoDriver data path
 
