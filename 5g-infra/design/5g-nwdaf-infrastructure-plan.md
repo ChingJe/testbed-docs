@@ -3061,3 +3061,43 @@ advanced help。九個既有 test-only files 已整理至 `tests/`，未新增�
 logs、status、stop、retention 與 scoped cleanup regression；測試 project 的 containers、volumes、
 network 與 generated config 已清除，沒有建立 VM 或改變 production services。詳細結果見
 [Operator Command And Test Layout Cleanup](../reports/5g-nwdaf-infrastructure/operator-command-and-test-layout-cleanup-2026-08-13.md)。
+
+### 16.33 Fresh User Full-core Black-box Acceptance
+
+2026-08-13 將三台 VM、production Compose resources/images、ignored local/generated configs與
+datasets清至fresh state後，交由不繼承對話且只能讀取Infrastructure repository的subagent依新版
+文件操作。它只使用公開Make commands，成功在10m55s內從零provision三台VM，2m59s內啟動
+aggregate stack，並完成六UE registration/PDU Sessions、雙NWDAF subscription/callback、Path A
+degradation、A/B兩輪local training、C sample-count-weighted FedAvg、ADRF publication、A/B
+reprovision、generation cutover與post-cutover evaluated accuracy。從config準備到VM halt約47分鐘。
+
+這證明root README與topic guides足以支援fresh full-core business E2E，但也發現五項observability
+落差：status未顯示UE/PDU summary、focused logger無法匹配Consumer特殊unit、單一subscription
+snapshot只保留最後callback、缺少closure summary/watcher，以及Host/component log時區未說明。
+
+正常`experiment-stop`確定刪除兩筆Consumer resources並執行完整40秒grace；internal Model Monitor
+cleanup中，一條DELETE 503後retry 404並標記removed，另一條在shutdown前DELETE 503後沒有成功
+retry/removed evidence。因此business closure通過，teardown cleanup只部分確認，需優先診斷
+fixed grace後未驗證收斂及shutdown retry ownership。現場保留為三台VM poweroff、五個containers
+exited、volumes/network/images/state retained，Git與submodules clean。完整證據見
+[Fresh User Full-core Black-box Acceptance](../reports/5g-nwdaf-infrastructure/fresh-user-full-core-black-box-acceptance-2026-08-13.md)。
+
+### 16.34 Log-correlated Model Monitor Cleanup
+
+Fresh black-box run顯示固定40秒grace可能在第二條internal Model Monitor DELETE尚未retry完成前就
+停止ML containers。為避免修改PyAnLF／PyMTLF，teardown ownership留在Infrastructure：
+
+1. `experiment-stop`在Consumer DELETE前讀取PyMTLF-C logs，以`active`與`removed`事件重建目前
+   active的subscription ID集合。
+2. 在DELETE前掛接單一PyMTLF-C log follower，避免反覆執行`docker logs --since`掃描Docker
+   `local` logging driver。
+3. Consumer exact DELETE完成後，每兩秒解析本機暫存stream；預期IDs全部出現`removed`即提前
+   結束等待。
+4. 預設timeout為210秒；持續`503`、log follower中止或timeout只產生明確warning及pending IDs，
+   不永久阻塞WebConsole、ML與Guest teardown。
+5. PyAnLF的public registration ID與PyMTLF backend resource ID不同，不作跨層ID等值關聯。
+
+實作新增`ML_CLEANUP_TIMEOUT_SECONDS`（預設210）與內部poll interval，舊
+`ML_CLEANUP_GRACE_SECONDS`只保留deprecated fallback。Parser與convergence wait已整合到既有
+repository runner，完整`make test`通過；未啟動VM或production containers。下一次完整實驗應
+確認兩條IDs都在ML stop前收斂，並將結果補入新的dated report。

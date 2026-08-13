@@ -52,3 +52,4 @@
 - [Full-core Business FL E2E](full-core-business-fl-e2e-2026-08-11.md)
 - [FL Closure Smoke 與 Persistent Netplan 回歸](fl-closure-smoke-netplan-regression-2026-08-12.md)
 - [Runtime Helper Sync 與 FL Lifecycle 回歸](runtime-helper-sync-and-fl-lifecycle-regression-2026-08-12.md)
+- [Fresh User Full-core Black-box Acceptance](fresh-user-full-core-black-box-acceptance-2026-08-13.md)
