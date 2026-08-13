@@ -169,6 +169,13 @@ early callback、DELETE overlap、legacy state、unknown correlation和malformed
    command failure。
 3. `experiment-status`只組合各domain canonical status，不複製UE或Consumer邏輯。
 
+2026-08-13本項已在Infrastructure實作：canonical Guest、WebConsole與Subscription status先辨識
+Vagrant machine state，poweroff／not-created顯示`not-running`且不嘗試SSH；running backend查詢失敗、
+Docker失敗或parser失敗則保留原因並回傳非零。Continuous `observe`在section failure後繼續下一個
+interval，`observe --once`與`experiment-status`則拒絕incomplete snapshot。Fixtures驗證failure
+propagation及poweroff語意，完整`make test`通過；另在三台VM實際poweroff、retained ML containers
+exited的現場執行`experiment-status`成功且所有Guest-related sections誠實顯示`not-running`。
+
 **E. Current-run FL milestone summary**
 
 1. 在前四項穩定後，再從目前PyMTLF-C container的`StartedAt`與config identity界定current run，
