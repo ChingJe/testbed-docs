@@ -42,7 +42,7 @@ component revision 解讀，不能視為目前所有 revision 的永久保證。
 
 - [Atomic Repository Documentation Restructure](atomic-repository-documentation-restructure-2026-08-13.md)
 - [Operator Command And Test Layout Cleanup](operator-command-and-test-layout-cleanup-2026-08-13.md)
-- [Experiment Authoring Full-core Runtime Acceptance](experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)
+- [實驗設定建立與 Full-core Runtime 驗收](experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)
 
 ## Optional management
 
@@ -64,4 +64,4 @@ component revision 解讀，不能視為目前所有 revision 的永久保證。
 - [Fresh User Full-core Black-box Acceptance](fresh-user-full-core-black-box-acceptance-2026-08-13.md)
 - [Model Monitor Cleanup Runtime Validation](model-monitor-cleanup-runtime-validation-2026-08-13.md)
 - [Observability Runtime Acceptance](observability-runtime-acceptance-2026-08-13.md)
-- [Experiment Authoring Full-core Runtime Acceptance](experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)
+- [實驗設定建立與 Full-core Runtime 驗收](experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)

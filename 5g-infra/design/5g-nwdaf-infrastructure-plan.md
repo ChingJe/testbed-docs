@@ -3,9 +3,11 @@
 建立日期：2026-08-05
 最近更新：2026-08-14
 
-狀態：三台 VM、Host Docker ML services、GPU runtime、雙 Path 設定、公開 lifecycle commands、
-fresh-user full-core FL closed loop、observability、teardown，以及 Phase 8.7 explicit experiment
-definitions／non-gating diagnostics 均已完成 runtime 驗證；Infrastructure repository 仍未設定 remote。
+狀態：三台 VM、Host Docker ML services、CPU／GPU runtime、雙 Path 設定、公開 lifecycle commands、
+fresh-reader full-core FL closed loop、observability、teardown、explicit experiment definitions 與
+non-gating diagnostics 均已完成 runtime 驗證。Consumer 每組訂閱計數與 Host／Guest canonical
+config identity 也已完成針對性回歸；Infrastructure repository 依使用者決定仍只保留本機 `main`，
+尚未設定 remote。公開 visibility、license、CI 與 release artifact 延後到正式開源準備時處理。
 
 ## 文件導覽
 
@@ -17,7 +19,7 @@ definitions／non-gating diagnostics 均已完成 runtime 驗證；Infrastructur
 - [實作階段、驗證矩陣、變更範圍與決策](5g-nwdaf-infrastructure-plan/roadmap.md)
 - [實作紀錄：基礎建置與 E2E](5g-nwdaf-infrastructure-plan/implementation-history-foundation.md)
 - [實作紀錄：contract hardening 與文件整理](5g-nwdaf-infrastructure-plan/implementation-history-hardening.md)
-- [Fresh acceptance、cleanup 與 observability 計畫](5g-nwdaf-infrastructure-plan/acceptance-and-observability.md)
+- [Fresh acceptance、cleanup 與 observability 紀錄](5g-nwdaf-infrastructure-plan/acceptance-and-observability.md)
 
 ## 1. 目的
 

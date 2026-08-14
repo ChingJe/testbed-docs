@@ -4,6 +4,19 @@
 
 ## 11. 實作階段與 Gate
 
+### 目前進度總覽
+
+| 階段 | 狀態 | 目前邊界 |
+| --- | --- | --- |
+| Phase 0–0.5 | 已完成 | 決策、舊環境盤點與五台舊 VM 清理完成；舊 source repository 保留。 |
+| Phase 1 | 本機目標已完成 | Repository、Vagrant、testbed、文件與指令已建立；remote、license 與 CI 移至 Phase 8.6。 |
+| Phase 2 | 本機 pinning 已完成 | 16 個 gitlink／lock revision 已固定且 HTTPS 可讀；匿名取得與 license 仍屬公開釋出工作。 |
+| Phase 3–7 | 已完成 | Config、三 VM、network、Guest build、PseudoDriver、Host ML、CPU／GPU 與 full-core FL 均有驗證證據。 |
+| Phase 8.1–8.5 | 已完成 | 公開 command surface、config/dataset、分域 lifecycle、scoped state 與 repository tests 已收斂。 |
+| Phase 8.6 | 部分完成／公開工作延後 | 安裝與操作文件、版本鎖、HTTPS transport、資源 sizing 與 fresh-reader runtime 已完成；remote、visibility、license、CI 與 release artifact 延後。 |
+| Phase 8.7 | 已完成 | Explicit experiment authoring、non-gating diagnostics、dataset timeline 與 canonical runtime identity 已驗收。 |
+| Phase 9 | 未開始 | 舊 source repository 退場仍需使用者另行決定與授權。 |
+
 ### Phase 0 — 決策與文件
 
 Deliverables：
@@ -48,11 +61,11 @@ Deliverables：
 
 - 建立本機 `5G_NWDAF_Infrastructure` repository 與初始 `main`；remote、owner 與 visibility
   在公開準備時再設定，不作為本機實作前置；
-- README、LICENSE、精簡目錄骨架、單一 multi-machine `Vagrantfile`、
+- README、精簡目錄骨架、單一 multi-machine `Vagrantfile`、
   `testbed.yaml`／local example、ignore policy 與 non-mutating preflight；
 - 第一版不先建立空的 `tests/`、`fixtures/`、頂層 `patches/`、`profiles/`、`sites/`、
   `provisioning/`、`deployment/` 或 `experiments/`；
-- CI 先驗證文件、submodule metadata 與 script static checks。
+- 本機 repository tests 驗證文件入口、submodule metadata 與 script static checks；CI 留到公開準備。
 
 Exit gate：fresh clone 不需要實驗室私有設定即可讀取文件並通過 metadata preflight。
 
@@ -61,15 +74,15 @@ Exit gate：fresh clone 不需要實驗室私有設定即可讀取文件並通�
 Deliverables：
 
 - 加入第 6 節 required submodules；
-- source manifest 與 license inventory；
+- source manifest；license inventory 留到公開準備；
 - 固定 upstream／team exact commits；
 - optional webconsole；
 - PyAnLF 固定至少包含 `9e64417` 的 configurable CUDA inference；
 - PyMTLF 固定至少包含 `e9c5b08` 的 configurable CUDA training；
-- 確認匿名 HTTPS clone readiness。
+- 確認目前實驗室帳號可透過 HTTPS 取得所有 component；匿名取得留到公開準備。
 
-Exit gate：`git submodule status --recursive` clean，所有 required component 可取得、
-revision 可追溯且 license 無未解阻塞。
+Exit gate：本機 `git submodule status --recursive` clean，所有 required component 可由目前已驗證的
+HTTPS credentials 取得且 revision 可追溯；anonymous fetch 與 license blocker 由 Phase 8.6 處理。
 
 ### Phase 3 — Component Config 與必要工具移植
 
@@ -113,7 +126,8 @@ Deliverables：
   firewall smoke；
 - explicit complete `TESTBED=<path>` selection 與 public isolated default；
 - `.vagrant/` metadata、provider VM disk 與 Vagrant box cache 的位置／free-space 回報；
-- route、forwarding、NAT、MTU、port reachability smoke tests。
+- route、forwarding、MTU 與 port reachability smoke tests；N6 位址保留，outbound NAT policy
+  留到公開 data-network scope 定案。
 
 Exit gate：三 VM 可由 fresh testbed definition 重建；每個 plane 只具有設計允許的 reachability，
 且不需要實驗室實體 bridge。
@@ -150,7 +164,8 @@ Exit gate：
 
 - six UEs 都建立 current-run AMF／SMF registration；
 - TAI `000001` UE 只取得 Path A pool，TAI `000002` UE 只取得 Path B pool；
-- two UPFs 形成正確 PFCP association，兩條 N3/N6 path 可被獨立觀察；
+- two UPFs 形成正確 PFCP association，兩條 N3 path 可被獨立觀察；N6 interface/address 保留，
+  但目前 PseudoDriver scenario 不宣稱 user-plane N6 traffic 驗證；
 - A/B replay 使用預期 dataset identity，warm-start 前至少保有 512 MiB `MemAvailable`，且
   scan/aggregation/Phase 2 不造成 OOM、強制 kill 或不可接受 reclaim；
 - A／B／C NWDAF role 與 scope discovery 正確。
@@ -227,9 +242,8 @@ count、model identity、ADRF transaction 與 monitor route；不得把 PseudoDr
 #### Phase 8.1 — 公開 command surface
 
 Make targets 分成一般實驗、進階工具與 repository tests。底層 Host／Guest scripts、systemd
-units 與 MongoDB helpers 是 implementation details，不列為使用者指令。舊 targets 在新入口
-驗證完成前可保留為 compatibility aliases，但不出現在預設 help；確認沒有文件或 automation
-依賴後才分批移除。
+units 與 MongoDB helpers 是 implementation details，不列為使用者指令。舊 implementation-name
+targets 已在 caller 與文件檢查後直接移除，不保留 compatibility aliases。
 
 一般使用者由 `make help` 看到：
 
@@ -276,9 +290,9 @@ make vm-halt
 
 `experiment-start` 只執行實際所需的 generate 與 load，不把 `config-validate`、
 `dataset-validate` 或 `experiment-validate` 作為前置 gate；上述唯讀 targets 保留給 config 作者、
-CI 與 data-path 除錯。`466/92` 要真正成為可替換的建議值，subscriber/group fixtures 不能繼續是
-repository-global fixed files；Phase 8 應由完整 config 產生或包含 config-specific fixtures，
-並讓 config identity 同時涵蓋 authentication、subscriber 與 Internal Group input。
+CI 與 data-path 除錯。Subscriber/group fixtures 現已隨完整 config 產生並存放於 config set；
+config identity 同時涵蓋 authentication、subscriber 與 Internal Group input，因此 `466/92`
+是可替換的 committed 建議值，不是 repository-global runtime 常數。
 
 #### Phase 8.3 — 分域 lifecycle
 
@@ -295,8 +309,10 @@ repository-global fixed files；Phase 8 應由完整 config 產生或包含 conf
 | WebConsole | `webconsole-start CONFIG_DIR=...` | 在 Core build／啟動 optional free5GC WebConsole，使用該 config 的 MongoDB 與 NRF；不成為主要 Guest stack 的 hard dependency。 |
 | WebConsole | `webconsole-status`／`webconsole-stop` | 顯示 config enable、unit、HTTP frontend、artifact 與 source identity，或獨立停止 WebConsole。登入與 MongoDB read path 由 bounded smoke 驗證，不隱含在一般 status。 |
 
-WebConsole 是否隨 `experiment-start` 啟動，由完整 config 中明確的 enable flag 決定。現有
-`webuicfg.yaml` 只有未驗證 asset，不能在 smoke 通過前宣稱正式可用。
+WebConsole 是否隨 `experiment-start` 啟動，由完整 config 中明確的 enable flag 決定。
+Disabled path、首次 lazy build、frontend、登入、MongoDB subscriber read、loopback billing
+listener、artifact reuse 與獨立 stop 都已完成 bounded runtime 驗證；TLS、certificate、OAuth、
+billing transfer 與 subscriber write 仍不在第一版範圍。
 
 #### Phase 8.4 — Subscriber 與 experiment state
 
@@ -308,9 +324,9 @@ WebConsole 是否隨 `experiment-start` 啟動，由完整 config 中明確的 e
 | `make reset-show CONFIG_DIR=...` | 否 | 顯示 reset 會清除的五個 ML state mounts、ADRF data/model records、model files 與 NRF ADRF registration，也明列會保留的 VM、containers、images、volume objects、dataset 與 subscriber data。 |
 | `make reset CONFIG_DIR=... RESET_CONFIRM=<scenario>` | Scoped 刪除 | 在相關 processes 全停後清除上述 experiment state，完成後自動 verify；不刪 VM、containers、volumes、images、dataset 或 subscriber data。 |
 
-公開介面不保留 `subscriber-data-validate`：目前該 action 只檢查 fixture schema，沒有比對
-MongoDB；fixture/config contract 應由 `config-validate` 負責。`subscriber-data-show` 則需從目前
-只有 collection counts 的輸出擴充為 expected-vs-actual diff。
+公開介面不保留 `subscriber-data-validate`：fixture/config contract 由 `config-validate` 負責。
+`subscriber-data-show` 已提供 expected-vs-actual diff 與 apply／clear scope，不再只顯示
+collection counts。
 
 `RESET_CONFIRM` 使用 config manifest 的 scenario name；`reset-show` 必須顯示 exact value 與
 可直接複製的完整 reset command，避免使用者自行猜測。舊 `plan/apply/verify` 字樣不成為公開
@@ -343,34 +359,47 @@ Help 分層固定為：
 
 #### Phase 8.6 — Fresh-checkout 與 release artifacts
 
-其他 deliverables：
+狀態：本機可重現性與操作文件已完成；需要公開 repository authority 的工作依使用者決定延後。
 
-- 從隔離 fresh checkout 執行 submodule initialization、config creation/validation、dataset
-  generation、repository tests、VirtualBox validation 與至少一個 bounded scenario；
-- prerequisite、CPU/GPU 選擇、resource sizing、troubleshooting、architecture 與 WebConsole
-  optional path 文件；
-- preflight 直接回報 provider 實際 VM storage filesystem，不依賴 local overlay 或未被使用的
+已完成：
+
+- 由不繼承對話的 fresh reader 僅依 Infrastructure README 與連結文件，從三台 VM
+  `not-created` 建立 Ubuntu 22.04 reference topology，完成 CPU full-core FL closure、正常
+  `experiment-stop` 與 VM halt；另有獨立 GPU full-core acceptance；
+- prerequisite、CPU/GPU 選擇、resource sizing、troubleshooting、architecture、command reference、
+  config field references 與 WebConsole optional path 文件；
+- preflight 回報 VirtualBox VM storage 所在 filesystem，移除未實際使用的 local overlay 與
   `expectedVmStorage`／`bridgeInterface` 欄位；
-- 不含實驗室 IP、SSH key、private path 或 production secret；公開 clone 前處理目前
-  Intelligent-Systems-Lab submodules 的 SSH URLs、repository visibility 與 fetchability；
-- 修正 README 過時的 FL gate、dataset rows、GPU-only 與 provider 描述；
+- 16 個 submodule URL 與 lock remote 使用 HTTPS，gitlink／lock revision 固定且已驗證可讀；
+- README 與 `docs/` 已原子重構，舊文件與不再支援的 compatibility targets 已移除；
+- Guest Go archive checksum、MongoDB compatible package cohort 與 warning-only version drift policy；
+- 三台 VM 使用 40 GiB dynamic disk ceiling 完成 fresh provisioning；Host／VM／container 資源
+  sizing 與共用主機風險已有實測紀錄。
+
+延後到正式開源準備：
+
+- 設定 parent remote、repository visibility，確認 private component 的 anonymous fetchability；
+- 從實際 remote 的隔離 fresh recursive checkout 重做 submodule initialization、config creation、
+  dataset generation、repository tests、VirtualBox validation 與 bounded scenario；
 - CI、issue template、contribution policy、versioned release manifest；
 - parent、NWDAF、ADRF、PyAnLF、PyMTLF license 與第三方 compatibility 是 public release hard
   blocker；certificate／TLS／OAuth 仍為第一版 non-goal；
-- 固定 Guest Go archive checksum 與可重現 MongoDB package policy，降低 fresh provisioning 的
-  supply-chain 漂移。
+- 公開 default 的 N6 outbound NAT 與 scenario data-network isolation policy；N6 topology 目前保留，
+  但本次 full-core PseudoDriver scenario 不把 N6 當成已驗證 data path。
 
-Exit gate：非原開發機使用者能以 VirtualBox、CPU 或 GPU 任一明確選擇，從 fresh checkout
+Exit gate：非原開發機使用者能以 VirtualBox、CPU 或 GPU 任一明確選擇，從公開 remote 的 fresh checkout
 建立 reference topology，依同一套 `experiment-*` lifecycle 完成 bounded scenario 並安全
 teardown；WebConsole optional smoke 有清楚成功／失敗邊界；release artifact、component commits、
 licenses、effective config 與 dataset identity 全部可追溯。
 
 #### Phase 8.7 — Experiment authoring 與 non-gating diagnostics
 
-狀態：已完成。Infrastructure commits 為 `3b2b4a6`、`a67090c`、`9e466e3`、
-`38abea0`、`52fffd6`；完整 `make test`、兩個 examples、custom scenario、diagnostic mismatch、
-dataset integrity／summary 與 full-core GPU runtime 均通過。Runtime evidence 見
-[Experiment Authoring Full-core Runtime Acceptance](../../reports/5g-nwdaf-infrastructure/experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)。
+狀態：已完成。主要 Infrastructure commits 為 `3b2b4a6`、`a67090c`、`9e466e3`、
+`38abea0`、`52fffd6`；驗收後的資源訊息、Consumer generation counter 與 canonical config
+identity 修正為 `bb7697f`、`aae2e28`、`78b32f9`。完整 `make test`、兩個 examples、custom
+scenario、diagnostic mismatch、dataset integrity／summary、full-core GPU runtime 與短版 identity
+runtime 均通過。Runtime evidence 見
+[實驗設定建立與 Full-core Runtime 驗收](../../reports/5g-nwdaf-infrastructure/experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)。
 
 本工作包不修改 NF／ML／RAN submodule，只調整 Infrastructure-owned definitions、
 renderer／resolver／checker、Host lifecycle scripts、tests 與文件。
@@ -437,7 +466,7 @@ Exit gate：新環境 fresh-clone E2E 已通過，舊 site-specific 資訊已有
 | Hybrid network | VM 與 Host ML endpoint 是否穩定互通？ | stable Host address、published ports、bidirectional route、firewall、no container-IP dependency |
 | PseudoDriver | Dataset replay 是否在 Path RAM 內安全完成？ | file hash/bytes/rows、subscription fan-out、pre-replay headroom、UPF/VM peak、no OOM/kill |
 | Core | 真實 5GC control path 是否成立？ | NRF registration、auth、registration、policy、PDU Session |
-| Path | TAI 是否選到正確 UPF？ | A/B UE pool、PFCP、N3/N6、serving-SMF evidence |
+| Path | TAI 是否選到正確 UPF？ | A/B UE pool、PFCP、N3、serving-SMF evidence；N6 只驗 topology 保留，不宣稱 traffic path |
 | Observation | 進行中能否定位目前狀態與錯誤？ | compact health、clock skew、prefixed/filterable journald＋Docker live log |
 | Analytics | A/B/C ownership 是否正確？ | discovery、subscription、WAPE、monitor owner selection |
 | FL | closed loop 是否完整？ | ADRF retrieval、two rounds、FedAvg、validation、publication、cutover |
@@ -481,21 +510,23 @@ state 或舊 VM process 偶然使 scenario 通過。
 - WebConsole 保留為 optional component 並納入獨立 bounded smoke，不測 billing、TLS 或 cert；
 - `nwdaf-resources` 不成為 submodule/runtime dependency；certificate、TLS、OAuth 暫不支援。
 
-Phase 7 runtime gates 已完成；Phase 8 尚需確認或完成：
+Phase 7 runtime gates 與 Phase 8.1–8.5、8.7 已完成。原清單中的 CPU full-stack、WebConsole、
+config-specific fixtures、Host prerequisite boundary、Guest version lock、provider storage sizing、
+unused local fields 與 command compatibility 清理均已有實作和驗證，不再列為待辦。
 
-1. CPU production mode 的 config/Compose/runtime contract 與 bounded full-stack E2E；
-2. WebConsole Core build、optional lifecycle、frontend/login/MongoDB read smoke；
-3. config-specific subscriber/group fixtures，讓非 `466/92` reference config 可生成、驗證與套用；
-4. public submodule URLs、repository visibility、parent remote 與 fresh recursive checkout；
-5. parent／NWDAF／ADRF／PyAnLF／PyMTLF license 與第三方 compatibility；
-6. Host prerequisite installer boundary、Go checksum、MongoDB version reproducibility；
-7. public default 的 outbound NAT 與 scenario data-network isolation policy；
-8. `expectedVmStorage` gate、未使用 local fields 移除，以及實際 disk growth 的 release sizing；
-9. CI、contribution、issue templates、release manifest 與 fresh-checkout acceptance；
-10. compatibility targets 的 deprecation window，以及是否有外部 automation 仍使用舊名稱。
+目前只保留以下延後項目：
 
-這些決策不阻擋先建立 non-privileged container definition 和 static checks，但凡涉及 Host
-package/driver/network mutation、建立 VM 或長時間 GPU run，必須在對應步驟明確確認。
+1. 使用者確認時才設定 parent remote、repository visibility 與公開 owner；
+2. private component visibility／fetchability，以及從實際 remote 執行 anonymous fresh recursive
+   checkout acceptance；
+3. parent／NWDAF／ADRF／PyAnLF／PyMTLF license 與第三方 compatibility；
+4. CI、contribution、issue template 與 versioned release manifest；
+5. 公開 default 的 N6 outbound NAT 與 scenario data-network isolation policy。N6 保留不動，
+   目前也不宣稱已由 PseudoDriver full-core scenario 驗證。
+
+前四項依使用者決定統一延後到正式開源前；第五項在公開 reference data path 定案時再處理。
+它們不阻擋目前實驗室內使用已驗證的 VirtualBox lifecycle。凡後續涉及 Host package／driver／
+network mutation、建立 VM、刪除既有 runtime state 或長時間 GPU run，仍需在對應步驟明確確認。
 
 ## 15. Phase 8.7 完成紀錄
 
@@ -518,8 +549,17 @@ Phase 8.7 已按以下可階段驗證與 commit 的順序完成：
 5. `docs(config): document experiment configuration contracts`
    - 完成五份 field reference 與「想改什麼應該改哪裡」入口；
    - 同步 runtime README、commands、operations 與 troubleshooting，清除舊路徑與 gating 敘述。
+6. `fix(observability): scope runtime identity to each experiment`
+   - 新 subscription pair 建立前重設本輪 A/B／總 callback 計數；
+   - 預先保留 correlation ID，避免建立第二筆資源前到達的 callback 無法歸屬。
+7. `fix(config): share canonical hash across host and guests`
+   - Host validation／status、Guest activation 與五個 ML container label 共用同一個 tree SHA-256；
+   - shared helper 納入 Guest runtime-tools bundle、generator source identity 與 repository tests。
 
 每階段均先執行專門測試再 commit，最後完成 `make test`、兩個 examples 的
 dataset generate／validate、read-only `experiment-validate` 與一輪獨立 full-core GPU runtime
 acceptance。驗收前以 guarded reset 清除前一輪 retained experiment state，驗收後 exact
-subscription cleanup、40 秒 grace、process stop 與 VM halt 全部完成；submodule revision 未改變。
+subscription cleanup、40 秒 grace、process stop 與 VM halt 全部完成。後續短版 runtime 刻意保留
+舊 `97/97` Consumer state，確認新 pair 從 `0/0` 開始、首輪後 A/B 為 `1/1`，且三台 Guest、
+Host status 與五個 container 的完整 canonical hash 相同；最後再次安全 teardown。兩次驗收都沒有
+修改 submodule revision。

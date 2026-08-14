@@ -2,7 +2,8 @@
 
 [返回主計畫](../5g-nwdaf-infrastructure-plan.md)
 
-本文件保存原計畫第 16.33–16.35 節的驗收結果、cleanup 修正與後續觀測規劃。
+本文件保存原計畫第 16.33–16.36 節的驗收結果、cleanup／observability 修正，以及 experiment
+authoring 與 canonical runtime identity 的後續驗收。
 
 ## 16.33 Fresh User Full-core Black-box Acceptance
 
@@ -25,6 +26,10 @@ exited、volumes/network/images/state retained，Git與submodules clean。完整
 [Fresh User Full-core Black-box Acceptance](../../reports/5g-nwdaf-infrastructure/fresh-user-full-core-black-box-acceptance-2026-08-13.md)。
 
 ## 16.34 Log-correlated Model Monitor Cleanup
+
+> **歷史方案，不是目前 runtime 行為。** 本節記錄 `c53f058` 以前的 teardown workaround。
+> NWDAF 更新後，兩條 Model Monitor DELETE 已在 Consumer cleanup 後約 124 ms 內回覆 `204`；
+> Infrastructure `5b3ea4c` 已移除此 log parser，現行 `experiment-stop` 使用固定 40 秒 grace。
 
 Fresh black-box run顯示固定40秒grace可能在第二條internal Model Monitor DELETE尚未retry完成前就
 停止ML containers。為避免修改PyAnLF／PyMTLF，teardown ownership留在Infrastructure：
@@ -53,10 +58,13 @@ correlation能處理本次實際延遲，且210秒涵蓋本次觀察值；持續
 
 ## 16.35 Observability Contract Audit and Remediation Plan
 
-Fresh-user black-box acceptance與後續runtime cleanup validation證明主要流程可重現，但也顯示目前
+狀態：A–E 已全部完成並通過 repository 與 runtime 驗證。以下保留原始 audit、目標與實作紀錄，
+不是尚未開始的工作清單。
+
+Fresh-user black-box acceptance與後續runtime cleanup validation證明主要流程可重現，但也顯示當時
 公開status/log介面有「process active不等於business-ready」、「特殊unit無法查詢」、「A/B資訊
 被最後一筆callback覆蓋」等落差。2026-08-13對Infrastructure command surface、systemd units、
-Compose labels、Consumer state與文件承諾進行read-only audit；本節只規劃，不代表已實作。
+Compose labels、Consumer state與文件承諾進行read-only audit；後續段落已逐項補上實作與驗證結果。
 
 ### Confirmed findings
 
@@ -218,5 +226,40 @@ logger的工具wall time包含使用者批准等待，不能視為command durati
 5. 更新Infrastructure README、operations、commands、troubleshooting與validation；在`testbed-docs`
    新增dated result report。按repository boundary分別review與commit，使用者確認前不push。
 
-建議實作順序為A→B→C→D，review後再做E。A至D修正錯誤與status可信度；E是較高階的便利摘要，
-不應阻擋前四項交付。
+實際交付順序為 A→B→C→D→E。A 至 D 修正 log／status／state 可信度，E 加入 current-run FL
+摘要；五項都已完成。後續 Phase 8.7 runtime 又發現 Consumer count 仍跨 subscription generation
+累積，已另於 16.36 修正並驗收。
+
+## 16.36 Experiment Authoring 與 Canonical Runtime Identity
+
+2026-08-14 完成 Phase 8.7：scenario 與 traffic profile 移至 `experiments/examples/`，使用者以必填
+repository-relative `FROM=<scenario.yaml>` 建立完整 local config；diagnostics 與 execution
+lifecycle 分離，dataset summary 顯示 row、observation、report、sample 與 trigger／closure 時間線，
+並完成 testbed、scenario、traffic、native config 與 dataset field references。主要 commits 為
+`3b2b4a6`、`a67090c`、`9e466e3`、`38abea0`、`52fffd6`。
+
+同日另由不繼承對話、只閱讀 README 與其連結 operator docs 的 fresh reader 建立獨立 CPU config
+`fresh-reader-full-core-20260814-01`。起點三台 VM 均為 `not-created`；約 20 分鐘完成 provision，
+約 4 分鐘完成 aggregate startup。23／23 Guest units、六 UE Registration／PDU Session、五個 CPU
+ML container 與 A/B callbacks 都成功；FL candidate WAPE 由 `1.83925` 降至 `0.324455`，model
+`1786645327731` 完成發布、雙 scope cutover 與 post-cutover accuracy。最後 exact subscription
+cleanup、40 秒 grace、process stop 與 VM halt 全部成功。這證明 CPU 選擇能使用相同 production
+lifecycle 完成 full-core 閉環；但 repository 並非從公開 remote 匿名 clone，因此不能取代 Phase 8.6
+延後的 anonymous fresh recursive checkout gate。
+
+一輪 GPU `full-core-cat-transition` 完成六 UE Registration／PDU Session、雙 Path callback、A/B
+兩輪 local training、C FedAvg、ADRF publication、雙 scope adoption、cutover 與 post-cutover
+accuracy。該輪同時發現兩項 Infrastructure-owned 觀測問題：Consumer callback count 延續前一輪
+`44/44`，以及 validation 與 runtime 顯示不同 config digest。
+
+`aae2e28` 讓新的 subscription pair 在 POST 前取得全新 A/B／總計數器，並先保留 correlation ID；
+`78b32f9` 則把 canonical tree SHA-256 集中到 Host／Guest 共用 helper，涵蓋 validation、staging、
+Guest activation、container label、status 與 generator source identity。短版 runtime 刻意不 reset
+舊 `97/97` state，新 pair 建立時為 `0/0`，第一輪 delivery 後為 `1/1`；Core、Path A、Path B、
+Host status 與五個 ML container 的完整 hash 都是 `646fd3c0…11497f`。
+
+第一次針對性啟動曾由 Guest integrity gate 發現尚未替換的舊 hash 算法並自動 rollback；改用
+shared helper 後第二次啟動通過。驗收最後完成兩筆 exact DELETE、40 秒 grace、五個 container
+與 23 個 Guest unit stop、三台 VM graceful halt，最終完整 `make test` 通過。這些調整沒有修改
+NWDAF、PyAnLF、PyMTLF 或其他 submodule。詳細證據見
+[實驗設定建立與 Full-core Runtime 驗收](../../reports/5g-nwdaf-infrastructure/experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)。
