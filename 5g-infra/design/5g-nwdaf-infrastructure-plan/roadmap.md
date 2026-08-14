@@ -367,6 +367,11 @@ licenses、effective config 與 dataset identity 全部可追溯。
 
 #### Phase 8.7 — Experiment authoring 與 non-gating diagnostics
 
+狀態：已完成。Infrastructure commits 為 `3b2b4a6`、`a67090c`、`9e466e3`、
+`38abea0`、`52fffd6`；完整 `make test`、兩個 examples、custom scenario、diagnostic mismatch、
+dataset integrity／summary 與 full-core GPU runtime 均通過。Runtime evidence 見
+[Experiment Authoring Full-core Runtime Acceptance](../../reports/5g-nwdaf-infrastructure/experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)。
+
 本工作包不修改 NF／ML／RAN submodule，只調整 Infrastructure-owned definitions、
 renderer／resolver／checker、Host lifecycle scripts、tests 與文件。
 
@@ -492,9 +497,9 @@ Phase 7 runtime gates 已完成；Phase 8 尚需確認或完成：
 這些決策不阻擋先建立 non-privileged container definition 和 static checks，但凡涉及 Host
 package/driver/network mutation、建立 VM 或長時間 GPU run，必須在對應步驟明確確認。
 
-## 15. 下一個執行範圍
+## 15. Phase 8.7 完成紀錄
 
-下一個工作包是 Phase 8.7，按以下可階段驗證與 commit 的順序執行：
+Phase 8.7 已按以下可階段驗證與 commit 的順序完成：
 
 1. `refactor(config): organize experiment definitions`
    - 搬移兩個 examples，建立 `experiments/local/`、scenario schema v2 與共用 profile resolver；
@@ -514,7 +519,7 @@ package/driver/network mutation、建立 VM 或長時間 GPU run，必須在對�
    - 完成五份 field reference 與「想改什麼應該改哪裡」入口；
    - 同步 runtime README、commands、operations 與 troubleshooting，清除舊路徑與 gating 敘述。
 
-每階段先執行專門測試再 commit，最後執行 `make test`、兩個 examples 的
-dataset generate／validate 和 read-only `experiment-validate`。本工作包不修改 submodule、
-不刪除現有 local config／dataset／runtime state，不建立 VM 也不啟動 full E2E；若 native
-runtime config 出現非預期差異，先停止並回報。
+每階段均先執行專門測試再 commit，最後完成 `make test`、兩個 examples 的
+dataset generate／validate、read-only `experiment-validate` 與一輪獨立 full-core GPU runtime
+acceptance。驗收前以 guarded reset 清除前一輪 retained experiment state，驗收後 exact
+subscription cleanup、40 秒 grace、process stop 與 VM halt 全部完成；submodule revision 未改變。

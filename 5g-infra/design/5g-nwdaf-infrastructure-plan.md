@@ -4,9 +4,8 @@
 最近更新：2026-08-14
 
 狀態：三台 VM、Host Docker ML services、GPU runtime、雙 Path 設定、公開 lifecycle commands、
-fresh-user full-core FL closed loop、observability contract 與 teardown 均已完成 runtime 驗證。
-目前下一個規劃範圍是整理使用者可編輯的 experiment definitions、完整設定欄位參考，
-並將設定診斷與 runtime start gate 分離；Infrastructure repository 仍未設定 remote。
+fresh-user full-core FL closed loop、observability、teardown，以及 Phase 8.7 explicit experiment
+definitions／non-gating diagnostics 均已完成 runtime 驗證；Infrastructure repository 仍未設定 remote。
 
 ## 文件導覽
 
