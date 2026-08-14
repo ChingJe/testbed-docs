@@ -263,3 +263,43 @@ shared helper 後第二次啟動通過。驗收最後完成兩筆 exact DELETE�
 與 23 個 Guest unit stop、三台 VM graceful halt，最終完整 `make test` 通過。這些調整沒有修改
 NWDAF、PyAnLF、PyMTLF 或其他 submodule。詳細證據見
 [實驗設定建立與 Full-core Runtime 驗收](../../reports/5g-nwdaf-infrastructure/experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)。
+
+## 16.37 Atomic Parallel Observe Snapshot
+
+2026-08-14 在實際實驗運行期間確認 `make observe` 的畫面生命週期不合理：每輪先清空畫面，
+再循序查詢 VM、Guest services、WebConsole、Host ML 與 subscriptions；完整 snapshot 出現後只
+保留預設五秒，下一輪又先清空。單輪基準中 Vagrant state 約 3.0 秒、Guest services 8.1 秒、
+WebConsole 4.6 秒、ML status 12.4 秒，另加 subscription latency，因此使用者大部分時間看到的
+是正在逐段形成的不完整畫面。
+
+目前一輪另包含四次重複 Vagrant state、六次 Guest SSH、五次 container Python／PyTorch CUDA
+probe，以及從 container `StartedAt` 重新讀取三份完整 PyMTLF logs。後兩者不適合只是直接提高
+平行度：CUDA probe 會產生不必要的週期性 runtime 負載，完整 log scan 則會隨實驗時間增長。
+
+調整原則：
+
+1. 上一張完整畫面保留到下一張 snapshot 全部收集完成；新結果在 buffer 中依固定區段順序組合，
+   最後一次替換，不把查詢中的半成品當成畫面。
+2. 每輪只取得一次 VM state，並以 bounded parallel 同時收集 Core、Path A、Path B 與 Host
+   Docker 狀態；不得在上一輪未完成時再啟動下一輪。
+3. 每個 collector 有 timeout 與獨立 failure evidence；單區失敗顯示 `unavailable`，continuous
+   observe 繼續下一輪，`--once` 仍對不完整 snapshot 回傳非零。
+4. CUDA capability 依 container identity 快取，container 未更換時不重複 import PyTorch；FL
+   milestone cache 保存 container identity 與 log cursor，Docker 每輪只取上一個 cursor 之後的新
+   log，再與本次 observe process 已保存的 evidence 合併。
+5. 畫面顯示 snapshot 開始／完成時間與收集耗時；`make observe` 繼續以實際 active Guest config、
+   container labels／mounts 與 Consumer state 為準，不要求 `CONFIG_DIR`。需要比較指定 config 與
+   runtime identity 時仍使用 `make experiment-status CONFIG_DIR=...`。
+6. Runtime 驗證只執行 read-only status／log 查詢，不修改、重啟或停止正在進行的實驗；若需要
+   NF／ML 行為變更則停止本工作並另行說明。
+
+實作後第一次直接平行舊 scripts 曾重現同一台 Core 的 Vagrant machine lock；因此 Host `vssh`
+加入 per-VM file lock，Guest services 則在 Core／Path A／Path B 間平行，Consumer service 與 saved
+state 合併為單一 Core SSH。每輪共用一份 Vagrant state，避免四次重複查詢。
+
+同一個 live full-core 實驗上的結果：原循序 snapshot 約 30 秒；atomic parallel 的首次 cache-miss
+snapshot 約 15.2 秒，後續 cache-hit snapshots 約 7.8–9.1 秒。三台 VM、23 個 Guest units、六 UE
+Registration／PDU Session、五個 ML containers、A/B subscriptions 與 callback counter 都持續正確；
+增量 log 模式仍保留完整 FL closure，model `1786719310384` 顯示 `outcome=complete`。Ctrl-C 只停止
+observer，暫存 snapshot／CUDA／log cache 正常移除；完整 `make test` 通過，未修改或重啟任何
+NF／ML／RAN component。
