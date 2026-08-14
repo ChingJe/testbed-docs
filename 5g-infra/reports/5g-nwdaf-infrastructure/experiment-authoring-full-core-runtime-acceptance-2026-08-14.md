@@ -106,18 +106,19 @@ stopped or modified.
 1. **Consumer callback counters are retained across runs.** Before the first fresh callback, the new
    subscription state still showed the previous run's A/B counts `44/44` and timestamps. New callbacks
    updated the timestamps and continued counts to `97/97` by stop. Fresh delivery remained provable by
-   timestamps after `createdAt`, but the count is cumulative retained state rather than a current-run
-   count. A future Infrastructure-only change should either reset per-Path counters when a new pair of
-   resources is created, or display cumulative and current-subscription counters separately.
+   timestamps after `createdAt`, but the count was cumulative retained state rather than a current-run
+   count. **Subsequent Infrastructure correction:** a new subscription pair now receives fresh A/B and
+   total counters before its POST requests begin. Correlation IDs are reserved first, so a callback that
+   arrives while the second resource is still being created remains attributable to the correct Path.
 2. **Two config digest algorithms are displayed without a clear distinction.** `config-check.py`
    reported tree SHA-256 `646fd3c0…`, while activation, Compose labels and runtime status used
    `f0a33667…`. Both are deterministic over the same directory but use different framing algorithms.
-   Runtime identity was internally consistent; operator output should name them distinctly or converge
-   on one canonical digest.
+   Runtime identity was internally consistent. **Subsequent Infrastructure correction:** validation,
+   activation, Compose labels and status now share the canonical filename-and-content tree SHA-256.
 3. The low-swap preflight warning still used the removed phrase `hard RAM gate`. This was a stale
    Infrastructure message, not runtime behavior; it was corrected after the run to say that operators
    should monitor `MemAvailable` during long runs.
 
-The first two findings do not invalidate this closure because current timestamps, matching container
-identity and full FL evidence establish the tested run independently. They should not be hidden in
-documentation or attributed to NF／ML component behavior.
+The first two findings did not invalidate this closure because current timestamps, matching container
+identity and full FL evidence established the tested run independently. Both were corrected in
+Infrastructure tooling without changing NF／ML component behavior.
