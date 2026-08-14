@@ -51,8 +51,10 @@
 │   │   │   ├── gnb-b.yaml
 │   │   │   └── ue1.yaml ... ue6.yaml
 │   │   └── manifest.yaml
-│   ├── generated/            # gitignored renderer outputs
-│   └── local/                # gitignored manually maintained sets
+│   └── local/                # gitignored rendered/manually adjusted complete sets
+├── experiments/
+│   ├── examples/             # committed scenario + Path A/B traffic definitions
+│   └── local/                # gitignored user experiment definitions
 ├── tools/
 │   └── nwdaf-consumer/       # infra-owned subscription/callback CLI
 ├── scripts/
@@ -77,9 +79,7 @@
 │       ├── core.sh
 │       ├── path.sh
 │       └── systemd/           # disabled-by-default service unit templates
-├── testbed.yaml
-├── testbed.local.example.yaml
-└── testbed.local.yaml         # gitignored
+└── testbed.yaml
 ```
 
 目錄原則：
@@ -92,7 +92,9 @@
 - `webconsole` 依 free5GC superproject 慣例保留在 root，作為 optional management
   tool；
 - `config/` 比照 free5GC 保存 component 實際讀取的 native 設定；`default/` 是可直接執行
-  的 committed baseline，`generated/`／`local/` 不作為 source history；
+  的 committed baseline，`local/` 保存 gitignored complete sets；
+- `experiments/examples/` 保存可執行的 committed scenario／traffic definitions，
+  `experiments/local/` 供使用者複製修改；這些不是 test fixtures；
 - `tools/nwdaf-consumer/` 是 infrastructure-owned 實驗控制工具，不是 NF submodule，也不從
   `nwdaf-resources` 整包帶入；
 - `containers/`／`compose.yaml` 只定義 Host 上的 ML runtime；PyAnLF 與 PyMTLF 使用兩種
@@ -244,9 +246,9 @@ advertisement；這些設定納入 topology/config preflight，不靠 Docker 動
 - UE pools：兩條 path 不重疊。
 
 Public default 應優先使用 isolated private／host-only network 與受控 NAT，不把所有
-plane bridge 到實驗室實體 LAN。只有 gitignored `testbed.local.yaml` 可以選擇實體
-bridge、provider-specific storage expectation 或 lab gateway，且必須通過衝突檢查後
-才套用。
+plane bridge 到實驗室實體 LAN。需要另一組實體 bridge、provider storage expectation
+或 lab gateway 時，使用者建立一份完整且明確選用的 `TESTBED=<path>` definition，
+不使用 implicit local overlay。衝突診斷會提示風險，但不作為 start 授權。
 
 五個 container 使用一般 Docker bridge network，對 VM 發布固定 Host port；Go NWDAF 與
 PyAnLF／PyMTLF config 只引用 stable Host SBI address 加 published port，不引用 Docker
@@ -330,10 +332,10 @@ rootless Docker。Rootless daemon 只作 fallback：目前 Host 使用 cgroup v1
 rootless mode 能落實 Compose 的 CPU／RAM limits，而且會建立獨立 image/data store 並增加
 networking 驗證與磁碟占用。
 
-正式建立 VM 前仍必須量測 host available RAM、swap、free disk、Docker image/cache 與
+正式建立 VM 前仍強烈建議量測 host available RAM、swap、free disk、Docker image/cache 與
 現有 workload。沒有 swap 不代表必然失敗，但 shared Host 在瞬時壓力下會更快進入 OOM
-killer，因此 preflight 必須警告並禁止無人長時間運行；是否把 swap 設為 hard gate，應由
-本機政策另定，不在 deployment script 中自動建立或清除 swap。動態 disk ceiling 加上
+killer，因此 preflight 必須顯著警告長時間無人運行的風險，但 RAM、swap 與
+storage reference thresholds 不作為 start hard gate；deployment script 也不自動建立或清除 swap。動態 disk ceiling 加上
 provider metadata、box image、container layers 與暫存下載仍不適合在磁碟壓力下啟動。
 
 清理不等於直接刪目錄。執行前必須先確認每台舊 VM 的 Vagrant project、provider name、
@@ -378,6 +380,6 @@ provider metadata，必須 gitignore；它不是虛擬磁碟。第一版使用 V
 disk 位於 VirtualBox global machine folder，box cache 則位於 Vagrant 自己的 cache，兩者
 都在 repository 外。
 
-`testbed.local.yaml` 可以記錄預期 provider 與 VM storage location，讓 preflight 回報
-實際位置和 free space；它不應在 `vagrant up` 時靜默修改 provider 的 global machine
-folder。任何 global storage 變更都屬於獨立 host setup，必須先確認對既有 VM 的影響。
+Preflight 直接查詢 provider 的實際 VM storage location 與 free space，不透過額外
+local overlay 推測，也不在 `vagrant up` 時靜默修改 provider 的 global machine folder。
+任何 global storage 變更都屬於獨立 host setup，必須先確認對既有 VM 的影響。

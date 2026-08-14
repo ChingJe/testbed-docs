@@ -10,17 +10,17 @@
 以及 guest service／subscription lifecycle；不在 Host 編譯 guest component，第一版也不把
 consumer 搬出 Core VM：
 
-- `preflight.sh`：唯讀檢查 provider、RAM、swap、VM／Docker storage free space、submodule、
-  testbed files、active config set、必要網段與 port；ML slice 另檢查 Docker、GPU driver、
-  NVIDIA Container Toolkit 與容器內 CUDA probe；PseudoDriver 要求已生成且通過完整 audit
-  的 content-addressed set，並呼叫 config checker；不安裝 toolkit、修改 host network 或建立 VM；
+- `preflight.sh`：唯讀診斷 provider、RAM、swap、VM／Docker storage free space、submodule、
+  testbed files、active config set、必要網段與 port；ML slice 另診斷 Docker、GPU driver、
+  NVIDIA Container Toolkit 與容器內 CUDA probe；它可呼叫 config／dataset checker 產生完整
+  findings，但不被 start path 當成授權 gate，也不安裝 toolkit、修改 host network 或建立 VM；
 - `dataset.py`／`dataset-stage.sh`：由 topology/profile 生成或重掃 A/B Parquet，plan 分發
   mapping，apply 只上傳 role-specific artifact 並要求 Guest 原子啟用；
-- `config-render.py`：選用地由 default baseline 與 explicit topology definition 產生一組
-  `config/generated/<name>/` native configs 和 manifest，不覆寫 committed/default files；
-- `config-check.py`：唯讀驗證 default／generated／local config set 的跨 component network、
+- `config-render.py`：由 default baseline、explicit topology definition 與必填 scenario YAML path 產生
+  `config/local/<name>/` native configs 和 manifest，不覆寫 committed/default files；
+- `config-check.py`：唯讀診斷 default／local config set 的跨 component network、
   identity、placement、A/B mapping 與所選 testbed definition 一致；
-- `services-start.sh`：解析 effective `TESTBED`／`CONFIG_DIR`，先 check、stage、activate 完整
+- `services-start.sh`：解析 effective `TESTBED`／`CONFIG_DIR`，stage、activate 完整
   config set 與 Path-specific dataset；各 Guest 先驗證 active config 所產生的 persistent
   Netplan aliases 已由 networkd 套用，只有 drift 時才 reconcile，再依 dependency order 透過
   Vagrant SSH／guest service interface 啟動 Core、Path A 與 Path B 的 database、NF、RAN 與
@@ -30,8 +30,9 @@ consumer 搬出 Core VM：
 - `services-status.sh`：只彙整 core NF、UPF、gNB／UE、Go NWDAF 與 database health，並回報
   Path `MemAvailable`、UPF memory accounting 與 PseudoDriver replay state；
   VM power state 另外由 `vagrant status` 或 `make vm-status` 回報；
-- `ml-start.sh`：驗證所選 config、Host-to-VM reachability、GPU runtime 與五個 endpoint，
-  再以 Compose 建置／啟動 `pyanlf-a`、`pymtlf-a`、`pyanlf-b`、`pymtlf-b`、`pymtlf-c`；
+- `ml-start.sh`：解析所選 config 並以 Compose 建置／啟動 `pyanlf-a`、`pymtlf-a`、
+  `pyanlf-b`、`pymtlf-b`、`pymtlf-c`；Host bind、GPU runtime、Compose build／health 等實際
+  無法繼續的 runtime failure 仍 fail 並 rollback，但不先要求完整 config／resource diagnostics 通過；
 - `ml-status.sh`：彙整 container state、application health、effective device、GPU visibility、
   image/source identity 與 endpoint reachability；
 - `ml-stop.sh`：停止五個 ML containers，但不刪 image、volume、VM、guest process 或
@@ -50,8 +51,10 @@ consumer 搬出 Core VM：
   Host／container prefix，支援依來源、service 與 since time 過濾；結束 follow 不停止任何
   process。
 
-Renderer／checker 在 Host 執行，因為它們在 VM 建立前決定 effective config set；guest
-只能接收已通過 check 的完整 config set，不在 VM 內自行組合或回寫設定。
+Renderer／checker 在 Host 執行，因為它們在 VM 建立前產生或診斷 effective config
+set；guest 只接收使用者明確選擇的完整 config set，不在 VM 內自行組合或回寫設定。
+未通過 checker 不等於使用者不得啟動；實際 stage、parse、integrity 或 process start 失敗才由
+execution path 停止。
 
 ### 10.2 Guest scripts
 
@@ -189,13 +192,13 @@ Guest setup 不應將這些 experiment services 設為隨 VM boot 自動啟動�
 
 | Make target | 第一版 implementation | 是否需要獨立 host script |
 | --- | --- | --- |
-| `preflight` | 呼叫 `scripts/host/preflight.sh` | 是；包含多項 host／provider／network 檢查 |
-| `config-check` | 呼叫 `scripts/host/config-check.py` | 是；驗證 selected testbed/config set 的跨檔一致性 |
-| `config-render` | 呼叫 `scripts/host/config-render.py` | 是；選用地產生 gitignored complete config set |
+| `experiment-validate` | 呼叫 `scripts/host/experiment-validate.sh` | 是；聚合 host／provider／config／dataset／Compose 唯讀診斷，不由 start 自動執行 |
+| `config-validate` | 呼叫 `scripts/host/config-check.py` | 是；診斷 selected testbed/config set 的跨檔一致性 |
+| `config-create` | 呼叫 `scripts/host/config-render.py` | 是；要求明確 `FROM=<scenario-yaml-path>` 產生 gitignored complete config set |
 | `vm-up` | 直接呼叫 multi-machine `vagrant up` | 否；先避免沒有邏輯的一行 wrapper |
 | `vm-status` | 直接呼叫 `vagrant status` | 否 |
 | `vm-halt` | 直接呼叫 `vagrant halt` | 否 |
-| `services-start` | 呼叫 `scripts/host/services-start.sh` | 是；包含 config check／activation、跨 VM stage、readiness 與 rollback |
+| `services-start` | 呼叫 `scripts/host/services-start.sh` | 是；包含 config／dataset activation、跨 VM stage、readiness 與 rollback，不包含完整 validation gate |
 | `services-status` | 呼叫 `scripts/host/services-status.sh` | 是；包含 process 與 application health |
 | `services-stop` | 呼叫 `scripts/host/services-stop.sh` | 是；包含反向 dependency order |
 | `ml-start` | 呼叫 `scripts/host/ml-start.sh` | 是；包含 Compose build/up、GPU gate、health 與 rollback |
@@ -215,11 +218,11 @@ VM 內 provisioning／build／systemd unit 安裝，不作為 Host 的使用者�
 
 `services-start` 不讓 process 直接讀 Host `config/`，而是執行以下流程：
 
-1. 依 `CONFIG_DIR` explicit argument、`testbed.local.yaml.configDir`、`config/default/` 的
-   優先序解析完整 config set，並解析同一次命令使用的 `TESTBED` definition；
-2. 執行 `config-check`，計算 config manifest/hash，並比對 Vagrant base interfaces 與
-   role-specific process alias 清單；若 base interface／Vagrant network 不相容，停止並要求
-   明確 reload／reprovision，不在 service start 時修改 VM 網卡；
+1. 依 `CONFIG_DIR` explicit argument 或 selected `TESTBED:config.directory` 解析完整 config set，
+   並解析同一次命令使用的 `TESTBED` definition；
+2. 計算 config manifest/hash 並確認 stage 所需的必要檔案可讀。跨檔一致性由獨立
+   `config-validate` 診斷，不作為 start gate；Vagrant base interface 或 active network 實際無法
+   套用時，execution path 仍停止並 rollback，不在 service start 時重建 VM 網卡；
 3. requested config identity 與 active config 相同時可 idempotent reuse；兩者不同時，必須
    確認三台 VM 上的 experiment services、五個 ML containers 與 Core
    consumer/subscriptions 都已停止，不得 hot switch；

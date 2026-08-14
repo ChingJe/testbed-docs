@@ -77,11 +77,10 @@ Deliverables：
 
 - 匯入／整理 `config/default/` 下可直接執行的完整 core、path-a、path-b 與單一 consumer
   native config set，附來源與 topology manifest；
-- 定義 `testbed.yaml` topology schema、`testbed.local.yaml` 允許的 host-only override 與
-  active `configDir`，包含 Host ML published endpoints／device placement，並驗證它們和
-  component config 的 network／placement 一致；
-- 實作 optional `config-render.py`，只寫入 gitignored `config/generated/<name>/`；實作同時
-  驗證 default／generated／local set 的 `config-check.py`；
+- 定義 `testbed.yaml` 完整 topology schema、Host ML published endpoints／device placement 與
+  explicit `TESTBED=<path>` selection，並診斷它們和 component config 的 network／placement 一致；
+- 實作 `config-render.py`，只寫入 gitignored `config/local/<name>/`；實作同時
+  診斷 default／local set 的 `config-check.py`；
 - 盤點 `nwdaf-resources` 中與公開 VM 環境直接相關的 preflight、subscriber/group
   provisioning 與 config preparation；只移植或重寫必要小工具；
 - 以既有 `nwdaf_uecomm_consumer` 為來源，整理 infrastructure-owned consumer CLI、
@@ -92,15 +91,15 @@ Deliverables：
   後續獨立變更。
 
 Exit gate：新 repository 不 clone `nwdaf-resources`、不執行 renderer，也能以 default 完成
-non-mutating preflight 與準備三 VM；renderer 輸出和手工 local set 都通過相同 consistency
-check，任何移植工具的 provenance 與 ownership 清楚。
+non-mutating diagnostics 與準備三 VM；renderer 輸出和手工 local set 都能由相同
+checker 列出 consistency findings，任何移植工具的 provenance 與 ownership 清楚。
 
 2026-08-09 implementation record：`testbed.yaml` 已將 Core／Path A／Path B 固定為
 4096／3072／3072 MiB、三顆 40 GiB dynamic logical disk，並將五個 Python backend placement
 移到 Host containers。Default native config 與 renderer 已分離 container bind address
 （`0.0.0.0`）和 VM-visible advertised endpoints；checker 會驗證 placement、port、device、
 callback/artifact URL、PseudoDriver profile／guest active path 與 dataset contract。Preflight 以
-10 GiB VM allocation 加 6 GiB Host reserve 作 RAM hard gate，swap 不足改為 warning；Compose
+10 GiB VM allocation 加 6 GiB Host reserve 作為建議資源線，RAM／swap 不足都由 diagnostics 顯示風險；Compose
 lifecycle 仍屬 Phase 6.5，這筆紀錄不宣稱 container 或 VM 已啟動。
 
 ### Phase 4 — 三 VM Skeleton 與 Network
@@ -112,7 +111,7 @@ Deliverables：
 - management、SBI、N2、N3-A/B、N4、N6-A/B plane；
 - Host SBI address 到三台 VM 的雙向 reachability，以及五個 ML published port 的 conflict／
   firewall smoke；
-- `testbed.local.yaml` override 與 public isolated default；
+- explicit complete `TESTBED=<path>` selection 與 public isolated default；
 - `.vagrant/` metadata、provider VM disk 與 Vagrant box cache 的位置／free-space 回報；
 - route、forwarding、NAT、MTU、port reachability smoke tests。
 
@@ -237,16 +236,16 @@ units 與 MongoDB helpers 是 implementation details，不列為使用者指令�
 | 指令 | 是否改變狀態 | 功能 |
 | --- | --- | --- |
 | `make help` | 否 | 顯示一般實驗流程與常用指令。 |
-| `make experiment-validate CONFIG_DIR=...` | 否 | 檢查 VirtualBox、Docker、submodules／locks、RAM、磁碟、ports、CPU/GPU prerequisites、config contract、Compose wiring 與既有 dataset；不建立 VM、不啟動服務，也不偷偷產生缺少的 dataset。 |
+| `make experiment-validate CONFIG_DIR=...` | 否 | 診斷 VirtualBox、Docker、submodules／locks、RAM、磁碟、ports、CPU/GPU prerequisites、config contract、Compose wiring 與既有 dataset；不建立 VM、不啟動服務，也不作為後續 start 的必須授權。 |
 | `make vm-up` | 是 | 建立或啟動三台 VM；首次建立會 provision/build，但不啟動實驗 processes。 |
 | `make vm-status` | 否 | 顯示三台 VM 為 running、poweroff 或不存在。 |
 | `make vm-halt` | 是 | Graceful shutdown 三台 VM，不刪 VM 或 virtual disks。 |
-| `make experiment-start CONFIG_DIR=...` | 是 | 重新驗證必要 gates，產生／驗證／載入 dataset，啟動 Guest services、config 指定的 CPU/GPU ML containers、optional WebConsole、consumer 與兩筆 subscriptions；失敗時只反向停止本次已啟動項目。 |
+| `make experiment-start CONFIG_DIR=...` | 是 | 產生可建構的 dataset、載入完整 artifacts，啟動 Guest services、config 指定的 CPU/GPU ML containers、optional WebConsole、consumer 與兩筆 subscriptions；不先執行完整 validation gate，實際 runtime 操作失敗時才反向停止本次已啟動項目。 |
 | `make experiment-status` | 否 | 集中顯示 VM、23 個 Guest services、五個 ML containers、effective device、WebConsole、consumer、subscriptions、config identity 與基本 Host resources。 |
 | `make experiment-stop` | 是 | 精確刪除兩筆 subscriptions，停止 consumer、optional WebConsole、ML 與 Guest services；保留 VM、dataset、MongoDB、ADRF/model state、containers、images 與 volumes。 |
 | `make logs` | 否 | 依來源、VM、service、時間與 follow mode 查看 Guest、ML、consumer 與 WebConsole logs。 |
 
-一般流程為：
+建議流程可先執行唯讀診斷：
 
 ```sh
 make experiment-validate CONFIG_DIR=config/local/my-experiment
@@ -259,7 +258,8 @@ make vm-halt
 ```
 
 `experiment-start` 是便利 orchestration，不改變 VM、Guest services、ML containers、WebConsole
-與 subscriptions 仍可分開控制的 ownership。它不能自動開機、reset state 或關閉 VM。
+與 subscriptions 仍可分開控制的 ownership。它不能自動開機、reset state 或關閉 VM；
+使用者即使不先執行 `experiment-validate`，或已知診斷有 findings，仍可直接要求 start。
 
 #### Phase 8.2 — Config 與 dataset 工具
 
@@ -267,15 +267,16 @@ make vm-halt
 
 | 指令 | 是否改變狀態 | 功能 |
 | --- | --- | --- |
-| `make config-create NAME=<name> FROM=<example>` | 本機檔案 | 從 committed example 建立可編輯的完整 `config/local/<name>/`；`NAME` 是新 config 名稱，`FROM` 是 `full-core-cat-transition` 或 `fl-closure-smoke` 等起點，省略時使用主要 reference example。 |
-| `make config-validate CONFIG_DIR=...` | 否 | 對照指定 config、`testbed.yaml`、manifest-selected scenario、config-specific subscriber fixtures、PyMTLF seed metadata 與所有 NF／ML／UERANSIM configs，驗證 PLMN、TAI、S-NSSAI、DNN、endpoints、callbacks、network aliases、FL policy、timeouts 與 source hashes。只有自訂 topology 時才另傳 `TESTBED=...`。 |
-| `make dataset-generate CONFIG_DIR=...` | 本機檔案 | 依 UE pools、traffic profiles、sampling、warm-start、degradation、monitor 與 model shape 產生 content-addressed Path A/B Parquet artifacts。 |
-| `make dataset-validate CONFIG_DIR=...` | 否 | 驗證實際 Parquet，而不只驗證 config 欄位；包含 dataset ID、schema、SHA-256、bytes、rows、UE IP、timestamps、breaking time、training／validation capacity 與 bounded trigger／closure。Dataset 不存在時失敗。 |
-| `make dataset-show CONFIG_DIR=...` | 否 | 顯示實際 dataset identity、hash、大小、rows、時間範圍、trigger window 與 closure budget。 |
+| `make config-create NAME=<name> FROM=<scenario-yaml-path>` | 本機檔案 | 以必填的 repository-relative scenario YAML 路徑建立完整 `config/local/<name>/`；不接受 short name，也沒有預設 example。 |
+| `make config-validate CONFIG_DIR=...` | 否 | 對照指定 config、`testbed.yaml`、manifest-selected scenario、subscriber fixtures、PyMTLF seed metadata 與 NF／ML／UERANSIM configs，診斷 PLMN、TAI、S-NSSAI、DNN、endpoints、callbacks、network aliases、FL policy、timeouts 與 source hashes；findings 不成為 start gate。 |
+| `make dataset-generate CONFIG_DIR=...` | 本機檔案 | 依 UE pools、traffic profiles、sampling 與 model shape 產生 Path A/B Parquet artifacts；只有無法解析或生成 artifact 的 structural error 才失敗，實驗容量風險只列為診斷。 |
+| `make dataset-validate CONFIG_DIR=...` | 否 | 診斷實際 Parquet 的 dataset ID、schema、SHA-256、bytes、rows、UE IP、timestamps、warm-start boundary、training／validation capacity 與 bounded trigger／closure。Dataset 不存在時回報失敗，但不授權或禁止後續 start。 |
+| `make dataset-show CONFIG_DIR=...` | 否 | 以人類可讀格式顯示 dataset identity、Path A/B hash／rows／UEs，以及 raw interval、warm-start boundary、traffic transition、sampling、monitor、trigger 與 closure 時間。 |
 | `make dataset-load CONFIG_DIR=...` | Guest state | 將已驗證的 Path A/B artifacts 上傳到所屬 VM，Guest 再驗證 identity/hash 後原子切換 active dataset。 |
 
-`experiment-start` 會依序執行 generate、validate 與 load；上述 targets 保留給 config 作者與
-data-path 除錯。`466/92` 要真正成為可替換的建議值，subscriber/group fixtures 不能繼續是
+`experiment-start` 只執行實際所需的 generate 與 load，不把 `config-validate`、
+`dataset-validate` 或 `experiment-validate` 作為前置 gate；上述唯讀 targets 保留給 config 作者、
+CI 與 data-path 除錯。`466/92` 要真正成為可替換的建議值，subscriber/group fixtures 不能繼續是
 repository-global fixed files；Phase 8 應由完整 config 產生或包含 config-specific fixtures，
 並讓 config identity 同時涵蓋 authentication、subscriber 與 Internal Group input。
 
@@ -348,8 +349,8 @@ Help 分層固定為：
   generation、repository tests、VirtualBox validation 與至少一個 bounded scenario；
 - prerequisite、CPU/GPU 選擇、resource sizing、troubleshooting、architecture 與 WebConsole
   optional path 文件；
-- `testbed.local.example.yaml` 只保留實際被程式使用的 Host settings；實作
-  `expectedVmStorage` 的 filesystem gate，移除沒有 consumer 的 `bridgeInterface`；
+- preflight 直接回報 provider 實際 VM storage filesystem，不依賴 local overlay 或未被使用的
+  `expectedVmStorage`／`bridgeInterface` 欄位；
 - 不含實驗室 IP、SSH key、private path 或 production secret；公開 clone 前處理目前
   Intelligent-Systems-Lab submodules 的 SSH URLs、repository visibility 與 fetchability；
 - 修正 README 過時的 FL gate、dataset rows、GPU-only 與 provider 描述；
@@ -363,6 +364,46 @@ Exit gate：非原開發機使用者能以 VirtualBox、CPU 或 GPU 任一明確
 建立 reference topology，依同一套 `experiment-*` lifecycle 完成 bounded scenario 並安全
 teardown；WebConsole optional smoke 有清楚成功／失敗邊界；release artifact、component commits、
 licenses、effective config 與 dataset identity 全部可追溯。
+
+#### Phase 8.7 — Experiment authoring 與 non-gating diagnostics
+
+本工作包不修改 NF／ML／RAN submodule，只調整 Infrastructure-owned definitions、
+renderer／resolver／checker、Host lifecycle scripts、tests 與文件。
+
+Deliverables：
+
+1. 將使用者可執行的 scenario 與 traffic profiles 從 `fixtures/full-core/` 移到
+   `experiments/examples/<name>/`，新增 gitignored `experiments/local/`；只有程式測試輸入才使用
+   `tests/fixtures/`。
+2. Scenario schema v2 以 scenario directory 作為 `trafficProfiles` 的相對路徑基準；
+   config renderer、checker 與 dataset resolver 共用一個 repository-bounded resolver。
+3. `make config-create` 要求 `FROM=<scenario-yaml-path>`；不提供 example short name、預設
+   selection、舊 config migration 或 `fixtures/full-core` compatibility layer。
+4. 將 dataset structural resolution 與 advisory capacity diagnostics 分開；可產生但不符合
+   reference timing／sample／A-B policy 的 definition 仍可 generate 並進入 runtime。
+5. `experiment-start`、`services-start`、`ml-start`、`webconsole-start` 和 start path 中的
+   subscriber apply 移除完整 validation gates。必要檔案、artifact integrity、runtime capability、
+   lifecycle collision、process start 與 destructive scope 仍是 hard execution boundary。
+6. `dataset-show` 改為人類可讀的 row／observation／report／sample 與時間線摘要；
+   manifest 仍作為 machine-readable artifact。
+7. Infrastructure repository 新增 testbed、scenario、traffic profile、native config 與 dataset
+   field references，並同步 README、commands、operations 與 troubleshooting，不留過期路徑或
+   start-gating 說明。
+
+Validation：
+
+- 兩個 committed examples 和一個 repository-local custom scenario 都能 render；
+- missing／absolute／escaping profile path 與錯誤 schema／Path identity 有清楚錯誤；
+- 產生後 native configs 除 provenance／identity 外與調整前 runtime 語意一致；
+- 一組刻意不一致但仍可建構的 config 會讓 validation 回報 findings，卻不被
+  dataset generation 或 start orchestration 預先拒絕；
+- 真正缺檔、parse failure、tampered dataset、runtime start failure 與 rollback 仍受測試保護；
+- `make test`、兩個 example 的 dataset generate／validate、read-only `experiment-validate`
+  與文件連結檢查通過。若產生的 runtime config 有非預期差異，先停止而不啟動 VM E2E。
+
+Exit gate：使用者可只靠 Infrastructure 文件找到所有可編輯輸入、以明確 path 複製／
+選擇自訂 experiment，並能在了解 validation findings 後自行決定是否啟動；
+start 不再把建議性診斷當成授權。
 
 ### Phase 9 — Legacy Retirement
 
@@ -453,37 +494,27 @@ package/driver/network mutation、建立 VM 或長時間 GPU run，必須在對�
 
 ## 15. 下一個執行範圍
 
-舊 VM inventory／移除、本機 repository baseline、component-owned GPU 支援，以及 parent
-gitlink／component lock 更新已完成。
-下一個工作包按可回復且可階段 commit 的順序執行：
+下一個工作包是 Phase 8.7，按以下可階段驗證與 commit 的順序執行：
 
-1. 已完成 Host 資源／Docker data-root／port 盤點，凍結 `192.168.57.1` public candidate，並
-   更新 `testbed.yaml`、local example、native config、renderer/checker 與 preflight；VM route
-   需等 provider 建立 host-only network 後驗證；
-2. 已完成共用 ML base/layers、兩種 image target、five-service `compose.yaml`、static checks 與
-   bounded CPU-only config/health smoke；smoke 只清除自身 containers／volumes 並保留 images；
-3. 已完成 `ml-start`／`ml-status`／`ml-stop`、project-scoped rollback/retention，以及
-   observe/log integration；bounded CPU lifecycle smoke 已驗證 start/status/log/stop；
-4. 已完成 Host toolkit、CDI spec、NVIDIA runtime registration、disposable `nvidia-smi` probe，
-   以及 production PyMTLF-A/B CUDA activation；daemon reload 沒有改變 PID 或中斷八個既有
-   containers；
-5. 已移除 guest PyAnLF／PyMTLF provisioning、systemd 與舊 endpoint assumptions；五個 Host
-   ML containers 的 idle/sync RSS 已量測，training 與 PseudoDriver peak 仍待後續 data-path
-   gate 更新 Host／Path resource budget；
-6. 已建立並 provision 三台 VM，完成 Core／Path guest lifecycle、six-UE registration、
-   PDU Session、Host ML production activation、雙向 sync，以及 subscription／Nupf Event
-   Exposure／PseudoDriver／PyAnLF／consumer analytics callback 短閉環；`fl-closure-smoke` 與
-   `full-core-cat-transition` 都已完成 ADRF retrieval、concurrent GPU training、two-round
-   FedAvg、publication、A／B reprovision 與 monitor cutover。Phase 7 的下一步是把既有操作與
-   identity evidence 收斂成可由非原開發機執行的 Phase 8 quick start 與 release checks。
-7. Phase 8 先實作分層 Make interface：一般使用者只接觸 `experiment-*`、`vm-*` 與 `logs`；
-   config/dataset、分域 lifecycle、subscriber/reset 放在 advanced help；repository regression
-   收斂為 `test` 與 `test-containers`。先以 aliases 保持相容，再依使用紀錄移除重複 targets。
-8. 接著完成 config-owned CPU/GPU policy、config-specific subscriber fixtures 與 optional
-   WebConsole lifecycle；每項先做 isolated/CPU smoke，再分別通過 bounded full-stack gate。
-9. 最後才做 fresh-checkout acceptance、公開 URLs/licenses、release metadata 與文件收斂；在
-   license、component fetchability 與 fresh-checkout E2E 通過前，不宣稱 repository 已可公開發布。
+1. `refactor(config): organize experiment definitions`
+   - 搬移兩個 examples，建立 `experiments/local/`、scenario schema v2 與共用 profile resolver；
+   - 更新 default manifest、renderer、checker、dataset resolver 與相關 tests；
+   - 不更改舊 local config，不保留舊 definition compatibility files。
+2. `feat(config): require explicit scenario paths`
+   - `FROM` 改為必填 YAML path，移除 short name 與預設 example；
+   - 測試 example、custom、missing／escaping path 與 existing output refusal。
+3. `refactor(validation): separate diagnostics from execution`
+   - 將 dataset structural requirements 與 advisory findings 分開；
+   - 移除 aggregate／Guest／ML／WebConsole start 前的完整 validation gate；
+   - 保留 artifact integrity、runtime capability、lifecycle collision、start failure 與 rollback。
+4. `feat(dataset): present resolved timeline summaries`
+   - `dataset-show` 顯示 row／observation／report／sample 關係與兩條 Path 時間線；
+   - 用 5 秒與 30 秒 sampling cases 驗證 raw row aggregation 推導。
+5. `docs(config): document experiment configuration contracts`
+   - 完成五份 field reference 與「想改什麼應該改哪裡」入口；
+   - 同步 runtime README、commands、operations 與 troubleshooting，清除舊路徑與 gating 敘述。
 
-每一步先通過該層驗證再 commit；provider 安裝／修復、Host toolkit/network mutation、新 VM
-建立與 privileged E2E 仍需在對應步驟明確執行。新 repository 不以加入
-`nwdaf-resources` submodule 作為前置。
+每階段先執行專門測試再 commit，最後執行 `make test`、兩個 examples 的
+dataset generate／validate 和 read-only `experiment-validate`。本工作包不修改 submodule、
+不刪除現有 local config／dataset／runtime state，不建立 VM 也不啟動 full E2E；若 native
+runtime config 出現非預期差異，先停止並回報。

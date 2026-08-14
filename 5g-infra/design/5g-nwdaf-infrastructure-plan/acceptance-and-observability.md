@@ -137,7 +137,7 @@ graceful halt。
 只以active service的systemd `InvocationID`查詢本次journal；InvocationID或journal查詢失敗會使
 command失敗，不會降級成看似正常的`pending`。Fixtures涵蓋inactive、fresh pending、registration-
 only、完整成功、reject、procedure failure及失敗後恢復，完整`make test`通過。實際running UE的
-current-invocation輸出保留到下一次正常`experiment-start`驗證，不為本項單獨啟動full stack。
+current-invocation輸出保留到下一次正常`experiment-start`實機spot check，不為本項單獨啟動full stack。
 
 **C. Consumer state integrity and per-path callbacks**
 

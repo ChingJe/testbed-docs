@@ -1,11 +1,12 @@
 # `5G_NWDAF_Infrastructure` 建置與遷移計畫
 
 建立日期：2026-08-05
-最近更新：2026-08-13
+最近更新：2026-08-14
 
 狀態：三台 VM、Host Docker ML services、GPU runtime、雙 Path 設定、公開 lifecycle commands、
-fresh-user full-core FL closed loop 與 log-correlated teardown 均已完成 runtime 驗證。目前下一個
-規劃範圍是修正 logs／status 的 observability contract；Infrastructure repository 仍未設定 remote。
+fresh-user full-core FL closed loop、observability contract 與 teardown 均已完成 runtime 驗證。
+目前下一個規劃範圍是整理使用者可編輯的 experiment definitions、完整設定欄位參考，
+並將設定診斷與 runtime start gate 分離；Infrastructure repository 仍未設定 remote。
 
 ## 文件導覽
 
@@ -61,7 +62,8 @@ federated-learning closed loop：
 - 舊雙 path profile 的兩個 gNB 都使用同一 TAC，不等於新版 two-TAI scenario；
 - 盤點初期 host 只剩約 56 GiB 可用磁碟、swap 幾乎用滿，且 VirtualBox kernel driver
   不可用；舊 VM 清除後雖已回收空間，共用主機的 RAM、disk 與 provider 狀態仍會變動，
-  每次新建或長時間運行前都必須重新 preflight。
+  每次新建或長時間運行前都應重新執行唯讀 preflight 了解當下風險；
+  findings 不自動成為 start gate。
 
 舊環境仍保有不可遺失的 site-specific 資訊。其 host interface、bridge、IP、route、
 VM NIC、MongoDB 與舊 topology 已另行保存於
@@ -97,6 +99,11 @@ VM NIC、MongoDB 與舊 topology 已另行保存於
 12. **GPU 留在 Host**：Python ML backend 以 Docker 使用實體機 GPU，不把 CUDA runtime
     和 NVIDIA device passthrough 塞入一般 Vagrant guest；CPU/GPU device selection 仍由
     component config 控制，不寫死在程式碼。
+13. **診斷不是啟動授權**：`config-validate`、`dataset-validate` 與
+    `experiment-validate` 負責報告不一致、建議資源門檻與可能失敗點，但
+    `experiment-start`、`services-start`、`ml-start` 不以這些診斷通過作為前置條件。
+    只有無法解析必要輸入、runtime 實際無法執行、artifact integrity 錯誤、
+    lifecycle collision 或破壞性操作無法確定 exact scope 時才停止操作。
 
 ## 4. Repository 責任與邊界
 
