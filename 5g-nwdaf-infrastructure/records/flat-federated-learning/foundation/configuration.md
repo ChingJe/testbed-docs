@@ -1,6 +1,6 @@
 # 設定、Experiment Definition 與 Dataset Contract
 
-[返回主計畫](../5g-nwdaf-infrastructure-plan.md)
+[返回基礎建置計畫](plan.md)
 
 ## 9. 設定責任邊界
 

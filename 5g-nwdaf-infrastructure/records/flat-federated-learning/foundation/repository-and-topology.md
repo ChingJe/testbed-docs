@@ -1,6 +1,6 @@
 # Repository、Component 與 Topology
 
-[返回主計畫](../5g-nwdaf-infrastructure-plan.md)
+[返回基礎建置計畫](plan.md)
 
 ## 5. 暫定目錄
 

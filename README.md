@@ -1,69 +1,62 @@
-# docs
+# Testbed Documentation
 
-`~/testbed` 的 5G 測試床獨立文件庫。
-與程式碼儲存庫分離，讓文件可以獨立演進。
+本 repository 保存 workspace 內各代 5G testbed 與 `5g-viz` 的設計、操作、實驗及驗證紀錄。
+不同分類代表不同系統與時間線，不能互相替代。
 
-## 新版 NWDAF Infrastructure 計畫
+## 閱讀入口
 
-舊 `5G_Infrastructure` 目前只作歷史 testbed 與實驗室 site-specific 設定來源。
-新版、可公開重現的 three-NWDAF／two-TAI 環境暫定以新的
-`5G_NWDAF_Infrastructure` repository 建置，計畫入口如下：
+- [新版 5G NWDAF Infrastructure](5g-nwdaf-infrastructure/README.md)：目前使用中的
+  `5G_NWDAF_Infrastructure` plans、design、operations、experiments 與 records。
+- [舊 5G Infrastructure](5g-infra/README.md)：舊 `5G_Infrastructure`、Daisy、replay experiments、
+  site-specific settings 與歷史 reports。
+- [5g-viz](5g-viz/README.md)：即時觀測、事件、metrics 與 replay visualization 文件。
+- `archive/`：已被取代且不再作為目前依據的文件。
+- `specs/`：舊 testbed 文件使用的規格節錄與 OpenAPI 參考。
 
-- [5G_NWDAF_Infrastructure 建置與遷移計畫](5g-infra/design/5g-nwdaf-infrastructure-plan.md)
-- [新版 Infrastructure 驗證報告](5g-infra/reports/5g-nwdaf-infrastructure/README.md)
-- [舊環境 local network settings inventory](5g-infra/reports/local-network-settings-inventory-2026-08-05.md)
-- [舊 VM inventory 與 removal report](5g-infra/reports/legacy-vm-inventory-and-removal-proposal-2026-08-06.md)
+## 文件時間線
+
+### 新版 `5G_NWDAF_Infrastructure`
+
+新版可重現 three-NWDAF testbed、後續 hierarchical FL adaptation 與新實驗工作只記錄在
+`5g-nwdaf-infrastructure/`。目前進度入口：
+
+- [Active plans](5g-nwdaf-infrastructure/plans/README.md)
+- [HFL component baseline update](5g-nwdaf-infrastructure/plans/hierarchical-federated-learning/component-baseline-update.md)
+- [Flat FL foundation history](5g-nwdaf-infrastructure/records/flat-federated-learning/foundation/plan.md)
+- [Flat FL validation records](5g-nwdaf-infrastructure/records/flat-federated-learning/validation/README.md)
+
+### 舊 `5G_Infrastructure`
+
+`5g-infra/` 保留舊 VM、Daisy、UPF EES、NWDAF replay、`exp1–67`、testbed runs 與實驗室
+network／migration evidence。這些內容可能仍有保存價值，但不代表新版 Infrastructure 的目前
+架構、commands 或 component revisions。
+
+### `5g-viz`
+
+`5g-viz/` 依 guides、design、reference、plans 與 notes 分類，保存 visualization system 的
+canonical 說明與歷史規劃。
 
 ## 結構
 
+```text
+testbed-docs/
+├── 5g-nwdaf-infrastructure/   新版 NWDAF testbed
+│   ├── plans/                 active／upcoming work
+│   ├── design/                confirmed architecture
+│   ├── operations/            lab-specific operational supplements
+│   ├── experiments/           experiment design and acceptance
+│   ├── records/               completed evidence, grouped by architecture generation
+│   └── archive/               superseded documents
+├── 5g-infra/                  舊 5G_Infrastructure 與歷史 experiments
+├── 5g-viz/                    visualization system documentation
+├── archive/                   repository-level archive
+└── specs/                     historical testbed specification references
 ```
-docs/
-├── 5g-infra/               5G 核心基礎設施（free5gc + NWDAF + Daisy FL）
-│   ├── design/
-│   │   ├── daisy/          Daisy 聯邦式學習框架設計
-│   │   └── nwdaf/          NWDAF 與 ML 整合設計
-│   ├── ops/                維運 runbook
-│   │   ├── environment.md  IP 設定、MongoDB、網路配置、佈署流程
-│   │   ├── setup-sh.md     `.agent/setup.sh` 內部機制與重建指南
-│   │   ├── workflow.md     日常操作流程與常用指令
-│   │   └── troubleshooting.md  已知問題與排查方式
-│   └── reports/            驗證、盤點、事故與 bug 報告（依系統分類）
-│
-├── 5g-viz/                 即時視覺化系統（FastAPI + WebSocket + Grafana）
-│   ├── README.md           給人的入口頁，先講系統是什麼、怎麼讀這套文件
-│   ├── guides/
-│   │   ├── start-here/     onboarding / first-read 文件
-│   │   ├── ui-workflows/   畫面區塊與操作流程文件
-│   │   ├── mental-model/   概念邊界與資料路徑說明
-│   │   └── troubleshooting/ 常見現象與解釋
-│   ├── reference/          deep reference 導覽與主題索引
-│   ├── design/
-│   │   ├── overview/       canonical 系統層文件
-│   │   ├── backend/        canonical 後端文件
-│   │   ├── frontend/       canonical 拓樸與 UI 文件
-│   │   ├── grafana/        canonical Grafana / Prometheus 文件
-│   │   ├── dvr/            canonical DVR 行為文件
-│   │   ├── features/       跨層功能流程說明
-│   │   └── reference/      schema 與設定參考
-│   ├── plans/              歷史實作規劃與設計探索
-│   │   ├── architecture/   跨層規劃文件
-│   │   ├── backend/        後端重構規劃
-│   │   ├── docs/           文件架構與重構規劃
-│   │   ├── frontend/       前端規劃文件
-│   │   ├── grafana/        Grafana 整合規劃
-│   │   └── dvr/            DVR 規劃與除錯筆記
-│   ├── notes/
-│   │   ├── README.md       notes 的定位與使用邊界
-│   │   ├── meetings/       會議紀錄（YYYY-MM-DD-meeting.md）
-│   │   ├── impl/           實作筆記與決策
-│   │   └── internals/      系統內部閱讀筆記
-│   └── tmp/                暫存測試資料（不作長期保存）
-│
-├── archive/                已淘汰或被取代的文件（例如 `archive/5g-viz/`）
-└── specs/                  3GPP 規格與 OpenAPI YAML 檔
-    ├── TS 23.288/          Analytics、ML 模型配置與監控
-    ├── TS 23.502/          UPF event exposure
-    ├── TS 29.520/          NWDAF service API
-    ├── TS 29.575/          ADRF data management
-    └── yaml/               OpenAPI 合約（Nnwdaf_*、Nadrf_*、Nsmf_* ...）
-```
+
+## 新文件放置原則
+
+1. 先判斷文件屬於新版 Infrastructure、舊 testbed 或 `5g-viz`。
+2. 未完成工作放入 `plans/`；已確認且仍有效的 architecture 放入 `design/`。
+3. 實驗定義與實際 run evidence 分開；前者放 `experiments/`，後者放 `records/`。
+4. Source repository 已維護的 code-bound commands 與 configuration reference 不在此複製。
+5. 只有已被明確取代的文件才進 `archive/`；單純完成或日期較舊不構成歸檔理由。

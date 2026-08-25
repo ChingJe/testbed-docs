@@ -1,6 +1,6 @@
 # 實作紀錄：基礎建置與 E2E
 
-[返回主計畫](../5g-nwdaf-infrastructure-plan.md)
+[返回基礎建置計畫](plan.md)
 
 本文件保存原計畫第 16.1–16.21 節的本機實作紀錄。
 
@@ -90,7 +90,7 @@ repository 修正，不能以過時描述估算 RAM。
 ## 16.4 2026-08-09 Hybrid topology/config freeze
 
 Infrastructure commit：`9e24cc5`。對應 Host 清點見
-[hybrid-host-readiness-inventory-2026-08-09.md](../../reports/5g-nwdaf-infrastructure/hybrid-host-readiness-inventory-2026-08-09.md)。
+[hybrid-host-readiness-inventory-2026-08-09.md](../validation/hybrid-host-readiness-inventory-2026-08-09.md)。
 
 Infrastructure definition 已改為 Core 4096 MiB、Path A/B 各 3072 MiB，三台 VM 都使用
 40 GiB dynamic primary logical capacity。五個 PyAnLF／PyMTLF role 從 VM placement 移到
@@ -129,7 +129,7 @@ training device 都是 `cpu`。空載即時 RSS 約為 PyAnLF 230 MiB/個、PyMT
 相同；Docker 當下把 5.421 GB 報為 shared size。Smoke 結束後自身 container、network、volume
 與 generated config 已移除，兩個 images 保留供下次使用；未對共用 Docker daemon 執行
 global prune。完整證據見
-[host-ml-container-cpu-smoke-2026-08-09.md](../../reports/5g-nwdaf-infrastructure/host-ml-container-cpu-smoke-2026-08-09.md)。
+[host-ml-container-cpu-smoke-2026-08-09.md](../validation/host-ml-container-cpu-smoke-2026-08-09.md)。
 
 這次沒有安裝 NVIDIA Container Toolkit、沒有讓 container 存取 GPU、沒有建立 VM 或 Host
 network，也沒有驗證 VM-to-Host published endpoints。下一個安全工作是實作日常
@@ -159,7 +159,7 @@ Disposable CPU lifecycle smoke 使用獨立 project 與 loopback config，驗證
 healthy、status identity、ML log filter、stop 後五個 containers 與五個 volumes 仍保留，最後
 才對自己的 smoke project 執行 `down --volumes`。空載 RSS 仍約 1.28 GiB；smoke 沒有安裝或
 使用 NVIDIA toolkit，也沒有建立 VM 或 Host network。完整紀錄見
-[host-ml-lifecycle-smoke-2026-08-09.md](../../reports/5g-nwdaf-infrastructure/host-ml-lifecycle-smoke-2026-08-09.md)。
+[host-ml-lifecycle-smoke-2026-08-09.md](../validation/host-ml-lifecycle-smoke-2026-08-09.md)。
 
 PyAnLF 啟動同時回報 callback ingestion default 的高理論 memory bound（8192 entries ×
 4 MiB request ceiling）。Queue 不會在 startup 預先配置，且 container 具有 768 MiB hard
@@ -367,7 +367,7 @@ K/OPc、AMF、S-NSSAI 與 DNN。subscriber data 跨 service stop 保留，`servi
 完整 stop/start 回歸後，23 個 guest units 全部 active；六個 UE 不需人工 restart 即完成
 registration 與 PSI 1 PDU Session。Path A 取得 `10.60.0.1`–`10.60.0.3/16`，Path B 取得
 `10.61.0.1`–`10.61.0.3/16`，符合 two-TAI pool boundary。完整證據與剩餘限制見
-[guest-services-and-ue-registration-smoke-2026-08-09.md](../../reports/5g-nwdaf-infrastructure/guest-services-and-ue-registration-smoke-2026-08-09.md)。
+[guest-services-and-ue-registration-smoke-2026-08-09.md](../validation/guest-services-and-ue-registration-smoke-2026-08-09.md)。
 
 這完成 Phase 6 的 process、registration 與 PDU Session bring-up 子集，不宣稱 N6 traffic、
 PseudoDriver replay／Event Exposure、Host ML containers 或 subscription E2E 已通過。
@@ -396,7 +396,7 @@ training 或 FL。PyAnLF 仍顯示 8192 × 4 MiB callback queue 理論上限警�
 原有八個共用 containers。另將 subscriber fixture identity 改為以 repository-relative
 filenames 計算，確保同內容在不同 clone root 仍得到
 `d30803f9c5904ae86bb222484170089cc4cf60ee3fe3f29e43c6487918113167`。完整證據見
-[host-ml-guest-stack-integration-smoke-2026-08-09.md](../../reports/5g-nwdaf-infrastructure/host-ml-guest-stack-integration-smoke-2026-08-09.md)。
+[host-ml-guest-stack-integration-smoke-2026-08-09.md](../validation/host-ml-guest-stack-integration-smoke-2026-08-09.md)。
 
 ## 16.16 2026-08-09 Generated PseudoDriver Dataset Tooling
 
@@ -420,7 +420,7 @@ staging，UPF 在 active dataset 缺失時拒絕啟動。
 靜態驗證已完成兩次獨立 deterministic generation、tampered-Parquet negative test、default
 與 rendered config check、shell/Python/Go syntax 及 staging plan；尚未啟動 VM 或執行真正
 PseudoDriver subscription/replay。完整結果見
-[Generated PseudoDriver Dataset Tooling](../../reports/5g-nwdaf-infrastructure/generated-pseudodriver-dataset-tooling-2026-08-09.md)。
+[Generated PseudoDriver Dataset Tooling](../validation/generated-pseudodriver-dataset-tooling-2026-08-09.md)。
 
 ## 16.17 2026-08-09 PseudoDriver Dataset Guest Staging Smoke
 
@@ -448,7 +448,7 @@ staging 後 Path A/B `MemAvailable` 約 2640／2627 MiB，dataset directory 各�
 沒有啟動 UPF、建立 PDU Session／subscription、讀取 Parquet 或量測 replay peak。下一個 gate
 是短時間啟動 guest services 與 subscription，核對實際 PDU IP、PseudoDriver matched rows、
 Event Exposure callback 及 Path RAM peak。完整證據見
-[PseudoDriver Dataset Guest Staging Smoke](../../reports/5g-nwdaf-infrastructure/pseudodriver-dataset-guest-staging-smoke-2026-08-09.md)。
+[PseudoDriver Dataset Guest Staging Smoke](../validation/pseudodriver-dataset-guest-staging-smoke-2026-08-09.md)。
 
 ## 16.18 2026-08-09 Nupf Contract 與 PseudoDriver Runtime Smoke
 
@@ -482,7 +482,7 @@ subscription／replay／analytics callback 閉環，不包含 3,000 秒 degradat
 degradation、Model Monitor coordination、A/B training、FedAvg、ADRF publication、reprovision
 或 generation cutover。下一個 gate 應以 bounded timeout 驗證這段完整 FL business flow，
 並同步收集 Path RAM 與 RTX 3080 VRAM peak。完整證據見
-[Nupf Contract 與 PseudoDriver Runtime Smoke](../../reports/5g-nwdaf-infrastructure/nupf-contract-pseudodriver-runtime-smoke-2026-08-09.md)。
+[Nupf Contract 與 PseudoDriver Runtime Smoke](../validation/nupf-contract-pseudodriver-runtime-smoke-2026-08-09.md)。
 
 ## 16.19 2026-08-09 雙 E2E Scenario 與 Training Data 決策
 
@@ -556,7 +556,7 @@ timeout、B 到達 C 但未被評估為 degradation，C 隨即將 A/B subscripti
 periodic reports 並刪除。後續沒有 report 的直接原因是 monitor resources 已不存在，下一個
 blocker 因而縮小到「首報 startup latency、notification latency 與 C watchdog policy 的時序
 不相容」。ADRF periodic NRF heartbeat 的 HTTP 400 是另一個需獨立診斷的問題。詳細 runtime 證據見
-[Stateless Full E2E Smoke](../../reports/5g-nwdaf-infrastructure/stateless-full-e2e-smoke-2026-08-10.md)。
+[Stateless Full E2E Smoke](../validation/stateless-full-e2e-smoke-2026-08-10.md)。
 
 後續 E2E 將 PyAnLF 的 ADRF 路徑改為 fail-closed：default A/B config 設定
 `mongodb.enabled: false`，renderer 產生的完整與快速場景繼承此值，checker 也禁止重新啟用

@@ -1,6 +1,6 @@
 # 實作紀錄：Contract Hardening 與文件整理
 
-[返回主計畫](../5g-nwdaf-infrastructure-plan.md)
+[返回基礎建置計畫](plan.md)
 
 本文件保存原計畫第 16.22–16.32 節的本機實作紀錄。
 
@@ -72,7 +72,7 @@ reconfigure 或 rollback 無法避免影響 management／SSH，應停下來回�
 上述六步已於同日完成。三台 migration、cold boot、Core reset-before-services、drift recovery、
 failure-injection rollback 與 23-unit bounded Guest stack smoke 全部通過；驗證後 services 與 VM
 均停止。實際證據與 revision identity 見
-[Persistent Netplan Alias Migration](../../reports/5g-nwdaf-infrastructure/persistent-netplan-alias-migration-2026-08-12.md)。
+[Persistent Netplan Alias Migration](../validation/persistent-netplan-alias-migration-2026-08-12.md)。
 
 ## 16.24 2026-08-12 FL Closure Smoke 與 Netplan Regression
 
@@ -92,7 +92,7 @@ Concurrent training 的兩個 GPU processes 各約使用 400 MiB VRAM，Host 最
 available RAM。五個 ML containers 沒有 ERROR、traceback 或 collection failure。完成後兩筆
 subscriptions 精確 DELETE，ML／Guest services 依序停止，三台 VM 均 graceful poweroff；本輪
 state 保留供後續查驗。完整 identity、timing、resource 與 teardown 證據見
-[FL Closure Smoke 與 Persistent Netplan 回歸](../../reports/5g-nwdaf-infrastructure/fl-closure-smoke-netplan-regression-2026-08-12.md)。
+[FL Closure Smoke 與 Persistent Netplan 回歸](../validation/fl-closure-smoke-netplan-regression-2026-08-12.md)。
 
 ## 16.25 2026-08-12 Runtime Helper Sync 與 FL Lifecycle Regression
 
@@ -139,7 +139,7 @@ ML container 到約 `13:10:53Z` 才 shutdown。完整時段沒有 DELETE `503`�
 teardown 後 23 個 Guest units inactive、五個 containers exited、consumer inactive，三台 VM
 均 graceful poweroff。本輪只使用 ignored CPU config，因 Host NVIDIA driver 當時不可用；這不
 影響 teardown contract，也不構成 GPU runtime 回歸。完整 timing、identity、state 與資源證據見
-[Runtime Helper Sync 與 FL Lifecycle 回歸](../../reports/5g-nwdaf-infrastructure/runtime-helper-sync-and-fl-lifecycle-regression-2026-08-12.md)。
+[Runtime Helper Sync 與 FL Lifecycle 回歸](../validation/runtime-helper-sync-and-fl-lifecycle-regression-2026-08-12.md)。
 
 ## 16.26 Optional WebConsole Lazy-Build 計畫
 
@@ -191,7 +191,7 @@ subscriber read、Core-loopback FTP listener、獨立 stop、23 個 Guest servic
 第二次啟動 artifact reuse。upstream 每次 startup 會重建其 `admin` tenant/user 並重設為
 `admin/free5gc`，Host lifecycle 已明確警告；config-owned subscriber records 不受此動作取代。
 三台 VM 最後均 graceful poweroff。詳細證據見
-[Optional WebConsole Lazy-Build Smoke](../../reports/5g-nwdaf-infrastructure/optional-webconsole-lazy-build-smoke-2026-08-12.md)。
+[Optional WebConsole Lazy-Build Smoke](../validation/optional-webconsole-lazy-build-smoke-2026-08-12.md)。
 
 ## 16.27 PLMN 單一來源與 Mobile Identity 衍生計畫
 
@@ -236,7 +236,7 @@ repository regression 分別以 `001/01` 與 `001/001` 只替換 canonical PLMN�
 SUPI、UE routing、NSSF PLMN、SMF TAI 與 Consumer Group 的獨立 drift 均被 negative tests
 拒絕。完整 repository tests 除 sandbox 內 Vagrant home 權限外全部通過；`vagrant validate`
 已在正常 home 權限下獨立通過，沒有啟動 VM 或 process。證據見
-[PLMN Single-Source Config Regression](../../reports/5g-nwdaf-infrastructure/plmn-single-source-config-regression-2026-08-12.md)。
+[PLMN Single-Source Config Regression](../validation/plmn-single-source-config-regression-2026-08-12.md)。
 
 ## 16.28 2026-08-12 Submodule HTTPS Transport
 
@@ -290,7 +290,7 @@ server 8.0.28、mongosh 2.9.2、database tools 100.17.0 和 signing key 全部�
 identity，resolver 回報 installed/no-drift；沒有為 audit 修改既有 package、hold 或 runtime
 service。乾淨容器亦成功以 exact versions 安裝全部九個 MongoDB packages，並驗證 official Go
 archive checksum／binary identity 與 MongoDB key fingerprint。詳細證據見
-[Guest Provisioning Version Lock](../../reports/5g-nwdaf-infrastructure/guest-provisioning-version-lock-2026-08-12.md)。
+[Guest Provisioning Version Lock](../validation/guest-provisioning-version-lock-2026-08-12.md)。
 
 ## 16.30 Single Testbed Definition
 
@@ -347,7 +347,7 @@ discovery，Host ML bind 與 default config 只由 selected testbed 提供。rep
 provider rejection 與正常 Vagrant definition。實際無 local/provider environment 的 Host preflight
 為 0 failures、1 個既有 low-swap warning，並正確找到 VirtualBox、Docker、Host SBI address、
 config、component locks 與 dataset。詳細證據見
-[Single Testbed Definition Regression](../../reports/5g-nwdaf-infrastructure/single-testbed-definition-regression-2026-08-13.md)。
+[Single Testbed Definition Regression](../validation/single-testbed-definition-regression-2026-08-13.md)。
 
 ## 16.31 Atomic Repository Documentation Restructure
 
@@ -476,7 +476,7 @@ remotes 已與 `.gitmodules` 對齊 HTTPS，沒有新增使用者命令或維護
 coverage。完整 repository test 與 Vagrant validation 通過；實際 Host
 preflight 為 0 failures、1 個既有 low-swap warning，沒有啟動 VM、container 或 service。
 詳細證據見
-[Atomic Repository Documentation Restructure](../../reports/5g-nwdaf-infrastructure/atomic-repository-documentation-restructure-2026-08-13.md)。
+[Atomic Repository Documentation Restructure](../validation/atomic-repository-documentation-restructure-2026-08-13.md)。
 
 ## 16.32 Operator Command And Test Layout Cleanup
 
@@ -614,4 +614,4 @@ advanced help。九個既有 test-only files 已整理至 `tests/`，未新增�
 執行。後續 `make test-containers` 亦完成五個 CPU services 的 health、non-root identity、device、
 logs、status、stop、retention 與 scoped cleanup regression；測試 project 的 containers、volumes、
 network 與 generated config 已清除，沒有建立 VM 或改變 production services。詳細結果見
-[Operator Command And Test Layout Cleanup](../../reports/5g-nwdaf-infrastructure/operator-command-and-test-layout-cleanup-2026-08-13.md)。
+[Operator Command And Test Layout Cleanup](../validation/operator-command-and-test-layout-cleanup-2026-08-13.md)。

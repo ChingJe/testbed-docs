@@ -1,6 +1,6 @@
 # Fresh Acceptance、Cleanup 與 Observability
 
-[返回主計畫](../5g-nwdaf-infrastructure-plan.md)
+[返回基礎建置計畫](plan.md)
 
 本文件保存原計畫第 16.33–16.36 節的驗收結果、cleanup／observability 修正，以及 experiment
 authoring 與 canonical runtime identity 的後續驗收。
@@ -23,7 +23,7 @@ cleanup中，一條DELETE 503後retry 404並標記removed，另一條在shutdown
 retry/removed evidence。因此business closure通過，teardown cleanup只部分確認，需優先診斷
 fixed grace後未驗證收斂及shutdown retry ownership。現場保留為三台VM poweroff、五個containers
 exited、volumes/network/images/state retained，Git與submodules clean。完整證據見
-[Fresh User Full-core Black-box Acceptance](../../reports/5g-nwdaf-infrastructure/fresh-user-full-core-black-box-acceptance-2026-08-13.md)。
+[Fresh User Full-core Black-box Acceptance](../validation/fresh-user-full-core-black-box-acceptance-2026-08-13.md)。
 
 ## 16.34 Log-correlated Model Monitor Cleanup
 
@@ -54,7 +54,7 @@ Consumer DELETE後分別立即removed與約97秒後removed；較慢者歷經三�
 units、五個ML containers及三台VM依序正常停止，沒有pending-ID timeout warning。這證實log
 correlation能處理本次實際延遲，且210秒涵蓋本次觀察值；持續`503`仍由bounded timeout避免永久
 阻塞。完整證據見
-[Model Monitor Cleanup Runtime Validation](../../reports/5g-nwdaf-infrastructure/model-monitor-cleanup-runtime-validation-2026-08-13.md)。
+[Model Monitor Cleanup Runtime Validation](../validation/model-monitor-cleanup-runtime-validation-2026-08-13.md)。
 
 ## 16.35 Observability Contract Audit and Remediation Plan
 
@@ -209,7 +209,7 @@ special-unit logs亦通過。正常teardown成功刪除Consumer resources，但i
 持續503並在210秒後留下兩筆pending IDs；另發現current-run完整log重掃的scaling限制。All-source
 logger的工具wall time包含使用者批准等待，不能視為command duration；Vagrant concurrency只保留為
 需要受控量測的假設。完整證據、資源數字與後續邊界見
-[Observability Runtime Acceptance](../../reports/5g-nwdaf-infrastructure/observability-runtime-acceptance-2026-08-13.md)。
+[Observability Runtime Acceptance](../validation/observability-runtime-acceptance-2026-08-13.md)。
 
 ### Validation and delivery
 
@@ -262,7 +262,7 @@ Host status 與五個 ML container 的完整 hash 都是 `646fd3c0…11497f`。
 shared helper 後第二次啟動通過。驗收最後完成兩筆 exact DELETE、40 秒 grace、五個 container
 與 23 個 Guest unit stop、三台 VM graceful halt，最終完整 `make test` 通過。這些調整沒有修改
 NWDAF、PyAnLF、PyMTLF 或其他 submodule。詳細證據見
-[實驗設定建立與 Full-core Runtime 驗收](../../reports/5g-nwdaf-infrastructure/experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)。
+[實驗設定建立與 Full-core Runtime 驗收](../validation/experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)。
 
 ## 16.37 Atomic Parallel Observe Snapshot
 

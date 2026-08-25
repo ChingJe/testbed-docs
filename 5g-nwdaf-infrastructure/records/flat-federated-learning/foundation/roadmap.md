@@ -1,6 +1,6 @@
 # 實作 Roadmap、Gate 與驗證
 
-[返回主計畫](../5g-nwdaf-infrastructure-plan.md)
+[返回基礎建置計畫](plan.md)
 
 ## 11. 實作階段與 Gate
 
@@ -34,7 +34,7 @@ Exit gate：使用者確認計畫、第一版 component scope 與預計建立的
 舊 `5G_Infrastructure` source repository。
 
 2026-08-06 的清點與 removal report 見
-[legacy-vm-inventory-and-removal-proposal-2026-08-06.md](../../reports/legacy-vm-inventory-and-removal-proposal-2026-08-06.md)。
+[legacy-vm-inventory-and-removal-proposal-2026-08-06.md](../../../../5g-infra/reports/legacy-vm-inventory-and-removal-proposal-2026-08-06.md)。
 使用者明確放棄 VM backup 後，五台舊 VM、orphan saved-state 與其殘留 process／directory
 已移除；舊 source working tree 保留，NVMe available space 增加到約 178.24 GiB。
 
@@ -399,7 +399,7 @@ licenses、effective config 與 dataset identity 全部可追溯。
 identity 修正為 `bb7697f`、`aae2e28`、`78b32f9`。完整 `make test`、兩個 examples、custom
 scenario、diagnostic mismatch、dataset integrity／summary、full-core GPU runtime 與短版 identity
 runtime 均通過。Runtime evidence 見
-[實驗設定建立與 Full-core Runtime 驗收](../../reports/5g-nwdaf-infrastructure/experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)。
+[實驗設定建立與 Full-core Runtime 驗收](../validation/experiment-authoring-full-core-runtime-acceptance-2026-08-14.md)。
 
 本工作包不修改 NF／ML／RAN submodule，只調整 Infrastructure-owned definitions、
 renderer／resolver／checker、Host lifecycle scripts、tests 與文件。

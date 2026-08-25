@@ -13,13 +13,13 @@ config identity 也已完成針對性回歸；Infrastructure repository 依使�
 
 本文件保留目標、現況、原則與 repository 邊界，作為整體計畫入口。詳細內容依責任拆分如下：
 
-- [Repository、component scope、submodule、topology 與資源](5g-nwdaf-infrastructure-plan/repository-and-topology.md)
-- [設定檔、testbed definition 與 scenario](5g-nwdaf-infrastructure-plan/configuration.md)
-- [Host／Guest scripts、build 與 runtime lifecycle](5g-nwdaf-infrastructure-plan/operations.md)
-- [實作階段、驗證矩陣、變更範圍與決策](5g-nwdaf-infrastructure-plan/roadmap.md)
-- [實作紀錄：基礎建置與 E2E](5g-nwdaf-infrastructure-plan/implementation-history-foundation.md)
-- [實作紀錄：contract hardening 與文件整理](5g-nwdaf-infrastructure-plan/implementation-history-hardening.md)
-- [Fresh acceptance、cleanup 與 observability 紀錄](5g-nwdaf-infrastructure-plan/acceptance-and-observability.md)
+- [Repository、component scope、submodule、topology 與資源](repository-and-topology.md)
+- [設定檔、testbed definition 與 scenario](configuration.md)
+- [Host／Guest scripts、build 與 runtime lifecycle](operations.md)
+- [實作階段、驗證矩陣、變更範圍與決策](roadmap.md)
+- [實作紀錄：基礎建置與 E2E](implementation-history-foundation.md)
+- [實作紀錄：contract hardening 與文件整理](implementation-history-hardening.md)
+- [Fresh acceptance、cleanup 與 observability 紀錄](acceptance-and-observability.md)
 
 ## 1. 目的
 
@@ -68,7 +68,7 @@ federated-learning closed loop：
 
 舊環境仍保有不可遺失的 site-specific 資訊。其 host interface、bridge、IP、route、
 VM NIC、MongoDB 與舊 topology 已另行保存於
-[local-network-settings-inventory-2026-08-05.md](../reports/local-network-settings-inventory-2026-08-05.md)。
+[local-network-settings-inventory-2026-08-05.md](../../../../5g-infra/reports/local-network-settings-inventory-2026-08-05.md)。
 這些資訊是遷移輸入，不是新環境的 public default。
 
 ## 3. 設計原則

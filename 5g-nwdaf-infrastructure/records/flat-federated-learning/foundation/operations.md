@@ -1,6 +1,6 @@
 # Host／Guest Scripts 與 Build Lifecycle
 
-[返回主計畫](../5g-nwdaf-infrastructure-plan.md)
+[返回基礎建置計畫](plan.md)
 
 ## 10. Host／Guest Scripts 與 Build Lifecycle
 
