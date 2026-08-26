@@ -2,7 +2,7 @@
 
 日期：2026-08-26
 
-狀態：Requirements Confirmed；implementation 尚未開始；VM／container runtime validation pending
+狀態：Phase 1 Completed (`072748b`)；Phase 2 Next；Phase 3–4 Pending
 
 ## 1. 目標
 
@@ -152,13 +152,13 @@ phase 的 topology、process placement 或 algorithm change 混入同一 impleme
 | Phase | 狀態 | 目標 | 主要變更 | 完成閘門 |
 | --- | --- | --- | --- | --- |
 | 0. Component baseline freeze | Completed (`8311883`) | 固定已驗證的 source revisions | parent gitlinks、lock 與 Compose build identity | parent baseline review／commit，repository 與 component tests 通過 |
-| 1. Existing production Flat migration | Next | 讓既有 A／B／C flow 使用新版 config schema 且保持原行為 | default PyMTLF configs、renderer、strict validation 與 regression tests | native config load、repository／Compose checks、既有 Flat runtime regression |
+| 1. Existing production Flat migration | Completed (`072748b`) | 讓既有 A／B／C flow 使用新版 config schema 且保持原行為 | default PyMTLF configs、renderer、strict validation 與 regression tests | native config load、repository／Compose checks、既有 Flat runtime regression、user review／獨立 commit |
 | 2. Static scenario common foundation | Pending | 固定四個 data owners 的 identity 與最大 topology 所需 placement boundary | scenario config layout、ports、callback reachability、collection profile identity、capacity／placement decision | 1 Server＋4 Clients 與 1 Root＋2 Branches＋4 Leaves 均可被 render／validate，尚不宣稱 full flow |
 | 3. Static Flat flow | Pending | 跑通一 Server／四 Client controlled flow | static Flat topology、private collection、manual training 與 lifecycle integration | real collection→FedAvg→publication→cleanup evidence |
 | 4. Static Hierarchical flow | Pending | 在相同四個 data owners 上加入兩個 Branches | Root／Branch／Leaf topology、Branch lifecycle、two-tier aggregation 與 observability | real collection→Leaf fitting→Branch／Root FedProx→publication→cleanup evidence |
 
-下一個 implementation phase 明確為 Phase 1，不先新增四個 Clients、Branches 或新 VM。詳細範圍與
-verification gates 由
+下一個 implementation phase 是 Phase 2；開始前仍需先確認四個 data owners 的 placement／capacity，
+不直接新增四個 Clients、Branches 或新 VM。Phase 1 的詳細範圍、結果與 verification gates 由
 [Phase 1 Production Flat Config Migration Detailed Plan](phase-1-production-flat-config-migration.md) 管理。
 
 本 roadmap 的完成終點是 Phase 4：既有 production Flat、static Flat 與 static HFL 都完成所需 testbed

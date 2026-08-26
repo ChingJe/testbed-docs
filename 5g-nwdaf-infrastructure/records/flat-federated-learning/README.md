@@ -1,9 +1,8 @@
 # Flat Federated Learning Records
 
 本分類保存 `5G_NWDAF_Infrastructure` 採用 flat federated learning 架構時，已完成的
-testbed foundation 與 validation evidence。這些文件描述的是 HFL adaptation 之前的
-three-NWDAF、two-TAI、two-UPF baseline，不代表目前更新後的 component revisions 已完成
-相同層級的 runtime 驗證。
+testbed foundation 與 validation evidence，包含初始 three-NWDAF、two-TAI、two-UPF baseline，
+以及後續 revision 上重新執行的 production Flat 驗證。
 
 ## 內容
 

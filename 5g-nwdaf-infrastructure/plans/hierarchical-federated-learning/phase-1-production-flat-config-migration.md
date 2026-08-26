@@ -2,7 +2,11 @@
 
 日期：2026-08-26
 
-狀態：Requirements Confirmed；Approved as Next Phase；implementation 尚未開始
+狀態：Completed；Infrastructure commit `072748b`；implementation、testbed runtime acceptance 與獨立
+commit gate 全部通過
+
+本次實作與驗收結果見
+[Production Flat Config Migration Runtime Acceptance — 2026-08-26](../../records/flat-federated-learning/validation/production-flat-config-migration-runtime-acceptance-2026-08-26.md)。
 
 ## 1. 目的
 
@@ -164,7 +168,29 @@ Phase 並回報 scope expansion。
 若只完成 config／host validation，狀態應標為 `Implementation Verified；Testbed Runtime Pending`，不能提前
 進入 Phase 2 或宣稱 production Flat 已恢復完整 acceptance。
 
-## 10. 明確不包含
+## 10. Implementation result
+
+2026-08-26 已連續完成 Slice 1–5：
+
+- A／B／C default configs、renderer 與 strict checks 已遷移至 pinned PyMTLF schema；
+- A／B 使用 `federated` Client、`consumer_subscription` collection trigger，C 使用
+  `federated` Server、`flat + monitor_scopes` orchestration 與 degradation trigger；
+- Server-owned client training effort 維持 `epochs: 18`；
+- native config、repository、Compose 與 disposable CPU container lifecycle checks 均通過；
+- exact pinned revisions 上的 production Flat full-core flow 已完成 collection、兩輪 FedAvg、publication、
+  two-scope adoption、generation cutover 與 post-cutover accuracy；
+- teardown 後兩筆 Consumer resources 為 `deleted`、Model Monitor `active=0`、五個 containers 與 23 個
+  Guest services 均停止，完成證據保留。
+
+Runtime 另確認兩個 integration hardening 點：Guest 內先前安裝的 NWDAF binary 可能落後 synced source，
+因此本輪需做一次 targeted NWDAF rebuild；aggregate ML startup failure 現在會明確呼叫 rollback。PyAnLF
+啟動時也觀察到約 15 秒 Model Provision 503 retry window，之後自行恢復並完成全部 business flow；此項
+不阻擋本次 acceptance，但應在後續 phase 將 provider business readiness 納入更精確的 startup gate。
+
+Phase 1 的 user review／獨立 commit gate 已由 Infrastructure commit `072748b` 完成。Phase 2 可作為下一個
+implementation phase，但本次 completion 不代表 Phase 2 已開始。
+
+## 11. 明確不包含
 
 - 第四個 Flat Client；
 - static Flat topology 或 private collection；

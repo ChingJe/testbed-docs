@@ -4,7 +4,8 @@
 骨架與 provisioning 驗證紀錄。舊 `5G_Infrastructure`、Daisy、事件與 replay
 相關報告仍保留在上一層目錄，避免混淆兩套環境的時間線。
 
-目前整體驗證狀態先看：
+較新的 validation baseline 可由下列 dated record 開始查閱；每份紀錄只代表其明列的 revision 與
+執行條件：
 
 - [Current Runtime Validation Baseline（2026-08-14）](current-runtime-validation-baseline-2026-08-14.md)
 
@@ -57,6 +58,7 @@ component revision 解讀，不能視為目前所有 revision 的永久保證。
 
 ## Full-core E2E
 
+- [Production Flat Config Migration Runtime Acceptance](production-flat-config-migration-runtime-acceptance-2026-08-26.md)
 - [Stateless Full E2E Smoke](stateless-full-e2e-smoke-2026-08-10.md)
 - [Full-core Business FL E2E](full-core-business-fl-e2e-2026-08-11.md)
 - [FL Closure Smoke 與 Persistent Netplan 回歸](fl-closure-smoke-netplan-regression-2026-08-12.md)
