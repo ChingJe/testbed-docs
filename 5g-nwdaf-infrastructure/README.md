@@ -8,6 +8,7 @@
 
 | 分類 | 用途 |
 | --- | --- |
+| [development_policy.md](development_policy.md) | 新版 testbed 的 planning、implementation、deployment、review 與 verification 規則 |
 | [plans/](plans/README.md) | 尚未完成或即將開始的 implementation plans |
 | [design/](design/README.md) | 已確認且仍有效的 testbed architecture decisions |
 | [operations/](operations/README.md) | 實驗室或機器特定的操作補充與遷移 runbooks |
@@ -24,3 +25,7 @@ site-specific decisions、experiment design 與執行 evidence。
 新增文件時應先判斷它描述的是未完成工作、已確認設計、操作補充、實驗定義或已完成紀錄，
 再放入對應分類。Active plan 完成後應將結果整理為 record；被新計畫取代的舊內容才移入
 `archive/`。
+
+開始修改新版 testbed 的程式、設定、lifecycle 或 implementation-oriented plan 前，先讀 workspace root
+`AGENTS.md`、[development_policy.md](development_policy.md) 與 active plan。對話經過 context compaction、
+summarization 或 handoff 後，必須從磁碟完整重讀這三者，不假設 root `AGENTS.md` 會自動重新套用。
