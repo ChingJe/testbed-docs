@@ -102,7 +102,7 @@ Flat 的 topology／training scope 可使用 exact TAI；HFL topology／assignme
 仍可在 local collection profile 設定 network area，該 TAI 只供 SMF ingress gating，不參與 hierarchy
 participant selection。
 
-## 4. Algorithm 階段邊界
+## 4. Algorithm 邊界與延後工作
 
 第一階段保留目前已驗證的演算法組合：
 
@@ -110,8 +110,9 @@ participant selection。
 - static Hierarchical：FedProx。
 
 這兩條結果只證明各自流程可執行，不能宣稱 Branch presence、topology 或 aggregation algorithm 的單一
-因果效果。後續另行把 Flat 遷移為 FedProx，再以相同四個 data owners 與受控參數建立
-Flat FedProx vs. Hierarchical FedProx comparison。Flat FedProx 實作不屬於本次流程打通階段。
+因果效果。目前 roadmap 不排入 Flat FedProx migration 或 controlled comparison；只有在 production Flat、
+static Flat 與 static HFL 流程都通過 testbed validation 後，才另立 future plan 決定是否以相同四個 data
+owners 與受控參數建立 Flat FedProx vs. Hierarchical FedProx comparison。
 
 ## 5. Logical topology 與 physical placement 分離
 
@@ -143,17 +144,25 @@ placement。Physical placement 必須在盤點現有 three-VM network、資源�
 本計畫不修改 NWDAF／PyMTLF architecture ownership、不新增 public SBI，也不在 testbed repository 複製
 component source repository 已擁有的 generic config reference。
 
-## 7. 實作順序
+## 7. Phased roadmap
 
-1. 將既有 production Flat config 最小遷移到新版 PyMTLF schema。
-2. 讓 testbed validation 直接載入新版 PyMTLF typed settings，避免只通過 parent-owned schema。
-3. 驗證既有 production Flat render、Compose identity 與 component startup config。
-4. 新增一 Server／四 Client static Flat config 與 exact topology。
-5. 新增一 Root／兩 Branch／四 Leaf static Hierarchical config 與 exact topology。
-6. 為四個 data owners 建立可對照的 collection profiles 與 evidence identity。
-7. 先執行 host／local process validation，再決定 physical VM placement。
-8. 完成 real SMF／UPF／UE、ADRF／MongoDB、training、publication 與 cleanup testbed flow。
-9. 流程穩定後另立 Flat FedProx migration 與 controlled comparison plan。
+每個 phase 都使用獨立 scope、verification 與 commit gate。前一 phase 的 acceptance 未滿足前，不把下一
+phase 的 topology、process placement 或 algorithm change 混入同一 implementation diff。
+
+| Phase | 目標 | 主要變更 | 完成閘門 |
+| --- | --- | --- | --- |
+| 0. Component baseline freeze | 固定已驗證的 source revisions | parent gitlinks、lock 與 Compose build identity | parent baseline review／commit，repository 與 component tests 通過 |
+| 1. Existing production Flat migration | 讓既有 A／B／C flow 使用新版 config schema 且保持原行為 | default PyMTLF configs、renderer、strict validation 與 regression tests | native config load、repository／Compose checks、既有 Flat runtime regression |
+| 2. Static scenario common foundation | 固定四個 data owners 的 identity 與最大 topology 所需 placement boundary | scenario config layout、ports、callback reachability、collection profile identity、capacity／placement decision | 1 Server＋4 Clients 與 1 Root＋2 Branches＋4 Leaves 均可被 render／validate，尚不宣稱 full flow |
+| 3. Static Flat flow | 跑通一 Server／四 Client controlled flow | static Flat topology、private collection、manual training 與 lifecycle integration | real collection→FedAvg→publication→cleanup evidence |
+| 4. Static Hierarchical flow | 在相同四個 data owners 上加入兩個 Branches | Root／Branch／Leaf topology、Branch lifecycle、two-tier aggregation 與 observability | real collection→Leaf fitting→Branch／Root FedProx→publication→cleanup evidence |
+
+下一個 implementation phase 明確為 Phase 1，不先新增四個 Clients、Branches 或新 VM。詳細範圍與
+verification gates 由
+[Phase 1 Production Flat Config Migration Detailed Plan](phase-1-production-flat-config-migration.md) 管理。
+
+本 roadmap 的完成終點是 Phase 4：既有 production Flat、static Flat 與 static HFL 都完成所需 testbed
+flow 與 evidence。Flat FedProx 與跨 topology controlled comparison 不影響 Phase 0–4 的完成判定。
 
 ## 8. Acceptance criteria
 
@@ -185,8 +194,8 @@ component source repository 已擁有的 generic config reference。
 
 ## 9. 明確延後
 
-- Flat FedProx implementation 與 algorithm transport；
-- Flat FedProx vs. Hierarchical FedProx controlled experiment；
+- Flat FedProx implementation、algorithm transport 與 controlled comparison；只有在本 roadmap 完成後才
+  另立 future plan；
 - dynamic HFL／`hierarchical + monitor_scopes`；
 - arbitrary-depth hierarchy 或 topology hot reload；
 - Root／Server 代替 data owners fan out collection；
