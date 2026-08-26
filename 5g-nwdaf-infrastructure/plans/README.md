@@ -13,7 +13,8 @@
 
 目前 workstream：
 
-- [Hierarchical Federated Learning](hierarchical-federated-learning/component-baseline-update.md)
+- [HFL component baseline update](hierarchical-federated-learning/component-baseline-update.md)
+- [Flat／Hierarchical testbed scenario migration](hierarchical-federated-learning/flat-hierarchical-scenario-migration.md)
 
 已完成計畫不應長期和 active work 混在本目錄。完成後保留必要的最終設計，並把執行結果與
 evidence 整理至 `records/`；已被取代且無目前效力的計畫移入 `archive/`。
