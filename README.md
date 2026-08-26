@@ -21,7 +21,7 @@
 `5g-nwdaf-infrastructure/`。目前進度入口：
 
 - [Active plans](5g-nwdaf-infrastructure/plans/README.md)
-- [HFL component baseline update](5g-nwdaf-infrastructure/plans/hierarchical-federated-learning/component-baseline-update.md)
+- [HFL component baseline record](5g-nwdaf-infrastructure/records/hierarchical-federated-learning/component-baseline-update-2026-08-26.md)
 - [Flat FL foundation history](5g-nwdaf-infrastructure/records/flat-federated-learning/foundation/plan.md)
 - [Flat FL validation records](5g-nwdaf-infrastructure/records/flat-federated-learning/validation/README.md)
 

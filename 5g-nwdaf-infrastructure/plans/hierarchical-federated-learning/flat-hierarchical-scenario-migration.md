@@ -149,13 +149,13 @@ component source repository 已擁有的 generic config reference。
 每個 phase 都使用獨立 scope、verification 與 commit gate。前一 phase 的 acceptance 未滿足前，不把下一
 phase 的 topology、process placement 或 algorithm change 混入同一 implementation diff。
 
-| Phase | 目標 | 主要變更 | 完成閘門 |
-| --- | --- | --- | --- |
-| 0. Component baseline freeze | 固定已驗證的 source revisions | parent gitlinks、lock 與 Compose build identity | parent baseline review／commit，repository 與 component tests 通過 |
-| 1. Existing production Flat migration | 讓既有 A／B／C flow 使用新版 config schema 且保持原行為 | default PyMTLF configs、renderer、strict validation 與 regression tests | native config load、repository／Compose checks、既有 Flat runtime regression |
-| 2. Static scenario common foundation | 固定四個 data owners 的 identity 與最大 topology 所需 placement boundary | scenario config layout、ports、callback reachability、collection profile identity、capacity／placement decision | 1 Server＋4 Clients 與 1 Root＋2 Branches＋4 Leaves 均可被 render／validate，尚不宣稱 full flow |
-| 3. Static Flat flow | 跑通一 Server／四 Client controlled flow | static Flat topology、private collection、manual training 與 lifecycle integration | real collection→FedAvg→publication→cleanup evidence |
-| 4. Static Hierarchical flow | 在相同四個 data owners 上加入兩個 Branches | Root／Branch／Leaf topology、Branch lifecycle、two-tier aggregation 與 observability | real collection→Leaf fitting→Branch／Root FedProx→publication→cleanup evidence |
+| Phase | 狀態 | 目標 | 主要變更 | 完成閘門 |
+| --- | --- | --- | --- | --- |
+| 0. Component baseline freeze | Completed (`8311883`) | 固定已驗證的 source revisions | parent gitlinks、lock 與 Compose build identity | parent baseline review／commit，repository 與 component tests 通過 |
+| 1. Existing production Flat migration | Next | 讓既有 A／B／C flow 使用新版 config schema 且保持原行為 | default PyMTLF configs、renderer、strict validation 與 regression tests | native config load、repository／Compose checks、既有 Flat runtime regression |
+| 2. Static scenario common foundation | Pending | 固定四個 data owners 的 identity 與最大 topology 所需 placement boundary | scenario config layout、ports、callback reachability、collection profile identity、capacity／placement decision | 1 Server＋4 Clients 與 1 Root＋2 Branches＋4 Leaves 均可被 render／validate，尚不宣稱 full flow |
+| 3. Static Flat flow | Pending | 跑通一 Server／四 Client controlled flow | static Flat topology、private collection、manual training 與 lifecycle integration | real collection→FedAvg→publication→cleanup evidence |
+| 4. Static Hierarchical flow | Pending | 在相同四個 data owners 上加入兩個 Branches | Root／Branch／Leaf topology、Branch lifecycle、two-tier aggregation 與 observability | real collection→Leaf fitting→Branch／Root FedProx→publication→cleanup evidence |
 
 下一個 implementation phase 明確為 Phase 1，不先新增四個 Clients、Branches 或新 VM。詳細範圍與
 verification gates 由

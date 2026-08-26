@@ -1,9 +1,9 @@
-# Hierarchical Federated Learning Component Baseline Update
+# Hierarchical Federated Learning Component Baseline Update Record
 
 日期：2026-08-26
 
-狀態：Ready for User Review；最新 component pins、repository tests 與 component-level targeted tests
-已完成，parent 更新尚未 commit；testbed config migration 尚未開始
+狀態：Completed；parent commit `8311883`；repository 與 component-level verification passed；testbed config
+migration 尚未開始
 
 ## 1. 目的
 
@@ -20,13 +20,15 @@ testbed runtime validation。
 Parent repository：
 
 - branch：`feat/r18-hierarchical-federated-learning`；
-- committed checkpoint：`7b9a3e6`；
-- 本次 parent diff：兩個 submodule gitlinks、`components.lock.yaml` 與 `compose.yaml` 的 revision
-  identity，保持 unstaged／uncommitted。
+- starting checkpoint：`7b9a3e6`；
+- completed checkpoint：`8311883`；
+- committed changes：兩個 submodule gitlinks、`components.lock.yaml` 與 `compose.yaml` 的 revision
+  identity；
+- post-commit parent 與 component worktrees：clean。
 
 Component baseline：
 
-| Path／repository | Committed checkpoint | Current target | 本次來源能力 |
+| Path／repository | Previous checkpoint | Completed target | 本次來源能力 |
 | --- | --- | --- | --- |
 | `NFs/nwdaf` | `3279891` | `6aed268` | MTLF-private UDM、SMF Event Exposure 與 ADRF storage relays |
 | `ML/PyMTLF` | `e9aa223` | `36166f0` | explicit orchestration、private collection、area-scoped provenance 與 dataset evidence |
@@ -35,7 +37,7 @@ Component baseline：
 
 `nwdaf-resources` 是獨立 repository，不是 parent submodule pin。其 local branch 已對齊
 `origin/feat/r18-hierarchical-federated-learning`。ADRF、NRF、SMF、UDM、UDR、UPF 及其他 NFs／ML
-repositories 沒有與本 workstream 相關的新 revision，因此不更新 parent identity。
+repositories 沒有與本 workstream 相關的新 revision，因此沒有更新 parent identity。
 
 ## 3. 已確認的 source 變更
 
@@ -73,6 +75,7 @@ repositories 沒有與本 workstream 相關的新 revision，因此不更新 par
 | Parent `git diff --check` | PASS |
 | PyMTLF targeted tests | PASS；config、collection、Flat coordinator 與 FL Server 共 `193 passed`；一項 dependency deprecation warning |
 | NWDAF `go test ./internal/mtlf/...` | PASS |
+| Post-commit identity | PASS；parent `8311883`，submodule revisions 與 locks 一致，worktrees clean |
 | VM／container／business E2E | 未執行；屬於後續 testbed migration 與 runtime validation |
 
 第一次在受限環境執行 Vagrant／loopback tests 時分別受到 user Vagrant state 與 local socket sandbox
@@ -91,9 +94,12 @@ Parent repository tests 驗證的是 testbed-owned config contract，尚未使�
 這些是 config migration requirement，不是 component source regression，也不能因 parent `make test`
 通過而視為已處理。
 
-## 6. 後續工作
+## 6. Phase 0 completion 與後續
 
-後續 testbed migration、static scenario topology 與驗證順序由
-[Flat and Hierarchical Testbed Scenario Migration Plan](flat-hierarchical-scenario-migration.md) 管理。
-Component baseline 在 parent diff 經 review／commit 後可轉為 record；在 real testbed validation 完成前，
-不宣稱新版 Flat 或 HFL 已通過 testbed runtime acceptance。
+Phase 0 的 source update、identity synchronization、verification、review 與 parent commit gates 已全部完成。
+後續從 Phase 1 existing production Flat config migration 開始；總體 topology 與驗證順序由
+[Flat and Hierarchical Testbed Scenario Migration Plan](../../plans/hierarchical-federated-learning/flat-hierarchical-scenario-migration.md)
+管理。
+
+在 production Flat、static Flat 或 HFL 的 real testbed validation 完成前，本 record 只證明 component
+baseline freeze，不證明任何新版 runtime scenario 已通過 testbed acceptance。

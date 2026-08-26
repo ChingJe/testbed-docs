@@ -16,11 +16,12 @@ placement 與 business flow。
 ## 2. 進入條件
 
 - parent branch：`feat/r18-hierarchical-federated-learning`；
-- parent committed checkpoint：`7b9a3e6`；
+- parent starting checkpoint：`8311883`；
 - target NWDAF：`6aed268`；
 - target PyMTLF：`36166f0`；
 - PyAnLF 維持：`6a4d94a`；
-- component pin diff 先獨立 review／commit，不和 Phase 1 config implementation 混成同一 commit；
+- component pin baseline 已由獨立 commit `8311883` 完成；Phase 1 config implementation 使用新的獨立
+  diff／commit；
 - 不使用 parent `make test` 通過取代 PyMTLF native config validation。
 
 若 target revisions 在 implementation 前移動，先重新檢查 config schema 與 component tests，再更新本

@@ -13,7 +13,6 @@
 
 目前 workstream：
 
-- [HFL component baseline update](hierarchical-federated-learning/component-baseline-update.md)
 - [Flat／Hierarchical testbed scenario migration](hierarchical-federated-learning/flat-hierarchical-scenario-migration.md)
 - [Phase 1 production Flat config migration](hierarchical-federated-learning/phase-1-production-flat-config-migration.md)
 
