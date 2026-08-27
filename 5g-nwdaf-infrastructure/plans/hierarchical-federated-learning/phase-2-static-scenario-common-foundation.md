@@ -2,7 +2,8 @@
 
 日期：2026-08-27
 
-狀態：Implementation redesign required；working-tree review／evidence synchronization completed；existing `TESTBED` contract confirmed
+狀態：Completed；Infrastructure commit `fc360fc`；implementation、required verification、user review 與
+independent commit 全部通過
 
 最近更新：2026-08-27
 
@@ -62,9 +63,9 @@ tests 防止非預期 drift。
 Branch 同時啟用 downstream aggregation server 與 upstream client engines，但不配置 private collection、UE
 partition 或 autonomous Root orchestration。Client／Leaf 是唯一 static training-data owners。
 
-## 4. 已發現的 implementation gaps
+## 4. Initial implementation gaps and resolution
 
-目前 production Flat lifecycle 仍以 A／B／C 固定清單為中心，包括：
+Phase 2 開始時，production Flat lifecycle 仍以 A／B／C 固定清單為中心，包括：
 
 - Guest service start／stop／status 與 `service-run.sh` 只認得既有 `nwdaf-a`、`nwdaf-b`、`nwdaf-c`；
 - Compose 與 ML start／status／reset 只描述 `pymtlf-a`、`pymtlf-b`、`pymtlf-c` 及兩個 PyAnLF containers；
@@ -77,25 +78,23 @@ partition 或 autonomous Root orchestration。Client／Leaf 是唯一 static tra
 Phase 2 不以複製 binary、source checkout 或整台 VM 作為新增 NF 的方式；應以同一 pinned binary 啟動多個
 隔離的 systemd process instances。
 
-## 4.1 目前 working tree 能力與處置
+## 4.1 Infrastructure implementation outcome
 
-目前 `5G_NWDAF_Infrastructure` working tree 已證明下列 building blocks 可行，但現有組合方式未通過
-architecture／lifecycle review，不得直接整理後 commit：
+Infrastructure commit `fc360fc` 已將原本 building blocks 收斂為 approved architecture：
 
 - 5／7 個 NWDAF/PyMTLF、8 UE、4×2 ownership groups 的 static config generation；
 - manifest-driven Guest service、Host ML、volume、subscription、status、logs 與 reset inventories；
 - generic systemd instance dispatch，同一 Go NWDAF binary 可依 role-named config 啟動獨立 process；
-- static Compose definitions、CPU/GPU policy、published ports、per-instance volumes 與 containing-NWDAF endpoints；
+- selected-topology Compose artifact、CPU/GPU policy、published ports、per-instance volumes 與 containing-NWDAF endpoints；
 - production Flat 仍維持 3 NWDAF、6 UE、5 ML containers 與 Consumer subscription chain；
 - strict static checker、PyMTLF native settings/topology loader、deterministic seed bundle identity 與 topology tamper rejection；
 - 8-UE PseudoDriver dataset generation；Flat/HFL 使用相同 dataset identity 以固定 stimulus。
 
-其中可保留的是 dynamic inventory、generic systemd dispatch、八 UE fixture 與 topology／native validation
-所證明的 component capability；雙 renderer、雙 checker、額外 deployment schema 與混合 Compose catalog
-不作為後續實作基礎。
+Dynamic inventory、generic systemd dispatch、八 UE fixture 與 topology／native validation 已保留並納入單一
+pipeline。初始 prototype 的雙 renderer、雙 checker、額外 deployment schema 與混合 Compose catalog 已移除，
+不構成 operator-facing source 或 runtime path。
 
-目前 uncommitted implementation 新增了獨立 `deployments/` 目錄。這不是原計畫要求，且增加 operator 需要
-理解與同步的設定來源，因此在 review／commit 前必須撤換：
+Initial review 發現的獨立 `deployments/` 目錄已依下列方式撤換：
 
 1. 保持現有 `testbed.yaml` 的 production Flat definition 與預設行為。
 2. 將 static Flat／HFL contracts 改寫為完整的 `testbed.static-flat.yaml` 與
@@ -106,15 +105,18 @@ architecture／lifecycle review，不得直接整理後 commit：
 5. 重新 render／validate 三份完整 testbed definitions，確認既定 runtime inventory，並檢查共用 VM／network／
    mobile-network 欄位沒有非預期 drift。
 
-尚未執行的是三台 VM 的 static stack activation、實際 stop/reset/apply/verify，以及 reset 後 coordinator
-runtime seed re-import。這些 evidence 完成前，本文件不把 Phase 2 標成 Completed，也不宣稱 Phase 3／4 full flow。
+三台 VM 的 production Flat、static Flat 與 static HFL activation、status／logs、stop、guarded reset 及 reset 後
+coordinator seed re-import 均已執行；直接 evidence 見 §7.2。Phase 2 仍不宣稱 Phase 3／4 的 collection、training
+或 publication full flow。
 
-## 4.2 Working-tree review findings
+## 4.2 Initial working-tree review findings and remediation
 
-2026-08-27 review 以 Phase 1 baseline `072748b` 對照目前 uncommitted Phase 2 diff。多數高風險問題是本次
-實作直接引入；少數是原本只服務單一 production topology 的假設，在擴充後未同步重構而成為 blocker。
+2026-08-27 initial review 以 Phase 1 baseline `072748b` 對照當時的 uncommitted Phase 2 prototype。多數高風險
+問題是 prototype 直接引入；少數是原本只服務單一 production topology 的假設，在擴充後未同步重構而成為
+blocker。下列 findings 保存 root-cause provenance；最終 implementation 已逐項 remediation，結果由 §7.1／§7.2
+管理。
 
-### 本次實作直接引入
+### Initial prototype 直接引入
 
 1. `static-config-render.py` 先呼叫 production renderer 產生 A／B／C，再刪除 NWDAF／ML／Consumer files 後
    重新生成 static topology；這造成雙 renderer、重複 I/O 與難以驗證的中間狀態。
@@ -127,29 +129,28 @@ runtime seed re-import。這些 evidence 完成前，本文件不把 Phase 2 標
    labels 相同；使用錯誤 config 可能漏停或隱藏另一 topology 的 active processes，最後仍回報成功。
 6. dynamic inventory 透過 shell process substitution 讀取；子程序失敗可能退化成空清單。對 ML lifecycle
    而言，空 service arguments 反而可能讓 Compose 操作完整 catalog；Guest start／stop 也可能零項成功。
-7. runtime manifest 目前只驗證欄位形狀，沒有驗證完整 Core／UPF／gNB inventory、container-to-volume 一一
+7. runtime manifest 當時只驗證欄位形狀，沒有驗證完整 Core／UPF／gNB inventory、container-to-volume 一一
    對應或 exact reset scope；漏列 state 可能保留 stale data，多列 project-owned volume 可能擴大清除範圍。
 8. static dataset path 只取第一個 matching Client／Leaf，且使用 hard-coded `min_matched=2`；同一 path 上
    第二個 data owner 的 collection contract 未完整參與診斷。
 9. static tests 只涵蓋 render、checker、Compose resolution、8 UE／4×2 ownership 與 topology tamper；未測
    manifest failure、wrong-config lifecycle、unexpected active process、switching、reset exactness 或 capacity。
 
-### 舊假設在本次擴充後成為 blocker
+### 舊假設在擴充後成為 blocker
 
 1. production renderer 固定 A／B／C、六 UE；原本只有一種 topology 時是既有 contract，現在應改為由
    selected complete `TESTBED` 直接生成，而不是另加 static workaround。
-2. Guest reset safety check 固定 `nwdaf-c`；Host 正常入口目前另有 active-unit guard，但 Guest destructive
+2. Guest reset safety check 固定 `nwdaf-c`；Host 正常入口當時另有 active-unit guard，但 Guest destructive
    guard 本身沒有涵蓋 Server／Root／Branch／Client／Leaf。
-3. capacity gate 只用固定 Host reserve。現有 HFL Compose limits 合計 8192 MiB，已高於 `testbed.yaml`
+3. capacity gate 只用固定 Host reserve。當時 HFL Compose limits 合計 8192 MiB，已高於 `testbed.yaml`
    的 6144 MiB reserve，且尚未納入 Docker／build overhead 與 GPU memory。
 4. project-wide ML rollback、status 與 config activation 原本只面對一種 topology；多 topology 後必須加入
    active identity、unexpected inventory 與 partial activation protection。
 
-Host/native static checks 目前可通過，但不足以否定上述 lifecycle 問題。初次 review 的 `make test` 曾因
-執行環境無法寫入 Vagrant home 而停止；後續已在可寫環境完整重跑並通過，包含 static Flat／HFL render、
-native／ownership／tamper checks、Compose checks、dataset determinism、production config regressions 與
-`vagrant validate`，`git diff --check` 亦通過。這些結果只關閉 repository-local verification，不是 Phase 2
-runtime acceptance，也不能取代 missing failure-path tests 或三 VM lifecycle evidence。
+Remediation 將 topology、identity、manifest、lifecycle、capacity 與 reset scope 全部改由 selected complete
+`TESTBED`／generated manifest 驅動，並加入 fail-closed failure-path regressions。2026-08-27 最終完整 `make test`
+通過；suite 明確只使用 synthetic provider checks。`git diff --check` 亦通過。Required real runtime acceptance
+另由 §7.2 的 sandbox-outside evidence 關閉，未以 repository-local tests 代替。
 
 ### 4.2.1 Follow-up direct runtime／failure-path evidence
 
@@ -165,7 +166,7 @@ VirtualBox IPC state，因此相關 control-plane observations 必須依本節�
   Compose limits 加總為 static Flat `7 CPU／6144 MiB`、static HFL `9 CPU／8192 MiB`；這仍未包含 image build／
   Docker overhead，也沒有證明各 GPU participant 的必要 VRAM 或 simultaneous runtime capacity。
 - 五個 production ML containers 當時均為 stopped，project volumes 保留。Container config labels 指向舊
-  config hash prefix `0c685`，目前 selected `config/default` tree hash prefix 為 `53de4`；實際執行
+  config hash prefix `0c685`，當時 selected `config/default` tree hash prefix 為 `53de4`；實際執行
   `ml-status.sh testbed.yaml config/default` 仍以 exit status 0 顯示舊 hash 與 retained `FL RESULT`，沒有拒絕
   selected／actual identity mismatch。
 - 對 inventory reader 注入解析失敗時，subprocess 會輸出 traceback，但呼叫端仍以 status 0 得到
@@ -180,9 +181,9 @@ Codex／repository／OS remediation 與 cleanup evidence 由
 管理。2026-08-27 已依
 批准範圍完成 exact cleanup、destroy／clean rebuild 與 base provisioning checks；新 runtime 的 provider state、
 OS process UUID 與 base guest artifacts 一致，provider guard／preflight 已由 Infrastructure commit `531e335`
-獨立保存，因此 incident 不再阻塞後續 real-environment verification。Static
-selected-config activation、service lifecycle、reset／seed evidence 仍未執行，實際三 VM Phase 2 acceptance
-保持未驗證。
+獨立保存，因此 incident 不再阻塞後續 real-environment verification。Incident cleanup 當時尚未執行的 static
+selected-config activation、service lifecycle 與 reset／seed evidence，後續已在 approved host context 完成並
+記錄於 §7.2；incident observation 本身仍不能取代該 acceptance evidence。
 
 ## 4.3 Production baseline stage disposition
 
@@ -309,32 +310,80 @@ renderer／checker 或不同 lifecycle entrypoint，視為 architecture decision
 
 ## 7.1 Normative conformance map
 
-下表是 2026-08-27 依新版 testbed development policy 對目前 uncommitted working tree 的重新審查結果。
-`部分符合` 只代表存在可保留的 building block 或 indirect evidence，不代表 criterion 已關閉。
+下表是 2026-08-27 依新版 testbed development policy 對 Infrastructure commit `fc360fc` 與 sandbox-outside
+runtime evidence 的最終審查結果。`符合` 表示 implementation、deterministic tests 與適用的 direct evidence
+已關閉該 criterion。
 
 | Normative item | Current status | Direct evidence | Open work／required evidence |
 | --- | --- | --- | --- |
-| 三種 topology 使用 complete `TESTBED` definitions | 未符合 | 現有 prototype 能表達三種 inventory | 移除 `DEPLOYMENT`／`deployments/`，新增兩份同 schema complete definitions，驗證共用欄位 drift |
-| 單一 authoritative render pipeline | 未符合 | production renderer 與 static renderer 均存在 | 合併為 selected `TESTBED` 驅動的單一 renderer，移除 generate-then-delete |
-| 單一 common-first strict checker | 未符合 | production 與 static checks 各自可執行 | 移除提前 return／第二 checker；加入 common 與 topology-specific regression evidence |
-| production Flat 3 NWDAF／6 UE behavior 保持不變 | 部分符合 | Host render checks 顯示既有 inventory 仍可生成 | 以同一新 pipeline 執行 production regression，並補實際 lifecycle evidence |
-| static Flat 1 Server／4 Clients／8 UE／5 PyMTLF | 部分符合 | prototype render、native checks 與 ownership tests 通過 | 改用 approved source／pipeline 後重跑；補三 VM activation 與 lifecycle evidence |
-| static HFL 1 Root／2 Branches／4 Leaves／8 UE／7 PyMTLF | 部分符合 | prototype render、native topology checks 與 tamper rejection 通過 | 改用 approved source／pipeline 後重跑；補三 VM activation 與 lifecycle evidence |
-| 每個 NWDAF 為獨立 NF identity／process／state | 部分符合 | generic systemd dispatch 與 per-instance config／volume building blocks 已存在 | 驗證 simultaneous bindings、NRF profiles、logs、runtime directories 與 restart isolation |
-| Manifest 可由 trusted `TESTBED` exact rebuild／compare | 未符合 | 目前只驗證部分欄位形狀 | 納入完整 Guest、NF、ML、UE、volume、subscription 與 reset inventory；加入 omission／extra-item tests |
-| selected／active runtime identity 一致 | 未符合 | 五個 stopped production ML containers 的 label hash prefix `0c685` 和 selected config hash prefix `53de4` 不同；`ml-status.sh` 仍以 status 0 顯示 stale hash／retained result | 加入 Guest active hash、container labels、unexpected inventory 與 wrong-config rejection；補 active-runtime regression tests |
-| Empty／invalid inventory 與 partial operation fail closed | 未符合 | 注入 inventory parser failure 後呼叫端仍 status 0／`record_count=0`；空 Compose target 解析成 mixed catalog 全部 17 services | 將 reader 與 lifecycle 改為 fail closed；加入 rollback、partial activation／stop detection 與 recovery tests |
-| Host ML selected artifact 與五／七 instance lifecycle | 部分符合 | static Compose catalog 可解析，per-instance endpoints／volumes 已存在 | 改為只生成 selected topology artifact；補 build deduplication、health、status、logs、stop evidence |
-| 八 UE／四個互斥 2-SUPI data owners | 部分符合 | 8-UE fixture 與 4×2 ownership checks 通過 | 修正 per-path first-match／hard-coded threshold，驗證每個 owner 的 subscriber、session、dataset contract |
-| 三 VM／Host／Docker／GPU capacity gate | 部分符合 | Incident cleanup 後已 clean rebuild 三台 VM；provider running state、每個新 UUID exactly one 個 OS process、base guest provisioning artifacts 一致。先前 Host inventory 有 24 logical CPUs、約 20.7 GiB available memory、約 212 GiB disk、RTX 3080 約 9988 MiB free，且無目標 ML port conflict；Flat／HFL limits 為 `7 CPU／6144 MiB`、`9 CPU／8192 MiB` | 由 selected inventory 納入 build／Docker overhead、GPU participant VRAM 與 active Guest runtime，補 simultaneous activation capacity evidence；不得沿用事故前 capacity observation 當 completion evidence |
-| Exact guarded reset 與 deterministic seed restoration | 未符合 | Prototype 已能產生部分 volume／reset inventory 與 seed identity | 修正 Guest `nwdaf-c`-only guard，驗證 declared／actual exact scope、unexpected state 與 reset 後 re-import |
-| Required failure-path regression tests | 未符合 | 現有 static render、native、ownership、tamper tests 通過 | 新增 manifest、wrong-config、unexpected process、switching、capacity、partial activation／stop、reset exactness tests |
-| Repository full checks | Current full check failed | 2026-08-27 cleanup 後重跑時，provider guard、runtime-preflight 與 selected／active identity focused sections 通過；suite 隨後停於 production manifest `guestServices` exact-inventory ordering mismatch。兩個 repositories 的 `git diff --check` 通過 | 修正 manifest ordering contract 後重跑完整 suite；目前結果不涵蓋後續 tests 或 real lifecycle acceptance |
-| 實際三 VM lifecycle acceptance | 未驗證 | Incident guard、fresh exact cleanup 與 clean rebuild 已完成；新 provider state、OS process UUID 與 base provisioning artifacts 一致 | 在新 runtime 重建 stage／activate／start／status／logs／stop／reset／seed recovery evidence；base VM recovery 不等於 selected-config lifecycle acceptance |
-| User review 與獨立 commit | Pending | 本次已完成 working-tree architecture／lifecycle review | 重作 implementation、mandatory initial review 與 verification 後另行提出 user-review handoff 與 commit proposal |
+| 三種 topology 使用 complete `TESTBED` definitions | 符合 | `testbed.yaml`、`testbed.static-flat.yaml`、`testbed.static-hierarchical.yaml` 以同 schema 通過 exact common-field／inventory regressions | 無 implementation gap |
+| 單一 authoritative render pipeline | 符合 | `config-render.py` 只依 selected `TESTBED` 與 scenario 生成三種 topology；repository scan／tests 確認無 `DEPLOYMENT`、`deployments/` 或 generate-then-delete path | 無 implementation gap |
+| 單一 common-first strict checker | 符合 | `config-check.py` 對三種 topology 先跑 common checks，再跑 mode-specific checks 與 native loaders；tamper tests 會拒絕 | 無 implementation gap |
+| production Flat 3 NWDAF／6 UE behavior 保持不變 | 符合 | `make experiment-start/status/stop TESTBED=testbed.yaml CONFIG_DIR=config/default`：23 Guest units、6 UE sessions、5 healthy ML containers、兩條 Consumer subscriptions 與 Path A／B callbacks 通過 | Phase 3/4 training outcome 不屬本 phase |
+| static Flat 1 Server／4 Clients／8 UE／5 PyMTLF | 符合 | config hash `05e20565…ab4ec`；27 Guest units、8 UE sessions、5 healthy ML containers、5 個 NRF profiles 與 stop evidence 通過 | Full Flat training flow deferred to Phase 3 |
+| static HFL 1 Root／2 Branches／4 Leaves／8 UE／7 PyMTLF | 符合 | config hash `150a67bd…b557d`；29 Guest units、8 UE sessions、7 healthy ML containers 與 7 個 NRF profiles 通過 | Full hierarchical training flow deferred to Phase 4 |
+| 每個 NWDAF 為獨立 NF identity／process／state | 符合 | simultaneous systemd inventory、role-named configs/logs、unique UUID/IP/SBI/internal endpoints 與 NRF registration；Branches 登錄 `FL_SERVER_AND_CLIENT` | Phase 2 未測 training restart isolation，非 common-foundation completion item |
+| Manifest 可由 trusted `TESTBED` exact rebuild／compare | 符合 | Guest、NF、ML、UE、data owners、volumes、subscriptions、reset 與 coordinator inventories 全部 exact rebuild；omission／extra tests 拒絕 | 無 gap |
+| selected／active runtime identity 一致 | 符合 | Guest active hash、ML labels、unexpected runtime 顯示與 wrong-config rejection tests 通過；實機切換 Flat→HFL→production 只 recreate stopped selected containers | Stopped non-selected containers／volumes 依 retention contract 保留並顯示 |
+| Empty／invalid inventory 與 partial operation fail closed | 符合 | parser failure、empty target、partial Guest stop、activation rollback、ML stop timeout 與 unexpected running regression tests 通過 | 無 gap |
+| Host ML selected artifact 與五／七 instance lifecycle | 符合 | 每個 generated Compose 只含 selected services；Flat 5、HFL 7、production 5 containers 的 build/start/health/status/stop 通過；image target 只各 build 一次 | 無 gap |
+| 八 UE／四個互斥 2-SUPI data owners | 符合 | Flat/HFL 共用 dataset identity `68b65b9b…30da9`；4×2 exact ownership、subscriber apply、8 UE registration/PDU 與 per-owner dataset validation 通過 | 無 gap |
+| 三 VM／Host／Docker／GPU capacity gate | 符合 | fresh preflight：24 CPU、64140 MiB RAM、約 152 GiB free、RTX 3080 free 9988 MiB；HFL selected requirement 19 CPU、10240 MiB host transition、4 GPU participants／8192 MiB，實際 simultaneous activation 通過 | Host swap 為 0 MiB，只產生既定 warning；長時間 Phase 3/4 run 需監控 `MemAvailable` |
+| Exact guarded reset 與 deterministic seed restoration | 符合 | Flat 5／HFL 7 selected volumes plan→apply→verify 為 entries=0；其他 topology retained selected=no；ADRF/NRF/model scope 清空；兩個 coordinators 重啟後 artifact header 與下載內容 SHA-256 均為 `a2c796…bef` | 無 gap |
+| Required failure-path regression tests | 符合 | manifest、identity、unexpected process、switching、capacity、partial activation／stop、reset exact scope 與 stopped-container recreation tests 全部通過 | 無 gap |
+| Repository full checks | 符合 | 最終 `make test` exit 0，明確使用 synthetic provider；Infrastructure 與 docs `git diff --check` 通過 | 無 gap |
+| 實際三 VM lifecycle acceptance | 符合 | approved host context 執行 provider preflight、Flat/HFL/production stage→activate→start→status/logs→stop，static reset→seed recovery；未新增 VM | 最終 VMs 保持 running，experiment processes stopped，retained state 未刪除 |
+| User review 與獨立 commit | 符合 | Mandatory initial review、test-first remediation、full verification 與 plan conformance review 已完成；使用者於 2026-08-27 通過 review 並批准 commit；Infrastructure implementation 以 commit `fc360fc` 獨立保存 | 無 gap |
 
-依此 conformance map，Phase 2 仍為 `Implementation redesign required`。目前 code prototype 只能作為 capability
-evidence 與 remediation input，不能標記為 implementation-ready、verification-complete 或 commit-ready。
+依此 conformance map，Phase 2 implementation、required verification、user review 與 independent commit 均已
+完成，狀態為 `Completed`。Infrastructure implementation 由 commit `fc360fc` 保存，本次獨立 documentation
+commit 收尾 plan status 與 evidence。
+
+## 7.2 Final verification evidence
+
+2026-08-27 在 approved sandbox-outside host context 取得下列 direct evidence；所有 provider entrypoint 都先通過
+host-context guard，`vm-up` 另以 OS process inventory、Vagrant metadata 與 provider state exact compare，未在
+Codex sandbox 內啟動 Vagrant／VirtualBox client：
+
+1. Static Flat：
+   - `experiment-validate` 通過 provider、Docker、capacity、GPU、ports、component locks、native configs、dataset、
+     selected Compose 與 Vagrantfile checks；
+   - `vm-up` preflight 通過並沿用 `core`、`path-a`、`path-b` 三台既有 VM；
+   - 27 個 manifest-selected Guest units active，8 個 UE registration／PDU session 成功；
+   - 5 個 PyMTLF containers healthy，Server 使用 CPU，4 Clients 的 CUDA 均為 true；
+   - NRF discovery 回報 5 個 unique、`REGISTERED` NWDAF profiles；有限 logs 顯示 selected role config、UUID、
+     SBI／internal bindings 與 NRF registration；
+   - reset plan／apply／verify 只清空 5 個 selected volumes、ADRF／NRF／model scope，其他 topology 顯示
+     `selected=no` 且保留；重啟後 seed endpoint 回傳 HTTP 200，header 與下載內容 SHA-256 均為
+     `a2c796a001e2da2461418f80b01d7d1e33f0e3349c2817d92286f09e67aa6bef`。
+2. Static HFL：
+   - `experiment-validate` 對 7 containers 計算 8192 MiB limits＋2048 MiB build overhead、19 CPU 與 4 GPU
+     participants，並在實際 host capacity 內通過；
+   - 29 個 manifest-selected Guest units active，8 個 UE registration／PDU session 成功；
+   - NRF discovery 回報 Root `FL_SERVER`、2 Branches `FL_SERVER_AND_CLIENT`、4 Leaves `FL_CLIENT`，七組
+     UUID、IP 與 service endpoints 均 unique／`REGISTERED`；
+   - 7 個 PyMTLF containers healthy，Root／Branches 使用 CPU，4 Leaves 的 CUDA 均為 true；
+   - reset plan／apply／verify 只清空 7 個 selected volumes；Root 重啟後以相同 seed key 通過 header 與內容
+     SHA-256 驗證；
+   - scenario switch 首次遇到 stopped v3 container labels 時，test-first remediation 讓 `ml-start` 只允許 Compose
+     recreate stopped selected mismatches；running mismatch、unexpected running、status／logs／stop／reset 仍
+     fail closed。實機 recreate 後七個 labels 全部更新為 selected v4 identity。
+3. Production Flat regression：
+   - `experiment-validate` 與完整 `experiment-start/status/stop` 通過；
+   - 23 個原有 Guest units active，6 個 UE registration／PDU session 成功；
+   - 5 個原有 ML containers healthy，兩個 PyMTLF clients 的 CUDA 均為 true；
+   - Consumer 建立 Path A／B 兩條 distinct-provider subscriptions，兩條 callback request count 均達 1；
+     `experiment-stop` 成功刪除 exact subscriptions，再停止 Consumer、ML 與 Guest processes。
+4. Repository/failure paths：
+   - 最終 `make test` 通過，並明確回報 synthetic provider checks；
+   - `git diff --check` 對 Infrastructure 與 documentation repositories 均通過；
+   - `ml-stop` 的初次實機 snapshot 曾在 Docker stop convergence 前過早判定 incomplete；已加入 bounded wait、
+     timeout regression 與 fail-closed inventory handling，後續 Flat／HFL／production stops 均通過。
+
+最終 runtime state 為三台 VM 保持 running，所有 experiment Guest units、Consumer 與 ML containers stopped，
+containers、images、volumes、datasets、databases 與 canonical seed source 依 contract 保留。Static Flat／HFL
+generated `CONFIG_DIR` 是 ignored runtime artifacts，不納入 commit；authoritative sources、renderer、tests 與
+documentation 才是 Phase 2 deliverables。
 
 ## 8. Phase completion criteria
 
