@@ -2,7 +2,7 @@
 
 日期：2026-08-27
 
-狀態：Approved / Ready for Implementation；implementation 尚未開始
+狀態：Completed；Slice 1–6 implementation、required verification、user review 與 repository-separated source commits 已完成
 
 最近更新：2026-08-27
 
@@ -338,20 +338,62 @@ sandbox／CI 只可執行 synthetic provider fixtures，不得以真實 Vagrant�
 11. Production Flat regression、repository full checks 與 required real three-VM evidence 通過。
 12. Mandatory initial review、plan conformance、user review 與獨立 commit gates 全部完成。
 
-## 11. Initial normative conformance map
+## 11. Final normative conformance map
+
+### 11.1 Verification identity 與直接證據
+
+本節保存 Phase 3 final evidence。User review 已於 2026-08-28 確認，verified run record 已整理至
+[Static Flat controlled-flow validation record](../../records/hierarchical-federated-learning/static-flat-controlled-flow-validation-2026-08-27.md)。
+
+- Real run 的 Infrastructure source baseline 為 `fc360fc4250`，PyMTLF source baseline 為 `36166f04320a`，並以
+  reviewed working-tree diff 建置與驗證；該 diff 現已分別由 Infrastructure `e5b1d44` 與 PyMTLF `7479629`
+  保存。Static Flat generated config 為
+  `phase3-static-flat-v1:4fdd0da11fe41de263ec349a1a28a688031d735672f0f4f605d29e78f34396bf`，dataset
+  identity 為
+  `68b65b9bacc58ba30d53bc8ece46e0374185d8301f993839b4645fde90830da9`。Static PyMTLF image 為
+  `sha256:4680b398c6bfeda4b38127fbf2e1c1d6c82990b33f0a0c9fc42b63cc26c1c9b9`，OCI revision label 為
+  `36166f04320ae70674604659786ba73935371426`。
+- Real static run 使用 `RUN_ID=61ae473f-85a7-4a67-a0d8-08ddd1c02600`。四個 owners 各解析兩個互斥 SUPI、
+  保存 4 records／202 observations，停止後均為 `RETAINED`、peer resource 為 0、descriptor retained 且
+  `cleanupPending=false`。
+- Training process 為 `fcd7c795-7e22-45fc-a9c8-1a6466092dd8`，exact participants 為 Client 1–4；四個
+  Clients 在 rounds 0、1 均各使用 37 samples，並全部完成 final validation。Candidate digest 為
+  `3cf53e9c731d8a8adacc6c8f77bbd4a63f489cdd3871484fec895a0137ecf513`；aggregate validation 記錄
+  base WAPE `2.3936889687029064`、candidate WAPE `0.19506470978235016` 與
+  `gate_would_accept=true`，但 performance gate 仍依 bounded-smoke contract disabled。
+- Published model ID 為 `1787842701831`，top-level state 為 `COMPLETE`、`required_scopes=0`；四個 training
+  resources exact `created=4 deleted=4 active=0 unknown_deletes=0`，沒有 failure 或 cleanup failure。
+- Fresh-state verification 先以 selected guarded reset 清除 static Flat 的五個 ML volumes 與 exact
+  ADRF／NRF／model scope，確認其他 topology assets 保留；Server 重新啟動後記錄 canonical seed key
+  `a2c796a001e2da2461418f80b01d7d1e33f0e3349c2817d92286f09e67aa6bef`。實際 run 也確認若同一
+  Client 同時有多個 matching retained groups，DatasetCoordinator 會依 component contract fail closed；保存
+  evidence 後以 selected guarded reset 回到 fresh state，而未新增 dataset selector 或放寬 ambiguity guard。
+- Production Flat regression 使用
+  `default:4c42dae057fd400f22ac004bd518b6184c133856579454dc07381dd9cfbe5412`、dataset
+  `23697bf00ae0560c9f07f8ae451ebb91797943092317aea8cafdb37435c2fd59` 與既有 5-container／
+  23-Guest-unit runtime；PyMTLF image 為 `d1140540fde3`，PyAnLF image 為 `9b75d16725a5`。Consumer 兩個
+  TAI subscriptions 各收到 47 callbacks；degradation 觸發 process
+  `dff9cf15-4c5a-4fb7-866c-49d045936b5f`，兩個 Clients 完成兩輪、publication／adoption／cutover，model
+  `1787844693934` 的 post-cutover accuracy 為 `evaluated=true triggered=false`。Cleanup 為
+  `created=2 deleted=2 active=0`，最終 `FL RESULT outcome=complete`；ordinary stop 刪除兩個 subscriptions、
+  停止五個 ML containers 與全部 23 個 Guest units，VM 與 retained assets 保留。
+- Controlled local integration 另直接覆蓋 successful flow、collection restart cleanup、preparation failure
+  recovery、round timeout 與 containing-NWDAF generation restart；operator fixtures 覆蓋 invalid inventory、
+  wrong config、HTTP errors／timeouts、partial create 與 bounded rollback。Repository full tests、PyMTLF full tests、
+  Ruff、disposable five-container CPU lifecycle 與 diff checks 均列入 final review evidence。
 
 | Normative item | Current evidence | Status／open work |
 | --- | --- | --- |
-| Phase 2 static Flat topology／identity／lifecycle baseline | Infrastructure `fc360fc` 與 Phase 2 real evidence | Baseline complete；Phase 3 需重新記錄 current-run identity |
-| Private collection API 與 retained descriptor semantics | Pinned PyMTLF source／tests | Characterized；尚無 testbed operator entrypoint 與 real 4-owner evidence |
-| Static manual trigger 與 exact participant selection | Pinned PyMTLF API、`FlatFLCoordinator` 與 tests | Characterized；尚無 testbed integration |
-| Four-client two-round FedAvg | Renderer/native config 指定 4 clients、2 rounds；component engine 支援 generic participant set | Planned；需 artifact 與 real runtime direct evidence |
-| ADRF publication／catalog commit／no cutover scopes | Pinned publication source 與 static coordinator tests | Characterized；需 real ADRF／catalog evidence |
-| Collection 與 training cleanup | Collection status contract、Server DELETE path 與 unit tests | Characterized；需 operator status 與 exact real create/delete evidence |
-| Static status／failure interpretation | 目前 static `ml-status` 明確輸出 `milestones=not-evaluated` | Open implementation item |
-| Failure／restart／reset closure | Component tests 與 Phase 2 lifecycle baseline | Planned；需 Phase 3 cross-boundary verification |
-| Production Flat regression | Phase 2 runtime evidence | Required after Phase 3 implementation |
-| Planning user review | 使用者於 2026-08-27 確認本計畫與 operator contract | Approved；implementation 尚未開始，後續 slice review／commit gates 仍保持 open |
+| Phase 2 static Flat topology／identity／lifecycle baseline | Current-run config、dataset、Guest／container identity 與 real three-VM inventory | Satisfied；沿用 single pipeline，未新增 selector、VM、service 或 persistence |
+| Private collection API 與 retained descriptor semantics | `fl-control.py`／tests，加上 real 4-owner 2-SUPI collection、retention 與 peer cleanup | Satisfied |
+| Static manual trigger 與 exact participant selection | Manifest-derived Server／Client mapping、preflight tests 與 real Client 1–4 participant evidence | Satisfied |
+| Four-client two-round FedAvg | 四 Clients 每輪各 37 samples、兩輪 aggregate 與 candidate digest | Satisfied |
+| ADRF publication／catalog commit／no cutover scopes | Real model `1787842701831`、artifact digest、`COMPLETE` 與 `required_scopes=0` | Satisfied |
+| Collection 與 training cleanup | 四份 collection peer cleanup，加上 training `created=4 deleted=4 active=0` | Satisfied |
+| Static status／failure interpretation | `ml-status` deterministic parser tests 與 real `outcome=complete ... evidence=static-publication` | Satisfied；static HFL 繼續明確標示未評估，留給 Phase 4 |
+| Failure／restart／reset closure | Operator failure fixtures、controlled local restart／timeout flows、real ambiguity fail-closed 與 guarded reset／seed evidence | Satisfied |
+| Production Flat regression | Real Consumer→degradation→two-client training→publication／cutover→post-cutover accuracy→stop | Satisfied；既有 production operator interpretation 未改變 |
+| Mandatory initial review 與 user review | Initial／targeted review、final conformance 與 2026-08-28 user review 已完成 | Satisfied；PyMTLF `7479629` 與 Infrastructure `e5b1d44` 已提交，本文件 commit 保存最終 record |
 
 ## 12. 明確不包含
 
