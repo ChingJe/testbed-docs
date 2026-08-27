@@ -164,6 +164,30 @@ runtime。Inventory 解析失敗或空清單不得退化成「不做任何事並
 Config activation 若跨多台 VM，必須定義 partial activation 的 detection 與 recovery。不得在部分 Guests 已換
 config、其他 Guests 尚未完成時宣稱 selected topology active。
 
+## 6.1 Provider Host-context And Process-inventory Gate
+
+任何 real infrastructure provider operation，包括 operator 語意上看似唯讀的 status、list、show、validate 或
+inventory query，都必須視為可能改變 provider control-plane state。Production code、repository tests、Make
+targets 與 host scripts 不得留下繞過共用 guard 的 direct `vagrant`／`VBoxManage` call path。
+
+對使用 VirtualBox 的 lifecycle：
+
+- 共用 guard 必須在第一個 Vagrant／VirtualBox process 啟動前確認 execution 位於 approved host context，並確認
+  `/dev/vboxdrv` 是可用的 character device；不得先呼叫 provider，再以成功或錯誤輸出反推 context。
+- Real provider verification 只能在 approved host context 執行；sandboxed repository-local tests 與一般 CI tests
+  必須使用 synthetic fixtures、mock 或完全隔離的 provider substitute，不得啟動 host VirtualBox client。若有
+  host-only integration test，必須明確分類並使用同一 approval／guard boundary。
+- `vm-up` 或等價 startup 前，必須先從 host OS process inventory 解析實際 provider processes，再與 declared VM
+  identity 及 provider state exact compare；不得以 provider query 作為第一個 runtime observation。
+- Duplicate identity、process 存在但 provider state 不可見、provider／process mismatch、empty／invalid inventory
+  或解析失敗都必須讓正常 lifecycle fail closed，不能繼續 start、halt、destroy 或 reset。事故 cleanup 必須改走
+  fresh exact inventory、explicit targets 與獨立使用者批准，不得由正常 lifecycle 自動推斷或擴大 scope。
+- Provider-reported `poweroff`、`not created` 或等價狀態不能單獨證明 VM 已停止；runtime acceptance 與 destructive
+  scope 必須同時核對 OS process inventory、provider state、selected deployment 與 active config identity。
+
+Command-start hook、approval rule、repository guard 與 OS process preflight 是不同防護層；任一層存在或 tests
+通過，都不能被當成其他層已受保護或 real runtime acceptance 已完成。
+
 ## 7. Runtime Identity, State And Destructive Safety
 
 - 每個 NWDAF NF 必須有獨立 NF Instance ID、process、config、endpoint、NRF registration、log identity、
