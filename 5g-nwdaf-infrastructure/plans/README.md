@@ -16,6 +16,7 @@
 - [Flat／Hierarchical testbed scenario migration](hierarchical-federated-learning/flat-hierarchical-scenario-migration.md)
 - [Phase 1 production Flat config migration](hierarchical-federated-learning/phase-1-production-flat-config-migration.md)
 - [Phase 2 static scenario common foundation](hierarchical-federated-learning/phase-2-static-scenario-common-foundation.md)
+- [Phase 3 static Flat flow](hierarchical-federated-learning/phase-3-static-flat-flow.md)
 
 已完成計畫不應長期和 active work 混在本目錄。完成後保留必要的最終設計，並把執行結果與
 evidence 整理至 `records/`；已被取代且無目前效力的計畫移入 `archive/`。
