@@ -173,7 +173,9 @@ targets 與 host scripts 不得留下繞過共用 guard 的 direct `vagrant`／`
 對使用 VirtualBox 的 lifecycle：
 
 - 共用 guard 必須在第一個 Vagrant／VirtualBox process 啟動前確認 execution 位於 approved host context，並確認
-  `/dev/vboxdrv` 是可用的 character device；不得先呼叫 provider，再以成功或錯誤輸出反推 context。
+  `/dev/vboxdrv` 在 approved host device namespace 中可見且是 character device；此檢查用來阻止缺少 host
+  VirtualBox device namespace 的 sandbox process 接觸共享 host IPC，不得先呼叫 provider，再以成功或錯誤輸出
+  反推 context。
 - Real provider verification 只能在 approved host context 執行；sandboxed repository-local tests 與一般 CI tests
   必須使用 synthetic fixtures、mock 或完全隔離的 provider substitute，不得啟動 host VirtualBox client。若有
   host-only integration test，必須明確分類並使用同一 approval／guard boundary。

@@ -4,3 +4,4 @@
 runtime evidence。
 
 - [Component baseline update — 2026-08-26](component-baseline-update-2026-08-26.md)
+- [VirtualBox IPC sandbox incident remediation — 2026-08-27](virtualbox-ipc-sandbox-incident-remediation-2026-08-27.md)
