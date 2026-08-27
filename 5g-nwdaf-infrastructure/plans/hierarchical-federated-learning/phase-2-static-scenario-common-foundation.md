@@ -153,7 +153,9 @@ runtime acceptance，也不能取代 missing failure-path tests 或三 VM lifecy
 
 ### 4.2.1 Follow-up direct runtime／failure-path evidence
 
-2026-08-27 follow-up review 另以 read-only checks 取得下列直接證據；沒有啟動、停止、reset 或修改任何 runtime：
+2026-08-27 follow-up review 另以當時預期為 read-only 的 checks 取得下列 evidence；沒有有意啟動、停止或 reset
+runtime。後續 incident investigation 證明其中的 sandboxed `VBoxManage` query 並非 side-effect-free，且已改變
+VirtualBox IPC state，因此相關 control-plane observations 必須依本節末尾 caveat 解讀：
 
 - VirtualBox 已註冊 `core`、`path-a`、`path-b` 三台 VM，當時全部為 poweroff；實際宣告資源分別為
   `4096 MiB／4 CPU`、`3072 MiB／3 CPU`、`3072 MiB／3 CPU`，和目前 testbed definition 相符。因 VM 未啟動，
@@ -169,6 +171,13 @@ runtime acceptance，也不能取代 missing failure-path tests 或三 VM lifecy
 - 對 inventory reader 注入解析失敗時，subprocess 會輸出 traceback，但呼叫端仍以 status 0 得到
   `record_count=0`；把空 service target 傳給目前 mixed Compose catalog 時會解析成全部 17 個 services。
   這是 fail-open blocker 的 deterministic characterization，不是只依 code inspection 推測。
+
+上述 VirtualBox poweroff observation 只代表當時的 control-plane view，已被後續 incident evidence 取代，不能再
+作為目前 runtime state。Codex sandbox 內的 `VBoxManage list runningvms` 直接破壞 host VirtualBox IPC pathname；
+後續 host `vagrant up` 因 control plane 看不到原 processes 而啟動 duplicate VM set。Root cause、runtime caveat、
+Codex／repository／OS remediation 與 cleanup approval gates 由
+[VirtualBox IPC sandbox incident report](../virtualbox-ipc-sandbox-incident-2026-08-27.md) 管理。Guard 與 cleanup
+完成前，實際三 VM lifecycle acceptance 保持 blocked／未驗證。
 
 ## 4.3 Production baseline stage disposition
 
@@ -312,11 +321,11 @@ renderer／checker 或不同 lifecycle entrypoint，視為 architecture decision
 | Empty／invalid inventory 與 partial operation fail closed | 未符合 | 注入 inventory parser failure 後呼叫端仍 status 0／`record_count=0`；空 Compose target 解析成 mixed catalog 全部 17 services | 將 reader 與 lifecycle 改為 fail closed；加入 rollback、partial activation／stop detection 與 recovery tests |
 | Host ML selected artifact 與五／七 instance lifecycle | 部分符合 | static Compose catalog 可解析，per-instance endpoints／volumes 已存在 | 改為只生成 selected topology artifact；補 build deduplication、health、status、logs、stop evidence |
 | 八 UE／四個互斥 2-SUPI data owners | 部分符合 | 8-UE fixture 與 4×2 ownership checks 通過 | 修正 per-path first-match／hard-coded threshold，驗證每個 owner 的 subscriber、session、dataset contract |
-| 三 VM／Host／Docker／GPU capacity gate | 未符合 | 三台 poweroff VM 的 declared resources 符合 definition；Host 有 24 logical CPUs、約 20.7 GiB available memory、約 212 GiB disk、RTX 3080 約 9988 MiB free，且無目標 ML port conflict；Flat／HFL limits 為 `7 CPU／6144 MiB`、`9 CPU／8192 MiB` | 由 selected inventory 納入 build／Docker overhead、GPU participant VRAM 與 Guest runtime；補 simultaneous activation capacity evidence |
+| 三 VM／Host／Docker／GPU capacity gate | 未符合 | VM definitions 的 declared resources 符合計畫；Host 有 24 logical CPUs、約 20.7 GiB available memory、約 212 GiB disk、RTX 3080 約 9988 MiB free，且無目標 ML port conflict；Flat／HFL limits 為 `7 CPU／6144 MiB`、`9 CPU／8192 MiB`；先前 `poweroff` observation 已因 VirtualBox IPC incident 失效 | 先完成 incident guard 與 cleanup；再由 selected inventory 納入 build／Docker overhead、GPU participant VRAM 與 Guest runtime，補 simultaneous activation capacity evidence |
 | Exact guarded reset 與 deterministic seed restoration | 未符合 | Prototype 已能產生部分 volume／reset inventory 與 seed identity | 修正 Guest `nwdaf-c`-only guard，驗證 declared／actual exact scope、unexpected state 與 reset 後 re-import |
 | Required failure-path regression tests | 未符合 | 現有 static render、native、ownership、tamper tests 通過 | 新增 manifest、wrong-config、unexpected process、switching、capacity、partial activation／stop、reset exactness tests |
 | Repository full checks | Local verification passed | 完整 `make test`（含 Compose／production regressions／`vagrant validate`）與 `git diff --check` 通過 | Redesign implementation 完成後必須重跑；目前結果不涵蓋缺少的 failure-path tests 或 real lifecycle acceptance |
-| 實際三 VM lifecycle acceptance | 未驗證 | 三台 VM 已註冊但 review 時全部 poweroff；Guest active config／process state 無法觀察 | 完成 stage／activate／start／status／logs／stop／reset／seed recovery evidence |
+| 實際三 VM lifecycle acceptance | Blocked／未驗證 | 先前 VirtualBox `poweroff` control-plane observation 已被 IPC incident 與 duplicate runtime evidence 取代，不能代表 actual process state | 先完成 incident guard、fresh host inventory 與 approved cleanup，再重建 stage／activate／start／status／logs／stop／reset／seed recovery evidence |
 | User review 與獨立 commit | Pending | 本次已完成 working-tree architecture／lifecycle review | 重作 implementation、mandatory initial review 與 verification 後另行提出 user-review handoff 與 commit proposal |
 
 依此 conformance map，Phase 2 仍為 `Implementation redesign required`。目前 code prototype 只能作為 capability
