@@ -17,3 +17,4 @@
 目前定義：
 
 - [Static Flat controlled flow](static-flat-controlled-flow.md)
+- [Static Hierarchical controlled flow](static-hierarchical-controlled-flow.md)

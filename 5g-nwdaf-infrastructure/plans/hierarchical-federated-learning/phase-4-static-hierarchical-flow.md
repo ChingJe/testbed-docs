@@ -2,7 +2,8 @@
 
 日期：2026-08-28
 
-狀態：Planning / Ready for User Review；尚未授權 implementation
+狀態：Completed (`9a7bc91`)；Slices 1–6、real verification、mandatory review、user review 與
+repository-separated commit gate 已完成
 
 最近更新：2026-08-28
 
@@ -69,7 +70,9 @@ implementation。
    `complete_required` admission；strategy 為 FedProx、`proximal_mu: 0.01`、`sample_weighted` aggregation。
 2. Root manual private trigger沿用
    `POST /internal/v1/federated-learning/training-requests`；GET resource可讀取 `mode=hierarchical`、
-   `participantSource=static`、state、round progress、candidate digest與sanitized failure，不使用另一個HFL API。
+   `participantSource=static`、`triggerSource=private_api`、state、round progress、candidate digest與sanitized
+   failure，不使用另一個HFL API。本計畫中的「manual」是operator主動發送request的操作語意；
+   component wire contract使用`private_api`，不是`manual`。
 3. Root是唯一top-level coordinator。它從generated topology exact指派兩個Branches；每個Branch再透過NRF解析並
    指派自己兩個Leaves。`complete_required`不允許缺Branch、缺Leaf或縮小participant set後繼續。
 4. Branch同時是upper-tier Client與lower-tier Server，但不擁有training data、不建立private collection，也不
@@ -92,7 +95,7 @@ persistence、public SBI、transport、algorithm或architecture ownership，必�
 
 ## 3. Phase-specific decisions proposed for approval
 
-本計畫提案下列operator contract；使用者核准後才授權implementation：
+下列operator contract已於2026-08-28取得使用者核准，並授權依序實作六個slices：
 
 1. 沿用Phase 3既有命令，不新增HFL-only target：
    - `make fl-collection-start／status／stop TESTBED=... CONFIG_DIR=... RUN_ID=...`；
@@ -107,8 +110,9 @@ persistence、public SBI、transport、algorithm或architecture ownership，必�
    retained、未過期、cleanup-complete。
 5. Operator提供同一個canonical lowercase UUIDv4 `RUN_ID`，在四個Leaf collection namespaces與Root top-level
    request重用；不新增host ledger、current-run pointer或自動產生identity。
-6. `fl-training-status`接受並驗證`mode=hierarchical`與`participantSource=static`，但仍以exact selected
-   coordinator、family與request identity fail closed；Flat status semantics保持不變。
+6. `fl-training-status`接受並驗證`mode=hierarchical`、`participantSource=static`與
+   `triggerSource=private_api`，但仍以exact selected coordinator、family與request identity fail closed；Flat
+   status semantics保持不變。
 7. `ml-status`／`experiment-status`擴充HFL milestone interpretation，至少呈現Root request／preparation、四個Leaf
    local results、final validation、publication、2 upper＋4 lower resource lifecycle與terminal result；
    `fl-training-status`另呈現top-level round progress。不再以`milestones=not-evaluated`作為Phase 4最終狀態。
@@ -338,20 +342,48 @@ sandbox／CI只可執行synthetic provider fixtures，不得啟動真實Vagrant�
 12. Phase 3 static Flat regressions、repository full checks與required real three-VM HFL evidence通過。
 13. Mandatory initial review、fresh-read conformance、user review與獨立commit gates全部完成。
 
-## 11. Initial normative conformance map
+## 11. Current normative conformance map
 
-| Normative item | Planned production path／evidence | Status |
-| --- | --- | --- |
-| Reuse Phase 2 static HFL topology | Existing TESTBED／renderer／checker／manifest／lifecycle | Baseline confirmed；current-run identity pending |
-| Reuse Phase 3 operator lifecycle | Generalize existing`fl-control.py` and same Make targets | Implementation pending |
-| Leaf-only private collection | Manifest role／data-owner exact mapping＋synthetic and real evidence | Implementation pending |
-| Root manual trigger and exact hierarchy | Existing private endpoint＋Root／Branch／Leaf topology checks | Implementation pending |
-| Two-round FedProx and two-tier weighting | Pinned component contract＋controlled and real run artifacts | Integration evidence pending |
-| HFL status interpretation | Extend existing`ml-status` parser and fixtures | Implementation pending |
-| ADRF publication and zero-cutover completion | Existing component path＋real ADRF／catalog evidence | Real evidence pending |
-| 2 upper＋4 lower cleanup | Component lifecycle logs/API＋unexpected inventory scan | Real evidence pending |
-| Failure／restart／reset closure | Deterministic fixtures、controlled runtime與selected reset | Verification pending |
-| Review／conformance／commit gates | Policy workflow | Planning user review pending |
+### 11.1 Real-run identity與結果摘要
+
+- Static Hierarchical selected config為`config/local/phase4-static-hfl-v1`，tree hash
+  `406b7fcd0fe7e5fccd74c41c7f8ed121a55e33b2c2da37a0a5d10c208237b51e`；dataset identity為
+  `68b65b9bacc58ba30d53bc8ece46e0374185d8301f993839b4645fde90830da9`，PyMTLF image ID prefix為
+  `6f7cb98ccf79`，OCI revision為`747962971b63`。
+- HFL `RUN_ID=84708477-5dca-499f-a8a0-640b25a30c8c`。三個declared VMs的Host OS process inventory各只有
+  一個exact process；29個Guest units、8 UE Registration／PDU Sessions、7個healthy PyMTLF containers與7個
+  unique REGISTERED NWDAF profiles一致。
+- 四個Leaves各只解析自己的2 SUPIs，各有2 records與200 observations，最後同時為`RETAINED`、
+  peers 0與`cleanupPending=false`。Root exact admission 2 Branches，每個Branch exact admission 2 Leaves。
+- Top-level API為`hierarchical + static + private_api`、`COMPLETE`與2 rounds；candidate digest prefix為
+  `48d3d108`。每輪四個Leaf updates的sample count均為36，兩個Branch aggregates各對應effective
+  sample count 72，Root aggregate lineage已以logs中artifact URLs／digests與durable catalog metadata直接核對。
+- 四個Leaves完成final validation；Root發布model `1787852091404`，ADRF record、Root catalog、final bundle SHA
+  與candidate／published identities exact compare通過，`required_scopes=0`。Performance gate為bounded-smoke
+  disabled，另存`gate_would_accept=true`；此數值不作model-quality claim。
+- 2 upper＋4 lower resources的create／DELETE一對一，active resources、cleanup failures與plan workspace均為0。
+  Guarded reset exact清空7個HFL volumes、ADRF與catalog state，且排除其他topology assets；Root restart後恢復
+  generation 1、model 1與canonical seed artifact。
+- Static Flat regression使用`RUN_ID=795f25c7-95bc-4321-b7ba-fe5f27c3a011`，完成4×2-SUPI real
+  collection、2-round FedAvg、model `1787853429655`、4／4 cleanup與ordinary stop。本bounded smoke的
+  `gate_would_accept=false`，performance gate未啟用，因此不影響functional regression。
+
+### 11.2 Conformance與verification
+
+| Normative item | Production path／direct evidence | Verification／result | Status |
+| --- | --- | --- | --- |
+| Reuse Phase 2 static HFL topology | Existing TESTBED／renderer／checker／manifest／lifecycle；current-run selected／active／NRF／process identity exact compare | Repository full checks＋real three-VM HFL startup | Passed |
+| Reuse Phase 3 operator lifecycle | Generalized existing`fl-control.py`與same Make targets；沒有HFL-only entrypoint | Focused synthetic operator tests＋real same-ID HFL run＋static Flat regression | Passed |
+| Leaf-only private collection | Manifest role／data-owner／native profile exact mapping；real 4×2-SUPI collection | Valid／tamper／rollback fixtures＋real retained descriptors | Passed |
+| Root private trigger and exact hierarchy | Existing private endpoint；Root／Branch／Leaf native config、generated topology與NRF exact compare | Wrong-role／bad-topology／response fixtures＋real 2×2 admission | Passed |
+| Two-round FedProx and two-tier weighting | Pinned PyMTLF component path；Leaf／Branch／Root artifact lineage與positive sample counts | PyMTLF focused suite 257 passed＋real two-round artifacts | Passed |
+| HFL status interpretation | Existing`ml-status`、`fl-training-status`與independent artifact evidence ownership | Deterministic parser failure／contradiction fixtures＋real logs／API comparison | Passed；terminal top-level API仍由`fl-training-status`獨立證明 |
+| ADRF publication and zero-cutover completion | Existing component publication path；ADRF record／artifact／Root catalog exact compare | Real HFL publication／GET／SHA verification | Passed |
+| 2 upper＋4 lower cleanup | Component lifecycle logs／API／unexpected inventory scan | Deterministic missing／failed cleanup fixtures＋real 6-resource GET 404與empty workspaces | Passed |
+| Failure／restart／reset closure | Existing component fencing／cleanup與selected guarded reset | Pinned component failure／generation tests／operator fail-closed tests／real ordinary stop／reset／seed restart | Passed |
+| Shared render／container regression | Lock-derived OCI revisions與manifest-driven 5／7-container lifecycle | Disposable production-Flat／HFL container checks＋real static Flat／HFL image identity | Passed |
+| Repository quality gates | Infrastructure source與tests | `make test`、focused tests、Ruff correctness rules (`E4,E7,E9,F`)、Bash syntax、`git diff --check` | Passed |
+| Review／conformance／commit gates | Policy workflow | Mandatory initial review、fresh-read conformance、language pass、user review 與 repository-separated commit approval 已完成；verified record 已建立 | Passed；Infrastructure commit `9a7bc91`，documentation completion commit 為本次變更 |
 
 ## 12. 明確不包含
 

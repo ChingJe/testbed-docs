@@ -2,10 +2,10 @@
 
 日期：2026-08-26
 
-最近更新：2026-08-28（Phase 3 completion／Phase 4 planning synchronization）
+最近更新：2026-08-28（Phase 4 completion synchronization）
 
 狀態：Phase 1 Completed (`072748b`)；Phase 2 Completed (`fc360fc`)；Phase 3 Completed (`e5b1d44`)；
-Phase 4 Planning / Ready for User Review
+Phase 4 Completed (`9a7bc91`)
 
 ## 1. 目標
 
@@ -223,12 +223,13 @@ phase 的 topology、process placement 或 algorithm change 混入同一 impleme
 | 1. Existing production Flat migration | Completed (`072748b`) | 讓既有 A／B／C flow 使用新版 config schema 且保持原行為 | default PyMTLF configs、renderer、strict validation 與 regression tests | native config load、repository／Compose checks、既有 Flat runtime regression、user review／獨立 commit |
 | 2. Static scenario common foundation | Completed (`fc360fc`) | 在既有三台 VM 固定八個 UE、四個 data owners、獨立 NF identity 與最大 topology placement | 三份完整 testbed definitions、單一 renderer／checker、fail-closed dynamic lifecycle、ports、collection profiles、exact reset／seed restoration 與 actual capacity gate | 不新增 deployment schema／selector；wrong-config／invalid inventory 被拒絕；兩種 static topology 已完成 real render／validate／activate／reset，未宣稱 full flow |
 | 3. Static Flat flow | Completed (`e5b1d44`) | 跑通一 Server／四 Client controlled flow | manifest-driven private collection lifecycle、manual training trigger、static status／evidence 與 failure／cleanup integration | real 4×2-SUPI collection→2-round four-client FedAvg→ADRF／catalog publication→exact cleanup evidence |
-| 4. Static Hierarchical flow | Planning / Ready for User Review | 在相同四個 data owners 上加入兩個 Branches | 沿用既有operator lifecycle，擴充Leaf collection、Root trigger、two-tier aggregation與observability | real collection→Leaf fitting→Branch／Root FedProx→publication→cleanup evidence |
+| 4. Static Hierarchical flow | Completed (`9a7bc91`) | 在相同四個 data owners 上加入兩個 Branches | 沿用既有operator lifecycle，擴充Leaf collection、Root trigger、two-tier aggregation與observability | real collection→Leaf fitting→Branch／Root FedProx→publication→cleanup、Flat regression、initial review、user review、verified record 與獨立 commit gate 已完成 |
 
-下一個 implementation phase 是 Phase 4；其operator contract、Leaf collection→retention→Root training時序、
-slices、failure paths、verification matrix與completion criteria由
-[Phase 4 Static Hierarchical Flow Detailed Plan](phase-4-static-hierarchical-flow.md)管理。該計畫目前為
-`Planning / Ready for User Review`，尚未授權implementation。Phase 3的完成範圍與final evidence由
+Phase 4的operator contract、Leaf collection→retention→Root training時序、slices、failure paths、verification
+matrix與completion criteria由
+[Phase 4 Static Hierarchical Flow Detailed Plan](phase-4-static-hierarchical-flow.md)管理。該計畫的六個slices、
+required real verification、mandatory initial review、user review、verified record 與 Infrastructure commit
+`9a7bc91` 已完成。Phase 3的完成範圍與final evidence由
 [Phase 3 detailed plan](phase-3-static-flat-flow.md)及其linked verified record管理；Phase 1／2的詳細範圍與
 verification gates分別由[Phase 1 detailed plan](phase-1-production-flat-config-migration.md)與
 [Phase 2 detailed plan](phase-2-static-scenario-common-foundation.md)管理。

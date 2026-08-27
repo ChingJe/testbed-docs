@@ -6,3 +6,4 @@ runtime evidence。
 - [Component baseline update — 2026-08-26](component-baseline-update-2026-08-26.md)
 - [VirtualBox IPC sandbox incident remediation — 2026-08-27](virtualbox-ipc-sandbox-incident-remediation-2026-08-27.md)
 - [Static Flat controlled-flow validation — 2026-08-27](static-flat-controlled-flow-validation-2026-08-27.md)
+- [Static Hierarchical controlled-flow validation — 2026-08-28](static-hierarchical-controlled-flow-validation-2026-08-28.md)
