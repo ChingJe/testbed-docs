@@ -21,6 +21,7 @@
 
 ## 近期規劃
 
+- [`architecture/hierarchical-fl-observability-adaptation.md`](./architecture/hierarchical-fl-observability-adaptation.md)：新版 testbed HFL 實驗的 observability adaptation 評估，涵蓋 structured events、scrape／Remote Write 候選路徑、journal／Docker collector、topology、Grafana 與 portable replay
 - [`architecture/nwdaf-accuracy-policy-migration.md`](./architecture/nwdaf-accuracy-policy-migration.md)：新版 NWDAF `Accuracy scope / Accuracy policy / Retrain trigger` 對齊方案，涵蓋 parser、metrics、topology、Grafana 與 replay
 - [`backend/env-and-startup-config-alignment.md`](./backend/env-and-startup-config-alignment.md)：對齊 `.env.example`、`profiles/default/.env` 與 `start.sh`，清掉過時 env key 與註解，並讓 `WS_PORT` 真的影響啟動 port
 - [`dvr/offline-log-to-session-import.md`](./dvr/offline-log-to-session-import.md)：2026-05-07 的後續新增實作規劃，離線將既有 `free5gc.log` / `nwdaf.log` 轉為可 replay session，重點在重用既有 parser、session artifact 與 replay/backfill 流程
