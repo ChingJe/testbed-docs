@@ -39,15 +39,18 @@ runtime boundary，不取代 component development policy。
 continuous work unit，除非使用者改變 objective、phase、repository boundary、architecture 或 verification
 scope。
 
-在每個 follow-up turn 開始時，必須從 disk 重新讀取：
+新的 continuous work unit 在第一次讀寫檔案、執行 command／tool、操作 runtime／Git，或開始 implementation、
+review、verification 前，必須從 disk 讀取：
 
 1. workspace root `AGENTS.md`；
 2. 本 policy 中和目前 action 直接相關的 sections；
 3. active phase plan 的 status、decisions、current slice、acceptance／completion criteria 與 conformance map。
 
-若對話經過 context compaction、summarization、handoff 或 session continuity 不確定，必須重新讀取完整
-`AGENTS.md`、本 policy 與 active plan；不能假設 root `AGENTS.md` 會由 runtime 自動重新注入，也不能以對話
-摘要或記憶代替 disk 上的目前內容。
+同一 work unit 的後續 turn 不必機械式重讀。純討論、名詞解釋或不需查證目前 filesystem／repository／runtime
+state 的澄清不觸發重讀。若 objective、phase、repository boundary、architecture 或 verification scope 改變，
+已知 policy／active plan 在 disk 上更新，對話經過 context compaction、summarization、handoff，或 session
+continuity 不確定，則必須在下一個 action 前重新讀取完整 `AGENTS.md`、本 policy 與 active plan；不能假設 root
+`AGENTS.md` 會由 runtime 自動重新注入，也不能以對話摘要或記憶代替 disk 上的目前內容。
 
 在宣告 implementation slice／phase ready、complete，或準備 user-review／commit checkpoint 前，必須再次完整
 讀取本 policy 與 active plan，從目前文字重建 final conformance check。這是 completion gate，不是新的 work
