@@ -130,6 +130,35 @@ runtime-specific orchestration artifact 是 runtime output，不是另一份人�
 - topology-specific branch 可以存在，但 common Core／RAN／network／identity／scenario／native checks 必須
   始終執行。
 
+## 5.1 Hash-level Validation Boundary
+
+新增 checksum、hash 或 digest 驗證預設視為 overdesign，除非它直接來自 standard／external contract、外部下載
+artifact 的 supply-chain／transport integrity contract、Sections 6 與 7 所要求的 selected／active runtime identity
+safety boundary，或 active plan 中已有使用者明確決策。假設性的 corruption、tampering 或 drift 風險本身不足以
+建立新的 hash contract。
+
+- 對 trusted local configuration、dataset、source 與 generated artifact，優先使用 loading、parsing、schema、
+  shape、reference、ownership 與 experiment-semantic validation。不得為證明本地輸入「未改變」而新增
+  operator-maintained expected hash、duplicate derived hash、sidecar integrity manifest、multi-stage digest chain，
+  或要求每個 process 執行只為產生／驗證 hash 的 preparation／certification step。
+- Generator source、baseline 或 source-definition provenance 應以 source path、repository revision 與直接 evidence
+  記錄；除非它會改變 effective runtime behavior，不得將其 hash 混入 runtime identity 或複製到 configuration、
+  manifest 與 internal state。
+- Selected／generated config 和 deployed active config 可以使用一個 canonical identity digest，以支援 wrong-config
+  stop／reset prevention、cross-VM activation detection 與 exact runtime comparison。此 digest 應涵蓋 execution-relevant
+  generated artifacts／inventory，並可在同一 safety boundary 傳遞至 Guest active identity 與 Host container labels；
+  不得在無關設定或 state 中另建 expected hash、巢狀納入 local provenance hash，或把此例外視為其他 hash check
+  的先例。
+- Component-native artifact key、ETag 或其他 component contract 所定義的 identity 應留在原 boundary；testbed 只傳遞
+  contract-required value，不得另行推導或複製一套 expected hash。外部 archive、image、wheel 或相同性質 artifact
+  的 checksum 可以留在其 supply-chain／transport boundary。
+- Plan 與 tests 不得為 production contract 未要求的機制新增 hash-mismatch acceptance case。新增 hash-level check
+  必須附上 defining contract 或 active-plan user decision。
+
+本規則約束新的 plan 與 implementation。移除已支援或被外部依賴的 hash field／check 仍屬 contract change；若要
+簡化既有 hash chain，active plan 必須先盤點其 consumer，並以 semantic、lifecycle 與 destructive-safety checks
+保留原有保障，再依正常 decision gate 取得使用者確認。
+
 ## 6. End-to-end Operational Lifecycle Gate
 
 設計不能只證明 config 能 render。Implementation-ready plan 必須追蹤完整方向：
