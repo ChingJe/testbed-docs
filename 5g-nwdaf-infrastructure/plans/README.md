@@ -13,6 +13,11 @@
 
 目前 workstream：
 
+- [Protocol-driven Hierarchical FL experiment](protocol-driven-hierarchical-fl-experiment/README.md)
+  - [Multi-host Branch Replacement Experiment Plan](protocol-driven-hierarchical-fl-experiment/multi-host-branch-replacement-experiment-plan.md)
+
+前置 workstream（供 migration provenance，不表示目前 feature branch 必須維持舊 experiment compatibility）：
+
 - [Flat／Hierarchical testbed scenario migration](hierarchical-federated-learning/flat-hierarchical-scenario-migration.md)
 - [Phase 1 production Flat config migration](hierarchical-federated-learning/phase-1-production-flat-config-migration.md)
 - [Phase 2 static scenario common foundation](hierarchical-federated-learning/phase-2-static-scenario-common-foundation.md)
