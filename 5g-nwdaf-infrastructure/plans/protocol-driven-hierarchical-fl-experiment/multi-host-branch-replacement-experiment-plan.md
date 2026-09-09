@@ -4,7 +4,7 @@
 
 最近更新：2026-09-09
 
-狀態：Slice 1 Completed；Slice 2 Not Started
+狀態：Slice 1 Completed；Slice 2 Plan Ready for User Review
 
 索引：
 
@@ -49,7 +49,7 @@ status 與 reset 流程仍有大量固定假設，也保存多層 local hash／d
    service 與時間窗，避免長時間串流大量 log。
 
 本文件是跨 Slice 的唯一主計畫，保存共同架構、依賴、驗收與進度。詳細計畫採漸進式建立：只在某個 Slice 即將
-進入實作前完成該 Slice 的盤點與獨立 review；目前只建立 Slice 1 詳細計畫，不預先建立 Slice 2、3 文件。
+進入實作前完成該 Slice 的盤點與獨立 review；目前已建立 Slice 1 與 Slice 2 詳細計畫，不預先建立 Slice 3 文件。
 
 ---
 
@@ -130,7 +130,7 @@ affected repositories，並取得使用者確認；不得在 testbed script 內�
 | 資訊 | Authoritative owner | Generated／runtime consumer |
 | --- | --- | --- |
 | VM、network、Path、Guest service、NWDAF identity／placement、Host container、resource budget | selected complete `TESTBED` YAML | `Vagrantfile`、renderer、manifest、lifecycle、capacity gate |
-| dataset kind、training rounds、local epochs、seed、fault phase minima、observation interval | selected scenario YAML | renderer、experiment controller、evidence summary |
+| dataset kind、training rounds、optimizer settings、seed、fault phase minima、observation interval | selected scenario YAML | renderer、experiment controller、evidence summary |
 | recursive topology、candidate priority、policy、strategy、`reportAfter` | selected `TESTBED` 的 logical NWDAF topology section | generated PyMTLF native topology config，再由 production protocol 傳遞 |
 | MNIST／CIFAR-10 Leaf train shards、Root validation、final held-out dataset | deterministic dataset preparation owned by testbed scenario/run | read-only mounts／paths in generated PyMTLF configs |
 | process-native configs、Compose artifact、systemd inventory、manifest | one existing renderer pipeline output in `CONFIG_DIR` | Guest／Host processes 與 lifecycle scripts |
@@ -162,9 +162,10 @@ Slice 2建立canonical definition後，Make的default `TESTBED`指向該definiti
 VM names 是 selected deployment data，不得再被 renderer、scripts 或 tests 當成全域固定常數。`core` 可以作為此
 deployment 的 machine role；Path inventory 必須可由 YAML 枚舉，因此加入 `path-c` 不需要再新增 A／B 專用 branch。
 
-實作前由 capacity gate 根據 host 實際 RAM、CPU、disk 與 container overhead 決定每台 VM 的精確配額。已確認方向是
-不部署 UPF／gNB／UE／AMF／SMF 等不屬於本實驗 dependency chain 的負載，使四台 VM 可以小於舊 full-core topology；
-相關source、config與legacy lifecycle仍可留在repository。不得先在文件中虛構保證可行的固定 MiB／CPU 數值。
+Slice 2盤點已根據Host實際RAM、CPU、disk、當下available memory及container overhead提出精確candidate配額，記錄於
+Slice 2詳細計畫。Runtime開始前仍必須由capacity gate重新驗證；planning observation不能取代當下evidence。已確認方向是
+不部署 UPF／gNB／UE／AMF／SMF 等不屬於本實驗 dependency chain 的負載，使四台 VM 小於舊 full-core topology；
+相關source、config與legacy lifecycle仍可留在repository。
 
 ### 5.2 Logical process inventory
 
@@ -291,6 +292,10 @@ checkpoint，不交付可執行的新topology；新的正式deployment由Slice 2
 
 ### 7.2 Slice 2 — Inventory-driven four-VM protocol topology
 
+詳細盤點與 implementation-ready requirements：
+
+- [Slice 2 Inventory-driven Four-VM Protocol Topology Detailed Plan](./slices/slice-2-inventory-driven-four-vm-protocol-topology-detailed-plan.md)
+
 #### Operator-visible outcome
 
 Operator 透過同一組 `config-create`、validate、VM、services、ML、status、logs、stop、reset 入口，可以建立、啟動與
@@ -318,7 +323,8 @@ Operator 透過同一組 `config-create`、validate、VM、services、ML、statu
 5. 為MNIST與CIFAR-10分別建立deterministic partition：六份Leaf training shards、一份Root per-round validation、
    一份與validation分離的final held-out set。Dataset kind與bounded training parameters由scenario選取；paths只進local
    config／mount，不進Model Training protocol。兩種dataset的shape、class、model／loader compatibility與split語意都必須
-   通過component-native validation；相關hash處置依Slice 1 detailed plan，不在本節重新盤點。
+   通過component-native validation。Slice 1既有hash disposition不變；raw dataset acquisition不新增checksum、digest或
+   其他hash-like identity chain，而以固定HTTPS來源、安全解析及dataset semantic validation保護此boundary。
 6. 加入NTP／chrony與clock-skew preflight，使跨VM JSONL event時間可對齊；clock未同步時不開始real acceptance run。
 7. 讓capacity gate由selected inventory計算四台VM、十一個containers、build overhead、storage與GPU／CPU policy；
    配額不足必須在`vm-up`或container start前失敗。
@@ -477,7 +483,7 @@ number不能只靠wall-clock推定。若實際training時間不允許此最低�
 
 | Requirement | Static／mock evidence | Real-environment evidence | Owner slice |
 | --- | --- | --- | --- |
-| Hash disposition與consumer trace | inventory review、repository search、focused tests | disposition涉及runtime boundary時執行對應cross-boundary check | 1 |
+| Hash disposition與consumer trace | inventory review、repository search、focused tests；raw dataset acquisition確認未新增hash-like identity chain | disposition涉及runtime boundary時執行對應cross-boundary check | 1、2 |
 | Legacy support separation | README legacy asset inventory、canonical reachability與transitional fail-closed tests、deleted-file justification | 不要求legacy real run；Slice 2 canonical startup確認未隱式啟動legacy services | 1、2 |
 | Optional WebConsole retention | source／config／targets／existing-test inventory與canonical disabled check | 本計畫不要求WebConsole real run | 1、2 |
 | Inventory-driven四機render | valid／invalid YAML fixtures、manifest exact comparison | four-VM inventory matches OS/provider state | 2 |
@@ -506,7 +512,7 @@ result與open gap：
 | --- | --- | --- |
 | C1 | 單一 `TESTBED` + scenario + `CONFIG_DIR` pipeline，無新增selector／parallel renderer | config renderer／checker |
 | C2 | Canonical target與既有production／static legacy assets分離；README記錄legacy／unverified disposition，canonical path不隱式選取舊flow，且刪除項目都有具體理由 | Slice 1 README inventory、reachability／deletion review、Slice 2 migration disposition與repository tests |
-| C3 | Canonical／common path上的hash occurrence逐項具有consumer trace、defining contract或semantic replacement；isolated legacy內部hash可原樣保留 | Slice 1詳細計畫與focused tests |
+| C3 | Canonical／common path上的hash occurrence逐項具有consumer trace、defining contract或semantic replacement；Slice 2 raw dataset acquisition不新增hash-like identity chain；isolated legacy內部hash可原樣保留 | Slice 1／2詳細計畫與focused tests |
 | C4 | Canonical／common reachable Machine／Path／service loops全部由selected inventory驅動；legacy-only固定值限於reviewed allowlist | configlib、Vagrantfile、host／guest lifecycle |
 | C5 | 四VM、十一NWDAF、十一PyMTLF exact one-to-one inventory | generated manifest與runtime status |
 | C6 | 每個logical node有獨立identity、endpoint、state、logs與volume | renderer、systemd、Compose、validators |
@@ -549,7 +555,8 @@ result與open gap：
 
 只有下列情況停止並請使用者決策：
 
-- current component trace證明minimal topology仍需要本計畫排除的5GC service或新的external dependency；
+- current component trace證明minimal topology仍需要本計畫排除的5GC service，或需要Slice 2詳細計畫所列raw dataset sources以外的
+  新external dependency；
 - 四VM／十一containers無法通過capacity gate，必須減少participants、合併identity、改變isolation或新增host；
 - 既有 `TESTBED`／scenario／renderer無法在不產生雙重source的前提下合理擴充；
 - multi-host behavior需要修改NWDAF／PyMTLF／NRF／ADRF contract或production recovery semantics；
@@ -593,7 +600,7 @@ Slice 1 cleanup
 | Slice | 狀態 | Required evidence |
 | --- | --- | --- |
 | 1. Legacy／hash cleanup | Completed | implementation、focused／repository synthetic verification、mandatory initial review、使用者review與commit approval已完成 |
-| 2. Four-VM topology | Not Started | render／lifecycle tests、approved real four-VM integration、review |
+| 2. Four-VM topology | Plan Ready for User Review | detailed inventory／plan review尚待使用者確認；之後才進入implementation、render／lifecycle tests與approved real four-VM integration |
 | 3. Dual-dataset replacement flow | Not Started | MNIST與CIFAR-10各一個2+2+2 run、structured evidence、cleanup、review |
 
 本計畫只有在三個slices均完成required evidence、user review，且雙資料集flow-acceptance結果已整理到`records/`後，才能標為
