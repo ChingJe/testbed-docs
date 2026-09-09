@@ -30,7 +30,8 @@ runtime boundary，不取代 component development policy。
 1. component behavior：以 component source、tests、`nwdaf-docs` active plan／verified record 為準；
 2. intended testbed deployment：以 authoritative deployment source、active testbed plan、generated-artifact contract
    與 validators 為準；
-3. actual running state：以 Guest active config hash、container labels、process inventory 與 runtime evidence 為準；
+3. actual running state：以實際 runtime owner／provider 的直接觀測，以及 Section 7 定義的 selected／active identity
+   evidence 為準；
 4. 歷史背景：舊 README、archive 與 reports 只作 provenance，不覆蓋目前 contract。
 
 ## 2. Continuous Work Unit And Mandatory Re-read
@@ -58,7 +59,7 @@ unit。
 
 ## 3. Implementation Slice Definition
 
-重大實作開始前，active plan 必須明確列出：
+重大實作開始前，active plan 至少必須明確列出下列責任，並補充實際 flow 具有但本清單未命名的 boundary：
 
 1. operator-visible behavior 或 vertical flow；
 2. authoritative inputs 與 generated artifacts；
@@ -78,20 +79,13 @@ speculative hardening、unrelated cleanup、額外 VM 或 component architecture
 ## 4. Existing-flow Extension Gate
 
 新增 deployment mode、topology、role、config version、lifecycle procedure 或 experiment type 前，active plan 必須
-先命名 canonical existing flow，並逐階段盤點：
+先命名 canonical existing flow，並從 authoritative inputs 到最終 cleanup／recovery 追蹤實際 end-to-end path。任何
+會產生、轉換、傳遞、保存、觀測或清除 runtime-relevant state 的 owner 或 boundary 都必須納入，不能因未出現在
+既有 checklist 就省略。
 
-1. authoritative deployment selection；
-2. experiment／traffic inputs；
-3. config generation／rendering；
-4. strict validation 與 component-native loaders；
-5. generated runtime artifacts／manifest；
-6. infrastructure definition 與 machine lifecycle；
-7. config stage／activate 與 network reconciliation；
-8. deployed service start／status／logs／stop；
-9. auxiliary runtime build／start／health／status／logs／stop；
-10. subscriber、dataset 與 traffic stimulus；
-11. subscription-driven 或 explicit trigger；
-12. reset、seed restoration、restart 與 cleanup evidence。
+盤點至少要涵蓋 input selection、generation／validation、build／provision、stage／activation、infrastructure 與
+process lifecycle、stimulus／trigger、observation／evidence，以及 stop／reset／recovery。這些是 routing dimensions，
+不是封閉的 stage 清單；實際 flow 有額外 boundary 時必須擴充。
 
 每個 baseline stage 必須標記為：
 
@@ -112,8 +106,8 @@ placement 與 ownership；experiment input 負責 timing、traffic、monitoring�
 generated runtime directory 保存 processes 實際使用的 native artifacts。具體 source name、schema 與欄位 ownership
 由 active plan／design 定義，不由本 policy 固定。不得把同一事實同時維護於多個人工高階來源。
 
-新增任何人工維護的 YAML source、top-level directory、selector、renderer、checker、Compose catalog 或
-lifecycle entrypoint 都是 architecture decision。提案前必須回答：
+任何新增的人工 deployment truth、operator selection state 或平行 generation／validation／lifecycle path，不論採用
+何種檔案格式、儲存位置或工具形式，都是 architecture decision。提案前至少必須回答：
 
 1. 現有 authoritative source／entrypoint 為何無法合理擴充；
 2. 新來源或路徑的 owner 與 lifetime；
@@ -130,65 +124,20 @@ runtime-specific orchestration artifact 是 runtime output，不是另一份人�
 - common behavior 必須只有一條 pipeline；
 - 不得先生成另一 topology 的 artifacts、刪除後再重建；
 - 不得以第二套 checker shortcut 跳過 common validation；
-- topology-specific branch 可以存在，但 common Core／RAN／network／identity／scenario／native checks 必須
-  始終執行。
-
-## 5.1 Hash-level Validation Boundary
-
-新增 checksum、hash 或 digest 驗證預設視為 overdesign，除非它直接來自 standard／external contract、外部下載
-artifact 的 supply-chain／transport integrity contract、Sections 6 與 7 所要求的 selected／active runtime identity
-safety boundary，或 active plan 中已有使用者明確決策。假設性的 corruption、tampering 或 drift 風險本身不足以
-建立新的 hash contract。
-
-- 對 trusted local configuration、dataset、source 與 generated artifact，優先使用 loading、parsing、schema、
-  shape、reference、ownership 與 experiment-semantic validation。不得為證明本地輸入「未改變」而新增
-  operator-maintained expected hash、duplicate derived hash、sidecar integrity manifest、multi-stage digest chain，
-  或要求每個 process 執行只為產生／驗證 hash 的 preparation／certification step。
-- Generator source、baseline 或 source-definition provenance 應以 source path、repository revision 與直接 evidence
-  記錄；除非它會改變 effective runtime behavior，不得將其 hash 混入 runtime identity 或複製到 configuration、
-  manifest 與 internal state。
-- Selected／generated config 和 deployed active config 可以使用一個 canonical identity digest，以支援 wrong-config
-  stop／reset prevention、cross-VM activation detection 與 exact runtime comparison。此 digest 應涵蓋 execution-relevant
-  generated artifacts／inventory，並可在同一 safety boundary 傳遞至 Guest active identity 與 Host container labels；
-  不得在無關設定或 state 中另建 expected hash、巢狀納入 local provenance hash，或把此例外視為其他 hash check
-  的先例。
-- Component-native artifact key、ETag 或其他 component contract 所定義的 identity 應留在原 boundary；testbed 只傳遞
-  contract-required value，不得另行推導或複製一套 expected hash。外部 archive、image、wheel 或相同性質 artifact
-  的 checksum 可以留在其 supply-chain／transport boundary。
-- Plan 與 tests 不得為 production contract 未要求的機制新增 hash-mismatch acceptance case。新增 hash-level check
-  必須附上 defining contract 或 active-plan user decision。
-
-本規則約束新的 plan 與 implementation。移除已支援或被外部依賴的 hash field／check 仍屬 contract change；若要
-簡化既有 hash chain，active plan 必須先盤點其 consumer，並以 semantic、lifecycle 與 destructive-safety checks
-保留原有保障，再依正常 decision gate 取得使用者確認。
+- topology-specific branch 可以存在，但所有由 shared source、contract 或 lifecycle 產生的 common validation 必須
+  始終執行，不能依 topology 名稱或 branch 形態選擇性略過。
 
 ## 6. End-to-end Operational Lifecycle Gate
 
-設計不能只證明 config 能 render。Implementation-ready plan 必須追蹤完整方向：
+設計不能只證明中間 artifact 可以產生或單一 happy path 可以啟動。Implementation-ready plan 必須從最早的
+authoritative input與artifact preparation，一直追蹤到最終observation、stop、cleanup與recovery；實際存在的每個
+state transition、owner及跨process／machine／trust boundary都必須納入，不能用固定流程圖取代實際trace。
 
-```text
-authoritative deployment + experiment input
-→ render
-→ validate
-→ stage
-→ activate
-→ start
-→ status／logs
-→ stop
-→ reset
-→ seed／state recovery
-```
+每個實際步驟都必須定義 selected intent、actual state 的authoritative observation、兩者不一致時的failure
+behavior，以及partial failure、timeout、retry、rollback、restart與recovery。任何缺少、無效、過期或無法完整解析的
+必要state，都不得被解讀成空操作成功或擴大成未界定的scope。
 
-每一步必須定義：
-
-- authoritative selected identity；
-- actual active identity 與 observation path；
-- declared／actual mismatch behavior；
-- partial failure、timeout、rollback 與 restart behavior；
-- unexpected process／container／volume 的呈現與處置；
-- empty、missing、invalid 或 stale inventory 的 fail-closed behavior。
-
-Selected deployment／generated-config identity 必須能和 deployed active config、runtime labels 及 process inventory
+Selected deployment／generated runtime intent 必須能和 deployed actual state 及 resource inventory
 相互核對。Wrong-config stop／reset 不得部分執行；status 不得只過濾 selected inventory 而隱藏 unexpected
 runtime。Inventory 解析失敗或空清單不得退化成「不做任何事並成功」，也不得讓空 target arguments 擴大成
 操作完整 runtime catalog。
@@ -224,15 +173,16 @@ Command-start hook、approval rule、repository guard 與 OS process preflight �
 
 ## 7. Runtime Identity, State And Destructive Safety
 
-- 每個 NWDAF NF 必須有獨立 NF Instance ID、process、config、endpoint、NRF registration、log identity、
-  runtime state 與對應 ML process／state。
-- 共用 binary、component revision 或 physical VM 不代表共用 NF identity 或 writable state。
-- Manifest inventory 必須能由 trusted authoritative deployment source 完整重建並 exact compare，不只驗證欄位
-  形狀。
-- Guest units、Host containers、ports、volumes、subscription mode、coordinator 與 reset scope 必須一一對應。
-- Destructive scope 必須先以 read-only checks 解析 exact target，再和 selected topology 及 actual runtime 比對。
-- Reset 必須同時防止漏清 stale state 與跨 topology 誤清；Host 與 Guest destructive guards 都要涵蓋 actual
-  topology，不能依賴舊角色 hard-code 或只有外層檢查。
+- 每個由selected deployment宣告或由runtime建立的logical entity與resource都必須有明確owner、identity、lifetime、
+  observation path及cleanup responsibility。共用binary、component revision、physical machine或其他implementation
+  resource，不代表可以共用logical identity或writable state。
+- Runtime inventory必須能由authoritative deployment source完整重建，並與actual runtime及destructive scope作exact
+  comparison；只驗證欄位形狀、只觀測selected subset或依賴固定role清單都不充分。
+- 為比較selected、generated與active runtime而使用derived identity時，只能有一個authoritative representation，且
+  必須直接服務mismatch detection與lifecycle fencing。不得為相同state建立平行expected identity、巢狀provenance或
+  沒有failure consumer的衍生證明。
+- Destructive operation必須先解析完整actual scope，再和selected intent及active identity核對。Reset必須同時防止漏清
+  stale state與跨deployment誤清，且每個runtime owner都受相同scope invariant約束。
 - Scenario switching 保持 explicit：不自動停止、覆蓋或 reset active scenario；需要使用者執行明確的 stop
   與 guarded reset。
 - Reset 後若 acceptance 要求 deterministic seed restoration，必須驗證重新匯入後的 artifact identity；只驗證
@@ -240,25 +190,22 @@ Command-start hook、approval rule、repository guard 與 OS process preflight �
 
 ## 8. Capacity And Experiment Integrity
 
-Capacity gate 必須根據 selected runtime inventory 計算，而不是只檢查固定 Host reserve：
-
-- VM CPU、memory 與 disk；
-- selected Guest process count；
-- selected Compose CPU／memory limits；
-- image build 與 Docker overhead；
-- GPU participant count、GPU availability 與必要的 GPU memory；
-- IP aliases、published ports、networks、volumes 與 filesystem headroom。
+Capacity gate必須從selected deployment、runtime inventory與實際execution policy推導完整resource demand，並和每個
+resource owner可用的bounded capacity比較；不得只檢查預先列出的resource種類、固定Host reserve或單一runtime domain。
+Deployment引入任何新的resource owner、competition或dependency時，其capacity responsibility必須立即進入同一分析，
+而不是等policy補上具體名稱後才受檢查。
 
 容量不足是 decision blocker。不得在未重新決策下新增 VM、合併 logical NFs、共用 identity／state、降低必要
 isolation，或悄悄縮小 acceptance criterion。
 
-Controlled comparison 必須區分 topology、algorithm、data partition、traffic stimulus、seed、training effort 與
-timing。第一輪只跑通流程時，文件不得把不同 algorithm 的結果宣稱為純 topology effect。
+Controlled comparison必須識別、固定或明確記錄所有可能影響結果、但不是本次independent variable的因素。不能因某個
+factor未列在既有experiment template就忽略；第一輪只跑通流程時，也不得把混有其他差異的結果歸因於單一設計變因。
 
 ## 9. Change Safety And Decision Gates
 
-保留既有 characterized production behavior，除非 approved plan 明確標示 replaced。不得因 planned approach
-不方便而：
+保留既有characterized production behavior，除非approved plan明確標示replaced。任何implementation strategy都不得
+繞過、弱化或重新解釋approved contract、owner、validation、external boundary、destructive scope或required evidence。
+下列是常見違規形式，不是可用來推論其他形式獲准的封閉清單：
 
 - 新增平行 workaround；
 - 弱化 validation；
@@ -267,7 +214,25 @@ timing。第一輪只跑通流程時，文件不得把不同 algorithm 的結果
 - 擴大 destructive scope；
 - 將 required evidence 改寫為 optional。
 
-只有下列情況停止並請使用者決策：
+Implementation repository中的artifact必須能只靠durable product／domain／contract context解釋其名稱、內容與存在
+理由。若plan、issue、review iteration或其他work-tracking context被改名、歸檔或移除，而product behavior沒有改變，
+implementation artifact也不應需要改名或修改。Project-management identity只屬於以planning、review、migration
+history或verified result為目的的文件；某個詞若同時具有runtime domain meaning，是否允許取決於它在該處描述的實際
+system semantics，而不是字面allowlist。
+
+任何額外產生、傳遞或保存、只為證明identity、integrity或provenance的derived evidence，不論representation，都視為
+新的contract。引入前必須證明authoritative source、每個direct consumer的必要性、failure behavior、
+lifecycle scope，以及為何既有semantic validation或direct runtime observation不足；假設性的corruption、tampering或drift
+不足以成立。Trusted local input優先由parse、schema、reference、ownership與domain semantics驗證；external
+supply-chain contract與component-native identity則留在其原本boundary，不得由testbed複製另一套expected proof。
+Hash-like mechanism 另受 Section 10 的更嚴格special gate約束；符合本段的一般derived-evidence條件，不代表已取得
+新增或擴張hash機制的授權。
+
+移除既有derived evidence仍是contract change。必須先trace其producer、consumer與failure effect，並以semantic、
+lifecycle或destructive-safety invariant保留必要保障，不能只因其形式看似冗餘就刪除。
+
+當繼續工作必須取得新的authority，或必須實質改變已批准的architecture、ownership、contract、dependency、scope或
+acceptance時，停止並請使用者決策。下列是常見情況，不是decision gate的完整字面定義：
 
 - agreed architecture、ownership、data/state flow 或 operator contract 必須改變；
 - core assumption 為 false，必須替換 approved implementation strategy；
@@ -281,13 +246,56 @@ Blocker report 必須包含原假設、contradiction、可行選項、建議與 
 發現的工作若不阻塞 current slice，分類為：`future-phase handoff`、`legacy cleanup`、`optional hardening`、
 `integration verification gap` 或 `unconfirmed risk`，不得偷偷拉入目前 diff。
 
-## 10. Test-first Remediation And Verification
+## 10. Hash-like Mechanism Special Gate
+
+Hash（包括 SHA-256）、checksum、digest、fingerprint與其他以輸入內容推導值來證明相等性、完整性、identity或
+provenance的機制，因為容易被視為低成本防護而在沒有真實failure consumer時擴散，必須視為獨立的高風險設計選擇。
+本規則按機制語意判斷，不依賴演算法名稱、欄位名稱、編碼、檔案副檔名或工具allowlist；改名、改用其他演算法或
+包進另一種artifact不會避開此gate。
+
+Hash-like mechanism不是trusted local config、generated artifact、dataset、temporary transfer、cache、runtime status、
+logging、provenance或test evidence的預設解法。一般性的「避免corruption／drift」、「增加可追蹤性」、「方便除錯」或
+「未來可能有用」，以及只證明兩份bytes相同但沒有定義相同bytes為何是正確system state，都不足以成立新機制。
+
+只有下列兩類boundary可使用hash-like value：
+
+1. existing standard、external supply-chain／transport contract或component-native contract已定義該value，且testbed只在
+   原boundary驗證或傳遞它；不得因此重新計算、複製或擴張成testbed-owned expected proof；
+2. testbed-owned production contract有具體且直接的content-derived identity需求，現有較簡單的representation無法合理
+   滿足，而且在實作前已於active plan逐項記錄並取得使用者明確決策。
+
+第二類准入必須同時證明：authoritative producer；每個direct consumer；protected trust／transport／lifecycle
+boundary；mismatch時會阻止或改變的具體production action；value的lifetime與cleanup owner；semantic validation、
+structured identity或direct runtime observation不能提供同一invariant的理由；以及如何限制為單一最小representation，
+不向無關config、manifest、filename、label、receipt、cache、log、status或test擴散。缺少任一項即不得新增。
+
+不得只為hash-like mechanism建立存在性、格式、值相等、mismatch或移除結果的permanent repository test；只有該機制已
+通過上述准入、而且test直接保護其durable production contract時才可測試。一次性inventory、cleanup或plan conformance
+應留在active plan／review evidence，不得以新的hash-specific helper、fixture、test file或structural assertion固化。
+
+既有hash-like mechanism不因本規則自動保留或自動刪除。修改前仍須trace完整producer、consumer與failure effect：有
+外部或已批准contract者留在原boundary；無consumer、重複既有proof或只回應假設性風險者，依active plan移除並以必要的
+semantic、lifecycle或destructive-safety invariant取代。Review必須逐一揭露本次新增、擴張、保留與移除的機制及其
+contract依據；文字搜尋只能發現候選項，不能取代semantic trace。
+
+## 11. Test-first Remediation And Verification
 
 Confirmed defect 若能 deterministic reproduction，應先建立或識別 failing test，再進行最小 remediation。每次
 remediation 後執行 focused verification 與 targeted follow-up review；只要不改變 approved architecture、
 contract 或 verification level，可在同一 work unit 持續進行。
 
-新 topology／lifecycle 的 tests 至少依適用範圍涵蓋：
+Permanent repository test只有在能陳述一個durable regression proposition時才成立：給定supported owner、entrypoint與
+state，特定操作必須產生contract-defined result或failure。Test的identity、pass／fail cause與維護理由不得依賴目前
+work item、review history或偶然implementation representation；plan結束後仍須能獨立解釋它保護的behavior。
+
+Behavioral verification應直接exercise authoritative boundary。Structural assertion只有在被檢查的structure本身就是
+approved architecture或safety invariant時才成立，不能用來保存一次性cleanup證據。Plan conformance與temporary
+verification的command／result應記在active plan或review record；若其中發現durable regression risk，將最小
+behavior-oriented case併入既有owning test。只有distinct owner、runner或contract boundary無法由既有suite合理承載時，
+才新增獨立test artifact，並在review中證明該必要性。
+
+新 topology／lifecycle 的 tests 必須從實際flow、state owners、failure paths與plan commitments推導完整coverage。下列是
+常見verification dimensions，不是可用來省略未列出boundary的封閉清單：
 
 - production baseline regression；
 - complete selected deployment render 與 common／topology-specific validation；
@@ -300,12 +308,12 @@ contract 或 verification level，可在同一 work unit 持續進行。
 - capacity rejection；
 - active plan 要求的 real infrastructure／container／accelerator integration evidence。
 
-Passing repository tests 不證明未覆蓋的 production lifecycle 沒有問題。Host-only、mock 或 config tests 不得
-宣稱 real VM、5GC、UE、UPF、ADRF、MongoDB、Docker GPU 或 end-to-end experiment acceptance。若 active plan
-要求 real environment，缺少該 evidence 時狀態應為 `Implementation Complete / Verification Incomplete` 或保持
-更早的 open state。
+Passing repository tests不證明未覆蓋的production lifecycle沒有問題。任何synthetic、mock、static或局部測試，都只能
+支持它實際執行到的owner與boundary；不得據此宣稱未被執行的external system、runtime environment或end-to-end flow已
+通過。若active plan要求real environment，缺少該evidence時狀態應為
+`Implementation Complete / Verification Incomplete`或保持更早的open state。
 
-## 11. Mandatory Review And Plan Conformance
+## 12. Mandatory Review And Plan Conformance
 
 Implementation 與 focused verification 後，必須在不中斷的下一步完成一次 initial review，不等待使用者額外
 要求。Review 至少檢查：
@@ -333,7 +341,12 @@ Review output 必須分開 confirmed current-slice defects、deferred work、leg
 gaps 與 unconfirmed risks，並明確說明執行了什麼、尚未驗證什麼，以及 slice 是 partial、verification
 incomplete、ready for user review 或 completed。
 
-## 12. Documentation And Status Discipline
+Review必須檢查完整intended implementation diff中每個artifact的identity、內容與存在理由，而非只檢查tests或commit
+message。每個implementation artifact都必須通過Section 9的work-tracking independence原則，每個permanent test都必須
+能陳述Section 11要求的durable regression proposition；關鍵字或檔名搜尋只能協助發現候選問題，不能取代semantic
+review。未通過者必須在user-review handoff前移除，或改寫成由durable contract直接支持的artifact。
+
+## 13. Documentation And Status Discipline
 
 - stable workflow／review rules 放在本 policy；workspace routing 放在 root `AGENTS.md`；phase-specific decisions
   與 conformance map 放在 active plan。
@@ -349,7 +362,7 @@ language、repository default 決定。Code identifiers、paths、schema fields 
 重新閱讀完整 changed document，並和至少一份 current sibling 比較，完成獨立 language-consistency pass；
 不得只做 diff spot check。
 
-## 13. User Review, Commit And Push Gates
+## 14. User Review, Commit And Push Gates
 
 Implementation、review、verification 或 plan conformance 完成，只授權準備 user-review handoff，不授權 staging
 或 commit。User review 前：
@@ -371,7 +384,7 @@ Review confirmation 不等於 commit approval。之後必須提出 read-only com
 Proposal materially 改變時必須重新批准。Commit approval 不授權 amend、rebase、reset、cherry-pick 或 push；
 push 需要另外明確批准。
 
-## 14. Common Workflow
+## 15. Common Workflow
 
 1. 重讀 root `AGENTS.md`、本 policy 與 active plan；若發生 context compaction，完整重讀三者。
 2. 確認 active slice、repository owners、source contract、acceptance evidence 與 deferred work。
@@ -379,14 +392,15 @@ push 需要另外明確批准。
 4. 將所有 normative plan items 建立 working conformance map。
 5. 追蹤 current production path、failure path、state 與 direct dependencies。
 6. 確認使用現有 authoritative source／pipeline；新 config source、entrypoint 或 architecture 先經 decision gate。
-7. 建立 characterization／failing tests，再完成最小完整 slice。
-8. 執行 focused verification。
-9. 立即進行 mandatory initial review，分類 findings。
-10. 對 admitted in-scope findings 執行 test-first remediation 與 targeted follow-up review，直到關閉或遇到 decision
+7. 若工作涉及hash-like mechanism，先完成Section 10的special gate；未取得准入不得實作或建立permanent test。
+8. 建立 characterization／failing tests，再完成最小完整 slice。
+9. 執行 focused verification。
+10. 立即進行 mandatory initial review，分類 findings。
+11. 對 admitted in-scope findings 執行 test-first remediation 與 targeted follow-up review，直到關閉或遇到 decision
     gate。
-11. 重新完整讀取本 policy 與 active plan，重建 final conformance map。
-12. 執行 required full／integration verification，將 indirect 或 unavailable evidence 保持 open。
-13. 完成 documentation language-consistency pass。
-14. 保持 changes unstaged／uncommitted，提出 user-review handoff 並停止。
-15. Review confirmation 後提出 commit proposal，再等待 explicit commit approval。
-16. 只建立 approved commits；另行取得 push approval。
+12. 重新完整讀取本 policy 與 active plan，重建 final conformance map。
+13. 執行 required full／integration verification，將 indirect 或 unavailable evidence 保持 open。
+14. 完成 documentation language-consistency pass。
+15. 保持 changes unstaged／uncommitted，提出 user-review handoff並停止。
+16. Review confirmation後提出commit proposal，再等待explicit commit approval。
+17. 只建立approved commits；另行取得push approval。
