@@ -5,6 +5,8 @@
 目前入口：
 
 - [Multi-host Branch Replacement Experiment Plan](./multi-host-branch-replacement-experiment-plan.md)
+- [Current Slice 1 Detailed Plan](./slices/slice-1-legacy-and-hash-cleanup-detailed-plan.md)
 
-目前只維護一份主計畫。三個 implementation slices、共同決策、baseline disposition、驗收條件與進度都保存在
-主計畫內；除非後續出現需要獨立 review 的新 architecture decision，不另建 Slice 1／2／3 計畫文件。
+主計畫保存跨 Slice 的共同決策、baseline disposition、驗收條件與進度。詳細計畫依主計畫順序逐一建立：只有即將
+實作的current Slice完成盤點後才新增，不預先產生尚未到達的Slice文件。Current status以主計畫為準，本README只提供
+navigation。

@@ -2,7 +2,9 @@
 
 日期：2026-09-08
 
-狀態：Ready for User Review；尚未授權 implementation
+最近更新：2026-09-09
+
+狀態：Slice 1 Plan Ready for User Review；尚未授權 implementation
 
 索引：
 
@@ -32,9 +34,12 @@ status 與 reset 流程仍有大量固定假設，也保存多層 local hash／d
 
 本計畫固定採用下列方向：
 
-1. 此 feature branch 是新版實驗的 breaking cutover，不維持舊 production Flat、static Flat 或 static
-   Hierarchical experiment compatibility。
-2. 先清除 obsolete experiment path 與非必要 hash contract，再擴充 topology；不把 cleanup 延到實驗完成後。
+1. 此 feature branch 以新版 protocol-driven experiment 作為唯一會持續維護與正式驗證的 canonical target；既有
+   production Flat、static Flat／Hierarchical source與操作資產保留為legacy／unverified，不保證仍可執行，也不投入
+   專屬維護或驗證。
+2. 先把legacy assets和canonical runtime明確分離，移除會造成隱式選取的default／fallback及非必要hash，再擴充
+   topology。Canonical不使用某項舊資產本身不是刪除理由；只有具體阻擋common path、繞過安全邊界、或已證明為
+   無consumer重複產物的項目才可移除。
 3. 新部署使用四台 VM：一台 `core` 與三台獨立 Path VM；每條 Path 擁有自己的 Branch 與 Leaves。
 4. Host 執行十一個 PyMTLF containers，和十一個 Guest Go NWDAF processes 一對一對應。
 5. 先用短 acceptance run 證明 wiring，再執行有足夠 accepted rounds 與 paired seeds 的正式 baseline／failure
@@ -42,7 +47,8 @@ status 與 reset 流程仍有大量固定假設，也保存多層 local hash／d
 6. 實驗觀測以 component 已提供的 node-local structured JSONL 為主；完整一般 log 落盤，只在異常時讀取精確
    service 與時間窗，避免長時間串流大量 log。
 
-本計畫是唯一主計畫。三個 slices 都在第 7 節定義，不建立個別 Slice 1／2／3 文件。
+本文件是跨 Slice 的唯一主計畫，保存共同架構、依賴、驗收與進度。詳細計畫採漸進式建立：只在某個 Slice 即將
+進入實作前完成該 Slice 的盤點與獨立 review；目前只建立 Slice 1 詳細計畫，不預先建立 Slice 2、3 文件。
 
 ---
 
@@ -50,8 +56,9 @@ status 與 reset 流程仍有大量固定假設，也保存多層 local hash／d
 
 ### 2.1 Infrastructure 目標
 
-- 將 machine、Path、Guest service、NWDAF 與 Host container inventory 改為由單一 selected `TESTBED` 完整描述，
-  移除 `core`／`path-a`／`path-b` 與 Path A／B 的程式硬編碼。
+- 將 canonical／common reachable path 的 machine、Path、Guest service、NWDAF 與 Host container inventory 改為由
+  單一 selected `TESTBED` 完整描述，移除該路徑對 `core`／`path-a`／`path-b` 與 Path A／B 的程式硬編碼；隔離的
+  legacy-only implementation可保留既有固定值，不要求repository-global歸零。
 - 沿用既有 `TESTBED`、scenario、generated `CONFIG_DIR`、manifest、stage／activate 與 lifecycle entrypoints；不新增
   第二套人工 YAML source、top-level config directory、selector、renderer 或 checker。
 - 建立四台較小 VM 的 minimal control-plane deployment，只啟動 protocol-driven HFL 所需的 Root／Branch／Leaf
@@ -72,12 +79,23 @@ status 與 reset 流程仍有大量固定假設，也保存多層 local hash／d
 ### 2.3 Cleanup 目標
 
 - 對 testbed-owned hash／digest 使用點逐一追蹤 producer、consumer 與保護邊界。
-- 由 Slice 1 逐項追蹤 producer、consumer、defining contract 與現有替代保障後，才決定每個 hash／digest 的
-  keep／remove disposition；主計畫不預先建立具體 allowlist 或 removal list。
+- 具體 producer、consumer、defining contract、替代保障及 keep／remove 理由由
+  [Slice 1 詳細計畫](./slices/slice-1-legacy-and-hash-cleanup-detailed-plan.md)保存；主計畫只保留跨 Slice 的
+  cleanup 原則與驗收責任。
 - disposition 必須遵守 development policy 的 hash boundary，並確保 runtime identity、wrong-config prevention、
   transport／supply-chain contract、component-native identity 與 destructive safety 不因簡化而失去必要保障。
-- 移除只服務舊 Flat／static experiment 的 definitions、render branches、validators、scripts、Make targets、tests
-  與 generated examples；歷史文件與已驗證 records 只作 provenance，不表示 source branch 仍支援舊流程。
+- 保留既有production Flat、static Flat／Hierarchical definitions、component／provisioning assets、操作script與重建
+  其意圖所需的設定輸入，並明確標示為legacy／unverified；它們不構成canonical runtime、regression baseline或
+  real-environment acceptance，也不保證仍可執行。
+- Legacy／unverified支援狀態只由`5G_NWDAF_Infrastructure/README.md`的legacy asset inventory說明；不為此新增
+  `TESTBED`／scenario／manifest欄位、特殊檔名規則、opt-in flag或另一條lifecycle status branch。
+- 不為legacy profiles新增第二套renderer／lifecycle或投入相容性修復。現有validators、scripts、Make targets、tests、
+  submodules與provisioning branches原則上保留；canonical path必須不選取、不部署、不驗收它們。只有能指出確切
+  canonical／common reachability衝突、安全風險或無consumer重複產物時，才可在Slice 1提出逐項移除。
+- 既有WebConsole維持獨立optional feature，保留其source、config、build／lifecycle targets與既有tests；canonical
+  protocol-driven profile將它關閉，本計畫不部署或驗收，但不能只因新實驗未使用就刪除或改列legacy。
+- Slice 2建立inventory-driven schema後，可用同一pipeline低成本遷移legacy profiles。只有通過共通parse、schema、
+  reference、inventory與destructive-safety validation的profile才可由`TESTBED`選取；其餘仍保留為不可啟動的參考資產。
 
 ---
 
@@ -118,6 +136,11 @@ affected repositories，並取得使用者確認；不得在 testbed script 內�
 participant identity 與 topology ownership 留在 complete `TESTBED`。Renderer 可產生 native component config，
 但 generated artifact 不是新的 authoritative source。
 
+Slice 2建立canonical definition後，Make的default `TESTBED`指向該definition，未提供`CONFIG_DIR`時由其
+`config.directory`解析同一份generated runtime。Operator不需在每個lifecycle command重打長路徑；明確
+`CONFIG_DIR`只作override。Canonical output不存在、selection不完整或identity不一致時fail closed，不回退至
+`config/default`。
+
 ---
 
 ## 5. 固定部署架構
@@ -135,8 +158,8 @@ VM names 是 selected deployment data，不得再被 renderer、scripts 或 test
 deployment 的 machine role；Path inventory 必須可由 YAML 枚舉，因此加入 `path-c` 不需要再新增 A／B 專用 branch。
 
 實作前由 capacity gate 根據 host 實際 RAM、CPU、disk 與 container overhead 決定每台 VM 的精確配額。已確認方向是
-移除 UPF／gNB／UE／AMF／SMF 等不屬於本實驗 dependency chain 的負載，使四台 VM 可以小於舊 full-core topology；
-不得先在文件中虛構保證可行的固定 MiB／CPU 數值。
+不部署 UPF／gNB／UE／AMF／SMF 等不屬於本實驗 dependency chain 的負載，使四台 VM 可以小於舊 full-core topology；
+相關source、config與legacy lifecycle仍可留在repository。不得先在文件中虛構保證可行的固定 MiB／CPU 數值。
 
 ### 5.2 Logical process inventory
 
@@ -184,6 +207,7 @@ candidate priority。Replacement 完成 production preparation 後，只從下�
 UPF、gNB、UE、UERANSIM、AMF、SMF、NSSF、UDR、UDM、AUSF、PCF、WebConsole、PyAnLF、consumer、subscriber fixture、
 PseudoDriver 與 UE communication dataset 預設不納入。若 source trace 發現其中任何 service 是 current protocol
 path 的必要 dependency，屬於 architecture contradiction，必須先回報並更新計畫，不得靜默帶回完整 5GC。
+其中WebConsole仍保留為repository既有的optional feature；「不納入」只表示canonical experiment不啟用，不表示移除。
 
 ---
 
@@ -195,20 +219,23 @@ experiment semantics 與 inventory，不另建第二條 pipeline。
 
 | Baseline stage | Disposition | 本計畫要求 |
 | --- | --- | --- |
-| 1. authoritative deployment selection | adapted | 沿用 `TESTBED` selector與complete YAML；schema改為inventory-driven四機protocol topology |
-| 2. experiment／traffic inputs | explicitly replaced | 沿用scenario入口，但以MNIST campaign／seed／fault phases取代UE traffic、monitoring與degradation輸入 |
-| 3. config generation／rendering | adapted | 保留單一renderer；移除production-flat／static-flat／static-hierarchical render branches與fallback |
-| 4. strict validation／native loaders | adapted | 以new inventory、protocol topology、dataset split、round phases與component-native loader驗證；移除legacy/hash-only checks |
-| 5. generated artifacts／manifest | adapted | manifest保存exact runtime/reset/capacity inventory與必要provenance；hash fields依Slice 1 consumer trace決定 |
+| 1. authoritative deployment selection | adapted | 沿用 `TESTBED` selector與complete YAML；新canonical deployment改為inventory-driven四機protocol topology。既有production／static definitions保留為legacy／unverified，但不得成為implicit default或fallback |
+| 2. experiment／traffic inputs | adapted and replaced for canonical flow | 新canonical scenario以MNIST campaign／seed／fault phases取代UE traffic；既有scenario、traffic與dataset inputs原樣保留於legacy flow，不作正式run source |
+| 3. config generation／rendering | adapted | Canonical topology擴充既有renderer與common pipeline；移除隱式default／fallback，不因未使用而刪除dormant legacy branches。Legacy profile若遷移，只能使用同一inventory-driven pipeline |
+| 4. strict validation／native loaders | adapted | Canonical path以new inventory、protocol topology、dataset split、round phases與component-native loader驗證；legacy-only validation可留在隔離路徑，common path不再依賴其hash-only checks |
+| 5. generated artifacts／manifest | adapted | manifest保存exact runtime/reset/capacity inventory；canonical runtime identity與其hash boundary依Slice 1詳細計畫，source revision／dirty flag由run evidence記錄 |
 | 6. infrastructure／machine lifecycle | adapted | Vagrant與provider guard改由selected machine inventory驅動，支援core + three Paths |
 | 7. config stage／activate／network | adapted | 保留單一config identity、cross-VM activation與partial activation detection；network只建立實驗需要的management／SBI reachability |
-| 8. Guest service lifecycle | explicitly replaced | service inventory改為NRF、ADRF、persistence與十一個NWDAFs；移除full-5GC／RAN／UPF lifecycle |
-| 9. Host auxiliary runtime | adapted | Compose改為十一個one-to-one PyMTLF containers；保留exact status／logs／stop與unexpected runtime detection |
-| 10. subscriber／dataset／traffic | explicitly replaced | 移除subscriber／UE／PseudoDriver資料鏈；改為deterministic MNIST Leaf train、Root validation與final held-out data |
-| 11. trigger | explicitly replaced | 移除collection／consumer／degradation trigger；使用protocol-driven manual training request與controller event barriers |
+| 8. Guest service lifecycle | canonical inventory replaced | Canonical selected inventory只啟動NRF、ADRF、persistence與十一個NWDAFs；既有full-5GC／RAN／UPF implementation保留於legacy flow，不得被canonical start／status／stop／reset隱式納入 |
+| 9. Host auxiliary runtime | adapted | Canonical generated Compose包含十一個one-to-one PyMTLF containers；既有Compose sources／examples保留，exact status／logs／stop與unexpected runtime detection沿用selected inventory |
+| 10. subscriber／dataset／traffic | canonical input replaced | Canonical path使用deterministic MNIST Leaf train、Root validation與final held-out data；既有subscriber／UE／PseudoDriver資料鏈保留為legacy assets，但canonical renderer與lifecycle不引用 |
+| 11. trigger | canonical trigger replaced | Canonical path使用protocol-driven manual training request與controller event barriers；既有collection／consumer／degradation control保留為legacy／unverified commands，不納入新實驗驗收 |
 | 12. reset／restart／evidence | adapted | exact清理十一個node states、ADRF／NRF experiment state、container volumes與records；保留seed重建與failure evidence |
 
-舊文件與 records 可以保留作 provenance；current source、help、README 與 tests 不得再宣稱舊 deployment mode 仍可執行。
+舊definitions、文件、commands、tests與records可以保留作legacy／provenance；只有
+`5G_NWDAF_Infrastructure/README.md`的legacy asset inventory負責說明其`legacy`／`unverified`支援狀態，不要求在help、
+test名稱或source config重複標記。它們的存在或既有test結果不構成maintained／verified聲明。Legacy profile未通過
+共通靜態安全檢查時，lifecycle必須在任何provider或destructive operation前fail closed。
 
 ---
 
@@ -216,48 +243,44 @@ experiment semantics 與 inventory，不另建第二條 pipeline。
 
 ### 7.1 Slice 1 — Legacy experiment 與 hash cleanup
 
+詳細盤點與 implementation-ready requirements：
+
+- [Slice 1 Legacy Experiment And Hash Cleanup Detailed Plan](./slices/slice-1-legacy-and-hash-cleanup-detailed-plan.md)
+
 #### Operator-visible outcome
 
-Repository 只呈現新 protocol-driven experiment 的單一 production path。舊 Flat／static topology 選項、UE traffic
-pipeline與其命令不再出現在 help、README、examples 或 repository test contract。Config validation 不再因 trusted
-local sources 的 nested digest chain 產生無關 mismatch 或重建工作。
+Repository將canonical protocol-driven target與既有legacy experiment assets清楚分開，不再宣稱舊production／static
+topology、UE traffic或static FL control是本次受支援路徑，也不因canonical path上的trusted local nested digest chain
+產生無關mismatch或重建工作。舊source與commands仍可留作參考或best-effort使用，但不保證執行結果。這是cleanup
+checkpoint，不交付可執行的新topology；新的正式deployment由Slice 2建立。
 
 #### 工作範圍
 
-1. 建立 testbed-owned hash inventory，對每個 occurrence 記錄 producer、consumer、保護的 failure、是否屬於
-   external/component contract，以及 keep／remove disposition。
-2. 對每個 occurrence 記錄 proposed disposition 與理由；keep 必須指出 defining contract 與無法由既有機制取代的
-   failure，remove 必須列出原本保障、現有重複機制及必要的 semantic／lifecycle replacement。沒有完成 consumer
-   trace 的項目保持 open，不得因名稱含有 checksum、hash 或 digest 就直接分類。
-3. 盤點時明確區分 external supply-chain／transport、trusted local transfer、selected／active runtime identity、
-   Docker-native identity、component-native artifact identity、local provenance、cache key 與純命名用途；分類本身
-   不代表 keep 或 remove 結論。
-4. 必要替代保障優先使用 YAML／JSON loading、schema、type、shape、path containment、referential integrity、unique
-   identity／endpoint、inventory exact comparison、dataset sample/class/shard semantics、atomic activation 與 lifecycle
-   state validation。
-5. 先完成 read-only hash disposition table；無法由direct evidence明確判斷的項目必須保持open並請使用者決策，
-   不能先改source。主計畫不預先鎖定任何具體field、helper或checksum的去留。
-6. 移除舊 complete testbed definitions、legacy scenario／traffic examples、renderer topology branches、static FL control、
-   subscriber／dataset／PseudoDriver flow、full-core-only service logic、obsolete Make targets、docs與tests。
-7. 保留通用 provider guard、VM process inventory、config activation、runtime identity、capacity、status、stop、reset 與
-   destructive safety helpers；若 helper 同時服務新舊流程，先拆掉舊 branch，不複製共用邏輯。
+- 依Slice 1詳細計畫的L1–L11保留production Flat、static Flat／Hierarchical及其既有runtime assets，在
+  `5G_NWDAF_Infrastructure/README.md`建立legacy／unverified inventory；canonical path只解除對舊flow的隱式選取與
+  依賴。任何source刪除都必須有逐項consumer trace與具體理由，不得以「新實驗未使用」概括處理。
+- 保留既有optional WebConsole subsystem及其operator contract；新canonical deployment固定不啟用，本Slice不為它新增
+  adaptation或real-environment acceptance。
+- 依 H1–H17 逐項處理 testbed-owned hash：canonical／common path預設移除trusted-local provenance與重複digest，只保留
+  有明確external、runtime-identity、Docker-native、component-native或既有build-artifact reuse contract的boundary；
+  isolated legacy flow內有consumer且不影響canonical runtime的hash可原樣保留。
+- 在Slice 2 topology尚未存在時，缺少明確`TESTBED`／effective `CONFIG_DIR`的deployment入口必須fail closed，不得
+  回退至舊default。Operator明確選取legacy profile時仍可經既有common guards作best-effort操作，但本計畫不保證或
+  修復其結果。
 
 #### Focused verification
 
-- Hash inventory 中每個 occurrence 都有 consumer trace 與 disposition，且 production code 不再引用被移除 fields。
-- Synthetic config fixtures 驗證 disposition 後仍能偵測 wrong-config、partial activation 與 Host runtime identity
-  mismatch；不預設必須由 digest 實作。
-- Semantic invalid cases涵蓋missing reference、duplicate identity／endpoint、unknown machine、dataset shape／class／shard
-  錯誤與empty runtime inventory。
-- Repository搜尋與help／README review確認不再暴露舊 topology selectors或experiment commands。
-- Provider guard測試只使用synthetic fixture／mock，不在sandbox內啟動real Vagrant／VirtualBox process。
+- 逐項關閉詳細計畫中的legacy／hash inventory，確認所有legacy occurrence均標明保留、隔離、具體移除理由或Slice 2
+  handoff，且無未分類producer、consumer、field、helper或current docs。
+- 以 synthetic fixtures 驗證 common lifecycle safety與transitional fail-closed behavior；本 Slice 不要求 real provider、
+  VM、container或experiment evidence。
 
 #### Slice acceptance
 
-- 新 topology implementation 不再依賴任何待移除 hash 或 legacy experiment branch。
-- 每個 hash occurrence 都有direct evidence支持的keep／remove disposition；保留項目有defining contract，移除項目的
-  必要保障已有semantic或lifecycle替代。
-- Common lifecycle safety tests 通過；不要求舊 Flat／static experiment regression 通過。
+- 詳細計畫L1–L10與H1–H17都完成implementation、focused verification與review；既有legacy assets未被無理由刪除，
+  L11及legacy profile migration形成Slice 2的明確handoff。
+- Common lifecycle safety及transitional fail-closed tests通過；不要求舊 Flat／static experiment regression或real
+  environment驗證通過。
 - 完成 mandatory initial review、user-review handoff與獨立 commit proposal／approval後，才進入 Slice 2
   implementation。
 
@@ -271,9 +294,13 @@ Operator 透過同一組 `config-create`、validate、VM、services、ML、statu
 
 #### 工作範圍
 
-1. 將 `Vagrantfile`、host／guest config helpers、network generation、service install、stage／activate、status／logs、
-   reset與tests中的固定machine／Path loops改為selected manifest inventory驅動。
-2. 在既有complete `TESTBED` schema內定義第5節的physical/logical topology；替換舊definitions，不新增selector。
+1. 將`Vagrantfile`與canonical／common reachable host／guest config helpers、network generation、service install、
+   stage／activate、status／logs、reset及tests中的固定machine／Path loops改為selected manifest inventory驅動；
+   dormant legacy-only occurrence依Slice 1 allowlist保留或低成本遷移。
+2. 在既有complete `TESTBED` schema內定義第5節的physical/logical topology；它是唯一maintained canonical profile，
+   不新增selector。Legacy static profiles依同一schema處理，不建立compatibility schema；既有WebConsole optional
+   contract保留，但canonical profile選擇disabled。Make default切至canonical definition，並由其`config.directory`
+   提供後續commands的effective `CONFIG_DIR`；不新增current-selection state file。
 3. 單一renderer產生：
    - 每個NWDAF獨立native config與systemd unit；
    - 每個PyMTLF獨立config、volume、port與read-only dataset mount；
@@ -285,12 +312,16 @@ Operator 透過同一組 `config-create`、validate、VM、services、ML、statu
    使用configured policy、FedProx `mu`、sample-weighted aggregation，而非testbed自行補hard-coded protocol metadata。
 5. 建立 deterministic MNIST partition：六份Leaf training shards、一份Root per-round validation、一份與validation分離的
    final held-out set。Dataset paths只進local config／mount，不進Model Training protocol；相關hash處置依Slice 1
-   disposition table，不在本節預判。
+   detailed plan，不在本節重新盤點。
 6. 加入NTP／chrony與clock-skew preflight，使跨VM JSONL event時間可對齊；clock未同步時不開始正式campaign。
 7. 讓capacity gate由selected inventory計算四台VM、十一個containers、build overhead、storage與GPU／CPU policy；
    配額不足必須在`vm-up`或container start前失敗。
 8. Lifecycle涵蓋render、validate、stage、activate、start、status、logs、stop、restart與reset；每一階段都核對selected／
    active identity及actual process/container inventory。
+9. Canonical profile完成後，對保留的static Flat／Hierarchical definitions做bounded best-effort migration：能以
+   mechanical mapping轉成新schema且通過共通靜態安全檢查者可保留`TESTBED`可選性；否則保存原始意圖與migration gap，
+   保持不可啟動。Migration disposition只更新README legacy asset inventory，不加入profile status metadata。不得為此
+   恢復legacy-only service、parallel renderer或延後canonical acceptance。
 
 #### Failure 與 recovery behavior
 
@@ -308,6 +339,8 @@ Operator 透過同一組 `config-create`、validate、VM、services、ML、statu
 - 四機render／validate fixture及invalid inventory tests。
 - 十一組NWDAF↔PyMTLF identity、port、volume、config與placement one-to-one checks。
 - Generated component configs通過current NWDAF／PyMTLF native loader或等價non-starting validation。
+- 已遷移的legacy static profiles只執行共通parse、schema、reference、inventory與destructive-safety checks；不新增
+  profile-specific regression、real VM或training test，未通過者確認不能進入lifecycle。
 - Mock lifecycle涵蓋partial activation、start rollback、unexpected runtime、wrong-config stop/reset、empty targets與capacity
   rejection。
 - Approved host context執行real四VM create/start/status，確認OS process inventory與provider state一致。
@@ -321,6 +354,9 @@ Operator 透過同一組 `config-create`、validate、VM、services、ML、statu
 - Minimal dependency graph在real environment啟動成功；未啟動舊full 5GC／RAN／UPF services。
 - Canonical short topology preparation與至少兩個accepted hierarchical rounds跑通，證明dataset、ADRF、protocol與
   JSONL wiring；這只是Slice 2 integration acceptance，不是正式實驗結果。
+- `5G_NWDAF_Infrastructure/README.md`的legacy asset inventory完整記錄static profiles的migration disposition與
+  `unverified`狀態：通過共通靜態安全檢查者僅表示可選取，不表示能跑；未通過者仍保留為不可啟動資產。兩者都不要求
+  real-run修復，也不影響canonical profile acceptance。
 - 所有required lifecycle evidence完成mandatory review並交付user review；缺real provider evidence時狀態只能是
   `Implementation Complete / Verification Incomplete`。
 
@@ -440,7 +476,8 @@ Campaign層級再產生paired summary與plots，呈現：
 | Requirement | Static／mock evidence | Real-environment evidence | Owner slice |
 | --- | --- | --- | --- |
 | Hash disposition與consumer trace | inventory review、repository search、focused tests | disposition涉及runtime boundary時執行對應cross-boundary check | 1 |
-| Legacy path removal | source/help/docs/test inventory | new branch不啟動legacy services | 1 |
+| Legacy support separation | README legacy asset inventory、canonical reachability與transitional fail-closed tests、deleted-file justification | 不要求legacy real run；Slice 2 canonical startup確認未隱式啟動legacy services | 1、2 |
+| Optional WebConsole retention | source／config／targets／existing-test inventory與canonical disabled check | 本計畫不要求WebConsole real run | 1、2 |
 | Inventory-driven四機render | valid／invalid YAML fixtures、manifest exact comparison | four-VM inventory matches OS/provider state | 2 |
 | 十一組one-to-one runtime | config／port／volume／identity uniqueness tests | health、NRF registrations、reachability | 2 |
 | Partial activation／wrong config | mock stage/activate/start/stop/reset tests | controlled failed activation or equivalent approved host test | 2 |
@@ -466,9 +503,9 @@ result與open gap：
 | ID | Normative item | 預期 owner |
 | --- | --- | --- |
 | C1 | 單一 `TESTBED` + scenario + `CONFIG_DIR` pipeline，無新增selector／parallel renderer | config renderer／checker |
-| C2 | Breaking cutover移除舊experiment paths，但保留common safety | Slice 1 diff與repository tests |
-| C3 | Hash occurrence逐項具有consumer trace、defining contract或semantic replacement，不由主計畫預判去留 | hash disposition table與focused tests |
-| C4 | Machine／Path／service loops全部由selected inventory驅動 | configlib、Vagrantfile、host／guest lifecycle |
+| C2 | Canonical target與既有production／static legacy assets分離；README記錄legacy／unverified disposition，canonical path不隱式選取舊flow，且刪除項目都有具體理由 | Slice 1 README inventory、reachability／deletion review、Slice 2 migration disposition與repository tests |
+| C3 | Canonical／common path上的hash occurrence逐項具有consumer trace、defining contract或semantic replacement；isolated legacy內部hash可原樣保留 | Slice 1詳細計畫與focused tests |
+| C4 | Canonical／common reachable Machine／Path／service loops全部由selected inventory驅動；legacy-only固定值限於reviewed allowlist | configlib、Vagrantfile、host／guest lifecycle |
 | C5 | 四VM、十一NWDAF、十一PyMTLF exact one-to-one inventory | generated manifest與runtime status |
 | C6 | 每個logical node有獨立identity、endpoint、state、logs與volume | renderer、systemd、Compose、validators |
 | C7 | Minimal core只包含current protocol dependencies | service inventory與real startup evidence |
@@ -482,13 +519,18 @@ result與open gap：
 | C15 | JSONL是round、metric與event evidence；一般log只作diagnostic | collector、schema checker與review |
 | C16 | Quiet monitor使用incremental records與bounded diagnostic reads | runner tests與actual terminal transcript summary |
 | C17 | Stop／reset只處理selected-and-active exact scope，evidence在cleanup前安全收集 | reset plan、actual runtime comparison與record preservation |
+| C18 | WebConsole optional subsystem與既有operator contract保留，但canonical protocol-driven profile不啟用 | Slice 1 source inventory、Slice 2 rendered canonical config與existing tests |
 
 ---
 
 ## 10. 明確非目標
 
-- 修復或保留舊 production Flat、static Flat、static Hierarchical、UE traffic、degradation或WebConsole experiment。
-- 執行舊 experiment regression suite；只保留仍適用的common infrastructure safety tests。
+- 保證、專門維護、修復或執行舊production Flat、static Flat／Hierarchical、UE traffic或degradation experiment；
+  既有source／tools保留為legacy／unverified assets並接受bounded migration，但保留不代表可執行。
+- 為optional WebConsole新增功能、配合新topology改造或執行real-environment驗收；既有subsystem保留，但canonical
+  protocol-driven profile不部署它。
+- 執行或修復舊experiment regression suite；既有tests可保留，但只有仍適用的common infrastructure safety tests列入
+  本計畫required verification。
 - 修改FedProx演算法、Branch aggregation frequency或component protocol schema。
 - Retained-result recovery、Leaf replacement、同時多Branch failure、Root restart recovery或old Branch handback。
 - 完整5GC user plane、UERANSIM、subscriber、UPF Event Exposure或UE communication analytics。
@@ -519,7 +561,7 @@ work、legacy cleanup、optional hardening、integration gap或unconfirmed risk�
 
 ## 12. Review、commit 與進度規則
 
-三個slices依序執行，但不另建slice計畫文件：
+三個slices依序執行。每次只替即將開始的current Slice建立詳細計畫並完成review；不預先建立後續Slice文件：
 
 ```text
 Slice 1 cleanup
@@ -546,7 +588,7 @@ Slice 1 cleanup
 
 | Slice | 狀態 | Required evidence |
 | --- | --- | --- |
-| 1. Legacy／hash cleanup | Not Started | inventory、semantic replacements、common safety tests、review |
+| 1. Legacy／hash cleanup | Plan Ready for User Review | approved detailed inventory、semantic replacements、common safety tests、review |
 | 2. Four-VM topology | Not Started | render／lifecycle tests、approved real four-VM integration、review |
 | 3. Formal campaign | Not Started | short acceptance、至少3 paired seeds、structured evidence、analysis、review |
 
