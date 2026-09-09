@@ -4,7 +4,7 @@
 
 最近更新：2026-09-09
 
-狀態：Slice 1 Plan Ready for User Review；尚未授權 implementation
+狀態：Slice 1 Completed；Slice 2 Not Started
 
 索引：
 
@@ -588,7 +588,7 @@ Slice 1 cleanup
 
 | Slice | 狀態 | Required evidence |
 | --- | --- | --- |
-| 1. Legacy／hash cleanup | Plan Ready for User Review | approved detailed inventory、semantic replacements、common safety tests、review |
+| 1. Legacy／hash cleanup | Completed | implementation、focused／repository synthetic verification、mandatory initial review、使用者review與commit approval已完成 |
 | 2. Four-VM topology | Not Started | render／lifecycle tests、approved real four-VM integration、review |
 | 3. Formal campaign | Not Started | short acceptance、至少3 paired seeds、structured evidence、analysis、review |
 

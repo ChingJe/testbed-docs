@@ -2,7 +2,7 @@
 
 日期：2026-09-09
 
-狀態：Ready for User Review；尚未授權 implementation
+狀態：Completed；implementation、synthetic verification、mandatory initial review、使用者 review 與 commit approval 已完成
 
 上層計畫：
 
@@ -207,3 +207,83 @@ Slice 1 implementation交付review時必須列出：
 - pre-existing `ML/PyMTLF`、`NFs/nwdaf` pointer差異的處置，並與本slice實作diff分開說明。
 
 在使用者確認review前，所有implementation changes保持unstaged／uncommitted，本文件狀態保持open。
+
+## 9. Implementation review evidence
+
+本次實作只修改`5G_NWDAF_Infrastructure`的parent-owned source、README與tests，以及本文件與上層計畫的進度；沒有修改
+component submodule內容、建立新topology、操作real provider／VM／container，或刪除任何legacy／optional source file。
+`ML/PyMTLF`與`NFs/nwdaf`仍保留第2節記錄的既有pointer差異，不納入本Slice diff。
+
+### 9.1 Hash disposition closure
+
+| ID | 實作結果 | Deterministic evidence |
+| --- | --- | --- |
+| H1 | 保留`provisioning.lock.yaml`的Go archive checksum及Guest download verification | Source trace確認authoritative lock由`common.sh`在download boundary直接消費；`tests/provisioning-lock.py`驗證lock schema與非法checksum格式會被拒絕 |
+| H2 | 保留MongoDB signing-key fingerprint及installed key比對 | Source trace確認authoritative lock由`core.sh`在apt trust boundary直接消費；`tests/provisioning-lock.py`驗證lock schema與resolver behavior |
+| H3 | 保留Docker base digest與Torch wheel `#sha256` | `containers/ml/Dockerfile`的direct contract review確認兩者仍由Docker／Python installer在external artifact boundary消費 |
+| H4 | 保留單一generated config tree digest、Guest active identity與Host labels | `tests/repository.sh`、`tests/runtime-inventory.py`與`tests/ml-status.py`涵蓋canonical digest、wrong-config、unexpected runtime及exact inventory |
+| H5 | 保留Docker image ID／OCI revision observation | `tests/ml-status.py`涵蓋selected／actual image與revision狀態 |
+| H6 | 保留PyMTLF `artifact_key`／`candidateDigest` | `config-check.py`native artifact validation與`tests/fl-control.py`保留component-native identity flow |
+| H7 | 移除config manifest `scenario.definitionHash`及consumer；保留path、name、kind與scenario semantic validation | Source／diff review確認重複field與consumer移除；`tests/config-contract.py`直接驗證scenario kind／native semantic mismatch仍被拒絕 |
+| H8 | 移除兩份topology definition hash；保留由selected `TESTBED`重建並exact compare的runtime inventory | `tests/runtime-inventory.py`拒絕empty Host containers、unexpected Guest unit與foreign reset volume |
+| H9 | 移除baseline、generator source、generator revision fields及無consumer helper | Renderer／checker／helper的direct source review確認provenance chain移除；repository config-create與config-check flow仍直接驗證generated file inventory及native semantics |
+| H10 | Legacy dataset graph hashes原樣保留並隔離 | `tests/dataset-determinism.sh`驗證deterministic set與tampered Parquet rejection；canonical path尚未建立，不引用此flow |
+| H11 | 移除runtime-tools archive checksum、hash-derived remote name與Guest receipt；保留allowlist、run-scoped name、strict tar／install／mode checks | Host sync與Guest installer的direct source／diff review確認upload、extract、install及failure path仍閉合；repository suite通過shell syntax與provider wrapper checks |
+| H12 | 移除無consumer `fragmentSha256` | Producer／consumer trace確認只有renderer曾產生該field；`tests/network-config.py`直接驗證alias ownership、collision、stale set及affected devices behavior |
+| H13 | Legacy subscriber fixture hash原樣保留並隔離 | Direct source trace確認temporary filename consumer仍存在；README將整條subscription data path標為legacy／unverified |
+| H14 | 保留WebConsole source／helper／toolchain build identity，移除upload archive checksum及content-derived name | Host／Guest build flow的direct source review確認reuse identity、strict tar與build-output failure checks；repository suite驗證disabled及enabled config behavior |
+| H15 | 只移除CPU smoke `sourceConfigHash` | Producer／consumer trace確認該field沒有reader，並從legacy helper輸出移除；不為一次性cleanup保留absence assertion，也不執行legacy container regression |
+| H16 | 移除provisioning receipt的lock hash、duplicated archive checksum與copied fingerprint | Receipt producer與repository consumers的direct source review確認這些欄位沒有runtime reader；authoritative external checks仍留在H1／H2 boundary |
+| H17 | 移除無consumer `configlib.sha256_file`，保留Host `sha256sum`preflight | Direct source trace確認helper沒有caller，H13 subscriber與H14 build identity仍直接消費Host `sha256sum` |
+
+Repository search確認H7–H9、H11–H12、H15–H17的舊欄位、helper及receipt不再出現在parent-owned canonical／common
+source；H10、H13及H14保留hash則只存在表列legacy／optional boundary。H4仍是唯一canonical selected／active config
+identity。
+
+### 9.2 Legacy disposition與transition closure
+
+- L1–L8列出的definitions、examples、dataset／FL／subscriber tooling、full 5GC／UE component與provisioning source、Compose
+  examples及optional WebConsole均仍存在；Git tree inventory與diff review確認沒有deleted file。
+- `5G_NWDAF_Infrastructure/README.md`是唯一新增`legacy`／`unverified`分類的位置；YAML、manifest與source config沒有新增
+  support-status metadata。WebConsole在README中另列為optional，不列legacy。
+- Make、Vagrantfile、direct shell及Python deployment entrypoints不再隱式選取`testbed.yaml`。缺少明確`TESTBED`時，由共用
+  guard或argument parser在config解析及provider／destructive operation前fail closed；repository-only tests保留明確註解的
+  fixture fallback，不屬於deployment lifecycle。
+- L9／L11的三機、Path A／B與full-core固定branch仍以legacy-only code保留。Slice 1沒有canonical topology可到達它們；
+  canonical/common inventory-driven adaptation及static profile bounded migration仍交由Slice 2。
+- `tests/static-topologies.py`與legacy ML Compose／CPU container regression檔案仍保留，但不列入required repository suite。
+  前者在implementation前基線已因current PyMTLF contract失敗；後者會因第2節既有PyMTLF pointer與parent lock不一致而拒絕。
+  Suite明確輸出`SKIP legacy ...`，沒有把失敗修成supported claim，也沒有削弱common config identity、runtime inventory、
+  rollback或provider safety tests。
+
+### 9.3 Verification result與remaining gaps
+
+- `tests/repository.sh testbed.yaml`：通過；包含shell／Python syntax、synthetic provider guard與orphan／duplicate preflight、
+  deployment entrypoint在缺少explicit selection時於任何action／provider boundary前拒絕、config render／semantic check、
+  wrong-config、unexpected runtime、partial activation rollback、exact inventory、provisioning、WebConsole config、network與legacy
+  dataset isolation evidence。
+- `python3 tests/config-contract.py --testbed testbed.yaml --config-dir config/default`、
+  `python3 tests/network-config.py`、`python3 tests/provisioning-lock.py`：focused tests通過。
+- `git diff --check`：通過。
+- 未執行real Vagrant、VirtualBox、VM、Guest service、Docker container或experiment驗證；這符合本Slice scope，不能解讀為
+  real-environment acceptance。
+- Remaining handoff只有L11 inventory-driven adaptation、legacy static profile bounded migration及canonical topology，均屬
+  Slice 2；initial review admission的current-Slice findings已依下一節完成remediation與targeted follow-up review。
+
+### 9.4 Initial review remediation
+
+Mandatory initial review確認並關閉下列current-Slice findings：
+
+1. 原本新增的獨立cleanup test以檔名、token、欄位存在／不存在及work-item inventory作為pass／fail條件，無法陳述
+   durable production regression proposition。該test已移除；散落於既有suite的同類新增assertion亦已移除。真正的
+   behavior requirement改由既有repository suite直接執行缺少`TESTBED`時的config、start、stop、reset與provider
+   entrypoint，確認它們在任何action前fail closed；scenario semantic mismatch test則保留在owning config suite。
+2. Production error、legacy container test path及runtime inventory test註解曾包含implementation phase／slice identity。
+   這些文字已改為durable product／contract語意；parent-owned tracked files不再含work-tracking identity。
+3. 原review evidence曾以cleanup meta-test和absence assertions證明hash／legacy disposition。H1–H17與L1–L10 evidence已
+   改為direct producer／consumer／failure-effect trace，只在存在durable behavior時引用owning tests。
+4. README改名legacy workflow章節後仍連到舊anchor，並保留bare `make logs`可用的舊敘述。兩處已改成目前存在的章節
+   anchor與需要explicit `TESTBED`的實際operator command；依L10不逐檔翻修已明確歸類為historical的既有詳細文件。
+
+Targeted follow-up review重新檢查remediation diff、explicit-selection guard、config semantic test、hash consumer trace及
+repository test composition；未發現上述finding仍有open dependency，也沒有因此擴張architecture、scope或acceptance。
