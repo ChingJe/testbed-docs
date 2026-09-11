@@ -2,7 +2,7 @@
 
 日期：2026-09-09
 
-狀態：Plan Ready for User Review；尚未授權 implementation
+狀態：Completed；implementation、required real-environment evidence、使用者review與commit approval已完成
 
 上層計畫：
 
@@ -579,6 +579,28 @@ Slice 2只有同時符合下列條件才可標為completed：
 
 如果implementation完成但real four-VM或任一dataset training evidence尚缺，狀態只能是
 `Implementation Complete / Verification Incomplete`。
+
+### 13.1 Current review checkpoint
+
+2026-09-10的approved host-context verification已完成下列evidence：
+
+- exact provider inventory為`core`、`path-a`、`path-b`、`path-c`，四台VM皆由canonical definition重建並保持running；
+- minimal Guest placement、12筆NRF registrations、十一個NWDAF↔PyMTLF pairs、雙向backend reachability與clock-skew gate通過；
+- CIFAR-10 request `fc2fc0aa-dffc-4578-ab45-3b713c7dbc9a`完成兩個accepted rounds，Root records的Area A候選為
+  primary `10000000-0000-4000-8000-000000000101`，未採用replacement
+  `10000000-0000-4000-8000-000000000111`；
+- 同一CIFAR-10 config完成stop→restart，十一個containers、12筆registrations與雙向backend checks重新ready；
+- MNIST request `d821786b-ff0b-4d84-863b-1eb353cf4f27`完成兩個accepted rounds，具有相同priority-selection結果；
+- 兩個dataset各有一筆`ROOT_INITIAL`、兩筆accepted `ROOT_ROUND_OUTCOME`與兩筆對應`ROOT_GLOBAL`
+  `MODEL_EVALUATION`；這些數值只證明integration flow，不作模型品質比較；
+- exact stop與guarded reset／verify已清空十一個PyMTLF volumes、selected NRF／ADRF records與model storage；raw cache、
+  generated datasets、containers、images與VM保留；
+- initial review發現的partial activation attribution、unexpected project resources、stale NRF URI cleanup與protocol status
+  routing均已完成behavioral remediation與targeted follow-up review。
+
+目前generated config選取MNIST，selected Guest／Host experiment processes已停止，selected state已驗證為空；完成review後，
+四台VM已經由guarded lifecycle關閉並重新確認為`poweroff`。唯一environment warning為free swap低於建議值；runtime RAM、CPU與storage gates均通過。Legacy profiles仍維持
+README所述的unverified disposition，不納入real regression。
 
 ## 14. 明確延後至 Slice 3
 

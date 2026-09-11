@@ -2,9 +2,9 @@
 
 日期：2026-09-08
 
-最近更新：2026-09-09
+最近更新：2026-09-11
 
-狀態：Slice 1 Completed；Slice 2 Plan Ready for User Review
+狀態：Slice 1 Completed；Slice 2 Completed
 
 索引：
 
@@ -600,7 +600,7 @@ Slice 1 cleanup
 | Slice | 狀態 | Required evidence |
 | --- | --- | --- |
 | 1. Legacy／hash cleanup | Completed | implementation、focused／repository synthetic verification、mandatory initial review、使用者review與commit approval已完成 |
-| 2. Four-VM topology | Plan Ready for User Review | detailed inventory／plan review尚待使用者確認；之後才進入implementation、render／lifecycle tests與approved real four-VM integration |
+| 2. Four-VM topology | Completed | canonical implementation、雙dataset short normal runs、stop／restart／reset、mandatory initial review、使用者review與commit approval已完成 |
 | 3. Dual-dataset replacement flow | Not Started | MNIST與CIFAR-10各一個2+2+2 run、structured evidence、cleanup、review |
 
 本計畫只有在三個slices均完成required evidence、user review，且雙資料集flow-acceptance結果已整理到`records/`後，才能標為
