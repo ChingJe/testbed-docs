@@ -7,3 +7,4 @@ runtime evidence。
 - [VirtualBox IPC sandbox incident remediation — 2026-08-27](virtualbox-ipc-sandbox-incident-remediation-2026-08-27.md)
 - [Static Flat controlled-flow validation — 2026-08-27](static-flat-controlled-flow-validation-2026-08-27.md)
 - [Static Hierarchical controlled-flow validation — 2026-08-28](static-hierarchical-controlled-flow-validation-2026-08-28.md)
+- [Protocol-driven Branch replacement validation — 2026-09-13](protocol-driven-branch-replacement-validation-2026-09-13.md)
