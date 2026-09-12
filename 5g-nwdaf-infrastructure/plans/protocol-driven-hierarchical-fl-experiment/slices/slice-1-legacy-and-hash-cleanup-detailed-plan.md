@@ -120,7 +120,7 @@ Git commit／submodule revision仍作為source與artifact provenance保留，但
 provenance。現有submodule declarations、component source與lock dependency依L7保留；canonical selected inventory只
 解析NRF、ADRF、NWDAF、PyMTLF與實際需要的persistence revision。現有
 `generated.generatorRevision`不再放在H4涵蓋的execution config manifest；正式run由
-Slice 3 `metadata.json`直接記錄repository revision與dirty flag。
+Slice 3 `run.json`直接記錄repository revision與dirty flag。
 
 ## 5. Implementation plan
 

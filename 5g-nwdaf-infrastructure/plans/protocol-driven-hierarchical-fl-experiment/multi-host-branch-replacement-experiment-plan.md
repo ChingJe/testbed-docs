@@ -2,9 +2,9 @@
 
 日期：2026-09-08
 
-最近更新：2026-09-11
+最近更新：2026-09-12
 
-狀態：Slice 1 Completed；Slice 2 Completed
+狀態：Slice 1 Completed；Slice 2 Completed；Slice 3 Detailed Plan Ready for User Review
 
 索引：
 
@@ -42,14 +42,16 @@ status 與 reset 流程仍有大量固定假設，也保存多層 local hash／d
    無consumer重複產物的項目才可移除。
 3. 新部署使用四台 VM：一台 `core` 與三台獨立 Path VM；每條 Path 擁有自己的 Branch 與 Leaves。
 4. Host 執行十一個 PyMTLF containers，和十一個 Guest Go NWDAF processes 一對一對應。
-5. MNIST與CIFAR-10先各用短normal acceptance run證明dataset與topology wiring，再各執行一次至少包含2個normal、
-   2個degraded與2個restored accepted rounds的Branch replacement flow；本計畫不執行paired baseline、multi-seed或
-   統計性model-quality campaign，單一round或聚合一次後結束也不構成流程驗證。
-6. 實驗觀測以 component 已提供的 node-local structured JSONL 為主；完整一般 log 落盤，只在異常時讀取精確
-   service 與時間窗，避免長時間串流大量 log。
+5. MNIST與CIFAR-10先各用短normal acceptance run證明dataset與topology wiring，再各以GPU執行一次8 accepted
+   rounds的Branch replacement flow；每個run在2個normal rounds後注入failure，不人為延遲replacement，實際degraded
+   round數由production recovery timing決定，並要求replacement至少貢獻1個restored round。GPU只配置給Root evaluation與六個
+   Leaves local training，四個aggregation-only Branches保持CPU。本計畫不執行paired baseline、multi-seed或統計性
+   model-quality campaign，單一round或聚合一次後結束也不構成流程驗證。
+6. 實驗觀測以 component 已提供的 node-local structured JSONL 為主；一般log只在failure、timeout或特定protocol問題時，
+   對精確service與bounded時間窗按需落盤，避免長時間串流或保存大量log。
 
 本文件是跨 Slice 的唯一主計畫，保存共同架構、依賴、驗收與進度。詳細計畫採漸進式建立：只在某個 Slice 即將
-進入實作前完成該 Slice 的盤點與獨立 review；目前已建立 Slice 1 與 Slice 2 詳細計畫，不預先建立 Slice 3 文件。
+進入實作前完成該 Slice 的盤點與獨立 review；目前三個Slices皆已依序到達並建立詳細計畫。
 
 ---
 
@@ -73,13 +75,17 @@ status 與 reset 流程仍有大量固定假設，也保存多層 local hash／d
   held-out set，並確認兩種dataset都能通過native loader與實際training flow。
 - 驗證三個 active Branch regions 中 Area A Branch 於 training 中途 fail-stop 後，Root 能以 Area B／C 結果繼續
   accepted degraded rounds，並在 replacement ready 後由新的 Area A Branch 從尚未 dispatch 的 round 恢復貢獻。
-- MNIST與CIFAR-10各執行一個Branch-failure／replacement run；每個run至少包含2個normal、2個degraded與2個restored
-  accepted rounds，並可縮小sample count與local epochs以控制時間。
+- MNIST與CIFAR-10各執行一個8-accepted-round Branch-failure／replacement run；每個run先完成2個normal
+  rounds，之後自然觀測replacement ready前的degraded rounds，並要求replacement至少貢獻1個restored round。
+  Sample count與local epochs可縮小以控制時間。
 - 產生可直接離線檢查的learning curve、round cohort與replacement lifecycle evidence，不從一般文字log猜測流程結果，
   也不把兩個短run解讀成模型品質、跨dataset優劣或統計結論。
+- Slice 3正式flow使用Host現有NVIDIA GPU；Root與六個Leaves共七個CUDA participants，四個Branches保持CPU。GPU
+  availability、memory、container visibility與resolved per-service device都必須成為run evidence，但不擴張為GPU成本
+  或效能比較研究。
 
 因此本計畫最低共有四個real training runs：Slice 2的MNIST與CIFAR-10 normal wiring各一個，以及Slice 3的MNIST與
-CIFAR-10 replacement flow各一個。Slice 3所稱「6」是每個replacement run內的accepted round數，不是run數量。
+CIFAR-10 replacement flow各一個。Slice 3所稱「8」是每個replacement run內的accepted round數，不是run數量。
 
 ### 2.3 Cleanup 目標
 
@@ -130,15 +136,16 @@ affected repositories，並取得使用者確認；不得在 testbed script 內�
 | 資訊 | Authoritative owner | Generated／runtime consumer |
 | --- | --- | --- |
 | VM、network、Path、Guest service、NWDAF identity／placement、Host container、resource budget | selected complete `TESTBED` YAML | `Vagrantfile`、renderer、manifest、lifecycle、capacity gate |
-| dataset kind、training rounds、optimizer settings、seed、fault phase minima、observation interval | selected scenario YAML | renderer、experiment controller、evidence summary |
+| dataset kind、training rounds、optimizer settings、seed、fault timing、restored minimum、observation interval | selected scenario YAML | renderer、experiment controller、evidence summary |
+| accelerator-capable service與per-service device | selected `TESTBED`；`DEVICE`只作一次render-time coordinated override | generated native config、Compose、capacity／runtime checks |
 | recursive topology、candidate priority、policy、strategy、`reportAfter` | selected `TESTBED` 的 logical NWDAF topology section | generated PyMTLF native topology config，再由 production protocol 傳遞 |
 | MNIST／CIFAR-10 Leaf train shards、Root validation、final held-out dataset | deterministic dataset preparation owned by testbed scenario/run | read-only mounts／paths in generated PyMTLF configs |
 | process-native configs、Compose artifact、systemd inventory、manifest | one existing renderer pipeline output in `CONFIG_DIR` | Guest／Host processes 與 lifecycle scripts |
 | actual active deployment identity | Guest active marker、Host labels、actual process/container inventory | status、stop、reset、recovery guards |
-| experiment observations | 各 PyMTLF node 與 test controller | evidence collector、offline summary／plot |
+| experiment observations | 各 PyMTLF node 與 test controller | evidence collector、`events.jsonl`與`run.json`；CSV／plot只作後續離線分析 |
 
 同一事實不得同時由 `TESTBED` 和 scenario 人工維護。Scenario 只擁有 run behavior；physical placement、logical
-participant identity 與 topology ownership 留在 complete `TESTBED`。Renderer 可產生 native component config，
+participant identity、topology ownership與device placement留在 complete `TESTBED`。Renderer 可產生 native component config，
 但 generated artifact 不是新的 authoritative source。
 
 Slice 2建立canonical definition後，Make的default `TESTBED`指向該definition，未提供`CONFIG_DIR`時由其
@@ -197,9 +204,10 @@ pool、相同 priority ordering 與 fresh NRF exact-ID resolve 選擇下一順�
 檔名或 hard-coded replacement identity 直接指定替代對象。若未來同組加入更多 candidates，也依其 declared priority
 沿用相同 selection semantics。
 
-Test controller 只負責停止 exact primary processes，以及暫時控制 replacement backend availability來建立可觀測的
-degraded window。Controller 在 event barrier 後恢復 backend，不向 Root 傳送「選擇此 Branch」的指令，也不修改
-candidate priority。Replacement 完成 production preparation 後，只從下一個尚未 dispatch 的 round 加入。
+Test controller 只負責在 event barrier 後停止 exact primary processes。它不控制 replacement backend availability，
+不向 Root 傳送「選擇此 Branch」的指令，也不修改 candidate priority。Root 在背景依 production path
+自然完成 replacement preparation；實際 degraded window 是觀測結果，不是 controller 製造的固定時間窗。Replacement
+完成 production preparation 後，只從下一個尚未 dispatch 的 round 加入。
 
 ### 5.4 Minimal core dependencies
 
@@ -377,34 +385,44 @@ Operator 透過同一組 `config-create`、validate、VM、services、ML、statu
 
 ### 7.3 Slice 3 — Dual-dataset Branch replacement flow acceptance
 
+詳細盤點與 implementation-ready requirements：
+
+- [Slice 3 Dual-dataset Branch Replacement Acceptance Detailed Plan](./slices/slice-3-dual-dataset-branch-replacement-acceptance-detailed-plan.md)
+
 #### Operator-visible outcome
 
-Operator可用同一個canonical experiment command分別選取MNIST或CIFAR-10，執行一個短Branch-failure／replacement run、
-觀察精簡milestones、停止Area A primary Branch、以event barrier控制replacement release、收集各node JSONL，並輸出
-可review的raw evidence、CSV、簡單plots與run summary。Runner不需要持續把完整journald／Docker logs輸出到terminal。
+Operator可用同一個canonical experiment command分別選取MNIST或CIFAR-10，以GPU執行一個短Branch-failure／replacement run、
+觀察精簡milestones、停止Area A primary Branch、讓replacement依production timing自然準備，並把必要structured records
+整合成可review的`events.jsonl`與`run.json`。Runner不需要產生CSV／plot，也不持續把完整journald／Docker logs輸出到terminal。
+
+GPU assignment由selected `TESTBED`擁有：Root evaluation與六個Leaves local training使用`cuda:0`，四個Branches維持
+CPU。Replacement endpoint沿用原本的direct Go NWDAF↔PyMTLF path，不加preparation gate、proxy、額外port或timeout
+workaround。
 
 #### Flow structure
 
 本Slice只執行兩個real flow runs：MNIST一個、CIFAR-10一個。兩個run都使用bounded sample count與較小local epochs來
 縮短時間，但不能省略任何normal、degraded或restored phase。它們不是paired baseline，也不重複多個seeds。
 
-每個run的最小accepted-round結構：
+每個run固定完成8個accepted rounds，phase結構為：
 
-1. 至少完成2個normal accepted rounds後才注入failure。
+1. 完成2個normal accepted rounds後才注入failure。
 2. Controller確認Area A primary Go NWDAF與PyMTLF都已停止後，寫入`BRANCH_PROCESS_STOPPED`。
-3. Replacement backend維持不可用，直到Root至少完成2個只含surviving regions的accepted degraded rounds。
-4. Controller依observed `ROOT_ROUND_OUTCOME` barrier放行replacement，不使用固定sleep推測進度。
+3. Root依configured completion policy完成failure-detection round，並在背景自然進行replacement preparation。
+4. 從第一個確認primary失敗且只由surviving regions完成的accepted outcome起，到replacement首次成功貢獻前，都分類為
+   degraded；除必要的failure-detection outcome外，不預先固定其數量。
 5. `BRANCH_REPLACEMENT_READY`後，replacement只加入下一個尚未dispatch的cohort。
-6. Replacement第一次出現在`successfulNfInstanceIds`後，至少再完成2個accepted restored rounds。
+6. Replacement第一次出現在accepted outcome的`successfulNfInstanceIds`後，該round起分類為
+   restored，且8個accepted rounds內至少要有1個restored round。
 
-因此每個run至少有6個accepted rounds，並為failure detection、preparation retry與rejected attempts預留timeout；round
-number不能只靠wall-clock推定。若實際training時間不允許此最低結構，不得自行降為單round、移除degraded phase或
-只證明replacement process啟動；必須回報並由使用者決定sample count、local epochs或timeout的調整。
+Degraded round數是本次實驗要觀測的recovery outcome，不是controller強制出來的條件。Rejected attempts另行保存，
+不計入8個accepted rounds。若replacement太慢，導致第8個accepted round結束時仍無法完成至少1個restored
+round，run失敗並保存實際timeline，不自動改round數或timeout。
 
 #### Fault 與 production boundary
 
 - Fault injection只由test controller在runtime外停止exact Area A primary Go NWDAF與PyMTLF targets。
-- Controller只能控制primary／replacement processes的availability與放行時序；它不得指定replacement identity、改寫
+- Controller只能停止primary processes；它不得控制replacement availability、指定replacement identity、改寫
   priority或繞過Root candidate selection。Root必須從Area A同一candidate pool依priority選出replacement。
 - 不在NWDAF／PyMTLF production code新增sleep、kill switch、failure endpoint或實驗專用recovery shortcut。
 - Root依production timeout／availability分類與configured completion policy接受degraded round；controller不偽造
@@ -431,31 +449,33 @@ number不能只靠wall-clock推定。若實際training時間不允許此最低�
 
 #### Quiet monitoring 與 token budget
 
-- Journald與Docker完整logs直接保存到run evidence directory，不以follow模式持續送入terminal或agent context。
+- Journald與Docker logs不以follow模式持續送入terminal或agent context；只有failure、timeout或特定protocol問題需要時，
+  才將exact service與bounded time window保存到optional `diagnostics/`。
 - Runner只輸出state transitions：prepared、training started、accepted-round counters、fault stopped、failure detected、
-  degraded minimum reached、replacement released／ready／first contribution、target rounds completed、cleanup result。
+  replacement ready／first contribution、observed degraded count、target rounds completed、cleanup result。
 - 長時間執行每30–60秒輸出一行compact status；沒有state change時不重印node-by-node inventory。
 - 正常監控只解析新增JSONL records與process exit／health摘要，不反覆讀取整份record或log。
 - 發生timeout或failure時，才擷取exact service、bounded time window與bounded tail；若仍不足，再逐步擴大，不一次讀取
   全部十一個nodes的完整logs。
-- 最終產出machine-readable summary，讓後續review讀summary與selected raw records即可，不靠重播terminal log。
+- 最終以`run.json`保存machine-readable結果，讓後續review搭配`events.jsonl`即可完成判讀，不靠重播terminal log。
 
 #### Analysis outputs
 
 每個run至少保存：
 
 ```text
-<acceptance>/<dataset>/
-├── metadata.json
-├── controller-events.jsonl
-├── nodes/<nfInstanceId>/observations.jsonl
-├── logs/<machine-or-container>/...
-├── rounds.csv
-├── learning-curve.csv
-└── summary.json
+runs/protocol-hierarchical/<dataset>/<run-id>/
+├── events.jsonl
+├── run.json
+├── final-root-model.tar.gz
+└── diagnostics/                 # optional；只保存bounded diagnostic evidence
 ```
 
-每個dataset run產生summary與簡單plots，呈現：
+`events.jsonl`依時間保存Root、controller、必要participant、runtime／GPU snapshot與held-out evaluation的
+acceptance-relevant structured records，並保留source、NF identity、event type與原始payload。`run.json`整合run metadata、
+phase timeline、derived latency、held-out結果、terminal status、cleanup及failure；不重複保存完整event payload。
+
+CSV與plot不屬於runner或Slice acceptance。後續若要報告或分析，可從這兩份machine-readable檔案另行產生，包括：
 
 - Root validation loss／accuracy對accepted global round；
 - normal、degraded與restored phase標記；
@@ -468,12 +488,14 @@ number不能只靠wall-clock推定。若實際training時間不允許此最低�
 
 #### Slice acceptance
 
-- MNIST與CIFAR-10各有一個完整flow run；每個run都符合2 normal + 2 degraded + 2 restored accepted-round minimum。
+- MNIST與CIFAR-10各有一個完整8-accepted-round flow run；每個run都在2 normal後注入fault，保存實際
+  degraded count，並完成至少1 restored round。
 - 兩種dataset都由其scenario明確選取並通過對應native model／loader、partition與mount validation。
-- 兩個failure runs在replacement pending期間持續產生accepted degraded aggregates，且replacement只於後續cohort恢復。
+- 兩個failure runs都觀測並記錄production timing下自然產生的accepted degraded aggregates，且replacement只於
+  後續cohort恢復。
 - 每個accepted `ROOT_ROUND_OUTCOME`都有對應Root global evaluation；rejected attempt不得偽造evaluation point。
 - Final held-out evaluation與per-round validation dataset分離。
-- 每個run可由metadata、JSONL與summary重建round／event timeline，不需要解析一般文字log。
+- 每個run可由`events.jsonl`與`run.json`重建round／event timeline，不需要解析一般文字log。
 - Stop、reset與evidence preservation驗證完成；required evidence通過mandatory review與使用者確認後，才能建立
   flow-acceptance record並將本計畫標為completed。這個record不得被描述為controlled comparison或模型效果實驗結果。
 
@@ -493,9 +515,10 @@ number不能只靠wall-clock推定。若實際training時間不允許此最低�
 | Minimal NRF／ADRF dependency | generated service inventory tests | real registration、discovery、store/retrieve/cleanup | 2 |
 | Deterministic MNIST／CIFAR-10 partitions | per-dataset shape、class、disjoint partition與seed reproducibility tests | mounted paths與native model／loader acceptance | 2 |
 | Short protocol acceptance | runner／parser與per-dataset config tests | MNIST與CIFAR-10各完成至少2個normal accepted rounds | 2 |
-| Priority-based replacement與fault barrier | candidate ordering、controller-boundary、JSONL stream／timeout／bounded-log tests | 兩種dataset各完成exact stop、2 degraded、Root選出下一priority、replacement release／ready及2 restored rounds | 3 |
-| Dual-dataset flow integrity | metadata dataset coverage與phase-count checker | one complete 2+2+2 replacement run per dataset | 3 |
-| Evidence completeness | schema、round/evaluation consistency checks | raw JSONL、summary、CSV、plots、final held-out result | 3 |
+| Mixed GPU execution | per-service native／Compose／manifest與capacity tests | Root + six Leaves CUDA、four Branches CPU、seven participants無fallback／OOM | 3 |
+| Priority-based replacement與fault barrier | candidate ordering、controller-boundary、JSONL stream／timeout／bounded-log tests | 兩種dataset各完成exact stop、觀測natural degraded count、Root選出下一priority、replacement ready及至少1 restored round | 3 |
+| Dual-dataset flow integrity | `run.json` dataset coverage與phase-count checker | one complete 8-accepted-round replacement run per dataset | 3 |
+| Evidence completeness | two-file schema、round/evaluation consistency checks | `events.jsonl`、`run.json`與final Root artifact；diagnostics按需保存 | 3 |
 | Exact cleanup／seed restoration | mock destructive-scope tests | actual Guest／Host／NRF／ADRF／volume/reset evidence | 2、3 |
 
 Repository tests不能取代required real provider、VM、container、NRF、ADRF與multi-host experiment evidence。任何real
@@ -521,13 +544,15 @@ result與open gap：
 | C9 | Real provider永不在sandbox內啟動，所有入口經共同guard | command-path review、synthetic tests、host evidence |
 | C10 | MNIST與CIFAR-10各自的train／validation／test分離且可由seed重建，並通過native model／loader | dataset preparation與semantic checks |
 | C11 | Root／Branch policy、FedProx與`reportAfter`來自authoritative topology並走production protocol | generated native config、component loader、E2E records |
-| C12 | Controller只控制process availability；Root從同組candidate pool依priority完成replacement selection | topology、controller implementation與event evidence |
-| C13 | MNIST與CIFAR-10各完成一個2 normal + 2 degraded + 2 restored accepted-round flow | scenario validation與run summary checker |
-| C14 | 每個dataset只要求一個bounded flow run；不把不同dataset或未配對run解讀為controlled model comparison | metadata coverage與summary wording review |
-| C15 | JSONL是round、metric與event evidence；一般log只作diagnostic | collector、schema checker與review |
-| C16 | Quiet monitor使用incremental records與bounded diagnostic reads | runner tests與actual terminal transcript summary |
+| C12 | Controller只停止exact primary processes；Root從同組candidate pool依priority完成replacement selection與自然preparation | topology、controller implementation與event evidence |
+| C13 | MNIST與CIFAR-10各完成一個8-accepted-round flow：2 normal後fault、記錄natural degraded count、至少1 restored | scenario validation與`run.json` checker |
+| C14 | 每個dataset只要求一個bounded flow run；不把不同dataset或未配對run解讀為controlled model comparison | `run.json` coverage與wording review |
+| C15 | Component JSONL是round、metric與event authority，必要records整合到`events.jsonl`；一般log只作diagnostic | collector、two-file schema checker與review |
+| C16 | Quiet monitor使用incremental records與bounded diagnostic reads | runner tests與actual terminal transcript review |
 | C17 | Stop／reset只處理selected-and-active exact scope，evidence在cleanup前安全收集 | reset plan、actual runtime comparison與record preservation |
 | C18 | WebConsole optional subsystem與既有operator contract保留，但canonical protocol-driven profile不啟用 | Slice 1 source inventory、Slice 2 rendered canonical config與existing tests |
+| C19 | Slice 3 GPU execution由TESTBED per-service assignment解析為Root與six Leaves CUDA、four Branches CPU；CPU fallback不構成acceptance | config／Compose／capacity checks與兩個real run的`events.jsonl`／`run.json` |
+| C20 | Replacement沿用direct production path與configured deadlines，controller不新增gate／proxy、不控制replacement availability | runner boundary tests、actual process／port inventory與Root events |
 
 ---
 
@@ -543,7 +568,8 @@ result與open gap：
 - Retained-result recovery、Leaf replacement、同時多Branch failure、Root restart recovery或old Branch handback。
 - 完整5GC user plane、UERANSIM、subscriber、UPF Event Exposure或UE communication analytics。
 - `5g-viz`、Grafana、Prometheus、remote write或live dashboard整合。
-- FL communication bytes、CPU、GPU、network cost或能源instrumentation。
+- FL communication bytes、CPU／GPU利用率比較、network cost或能源instrumentation；Slice 3使用GPU執行不代表新增GPU
+  成本或效能研究。
 - Paired no-failure baseline、multi-seed repetition、統計推論、模型品質比較或預先設定accuracy／convergence門檻。
 - 長期results retention service、central metrics service或自動論文統計推論。
 
@@ -557,11 +583,12 @@ result與open gap：
 
 - current component trace證明minimal topology仍需要本計畫排除的5GC service，或需要Slice 2詳細計畫所列raw dataset sources以外的
   新external dependency；
-- 四VM／十一containers無法通過capacity gate，必須減少participants、合併identity、改變isolation或新增host；
+- 四VM／十一containers或Root加六Leaves共七個CUDA participants無法通過capacity gate，必須減少participants、
+  改變device／isolation或新增hardware；
 - 既有 `TESTBED`／scenario／renderer無法在不產生雙重source的前提下合理擴充；
 - multi-host behavior需要修改NWDAF／PyMTLF／NRF／ADRF contract或production recovery semantics；
 - PyMTLF current native model／loader無法支援MNIST或CIFAR-10，且必須改變component contract或新增dependency；
-- 任一dataset無法完成2 normal + 2 degraded + 2 restored accepted rounds或required evidence；
+- 任一dataset無法在8 accepted rounds內完成2 normal後fault、至少1 restored round或required evidence；
 - 必須弱化provider、wrong-config、exact reset、partial activation或unexpected runtime safety；
 - 需要清除不在selected exact scope內的existing VM、container、volume或state。
 
@@ -601,7 +628,7 @@ Slice 1 cleanup
 | --- | --- | --- |
 | 1. Legacy／hash cleanup | Completed | implementation、focused／repository synthetic verification、mandatory initial review、使用者review與commit approval已完成 |
 | 2. Four-VM topology | Completed | canonical implementation、雙dataset short normal runs、stop／restart／reset、mandatory initial review、使用者review與commit approval已完成 |
-| 3. Dual-dataset replacement flow | Not Started | MNIST與CIFAR-10各一個2+2+2 run、structured evidence、cleanup、review |
+| 3. Dual-dataset replacement flow | Detailed Plan Ready for User Review | MNIST與CIFAR-10各一個GPU 8-round natural-recovery run、structured evidence、cleanup、review |
 
 本計畫只有在三個slices均完成required evidence、user review，且雙資料集flow-acceptance結果已整理到`records/`後，才能標為
 `Completed`。若code完成但real testbed evidence未完成，狀態使用

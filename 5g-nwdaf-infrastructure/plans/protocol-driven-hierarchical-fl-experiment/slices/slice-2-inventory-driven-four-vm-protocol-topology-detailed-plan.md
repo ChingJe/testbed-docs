@@ -31,7 +31,7 @@ reset 不需要反覆輸入一長串 `CONFIG_DIR`。切換 dataset 時必須先�
 重新產生同一 canonical config directory；config identity guard 必須拒絕拿新 config 操作仍在執行的舊 runtime。
 
 Slice 2 只證明 topology、dataset、native config、protocol、ADRF 與 lifecycle wiring 能正常工作。Branch fail-stop、
-degraded rounds、replacement release 與 restored rounds 屬於 Slice 3，不在本 Slice 注入故障。
+natural degraded rounds、replacement recovery 與 restored rounds 屬於 Slice 3，不在本 Slice 注入故障。
 
 ## 2. 盤點基線與實作邊界
 
@@ -211,7 +211,8 @@ Leaf profile使用PLMN `466/92`與各自TAI `001101`、`001102`、`001201`、`00
 controlled image workload的NF discovery scope，不代表Slice 2啟動UPF或UE。
 
 Area A replacement在Slice 2是「hierarchy尚未採用」而不是「process未啟動」：它的Go NWDAF與PyMTLF都必須健康並
-完成NRF registration，但Root初始選擇必須因priority而採用primary。真正的process不可用與release barrier留給Slice 3。
+完成NRF registration，但Root初始選擇必須因priority而採用primary。真正的process不可用與natural replacement
+timing留給Slice 3。
 
 ### 4.3 Host container inventory
 
@@ -605,10 +606,10 @@ README所述的unverified disposition，不納入real regression。
 ## 14. 明確延後至 Slice 3
 
 - 停止Area A primary Go NWDAF與PyMTLF；
-- 依Root observed event barrier維持或放行replacement；
-- 2 normal + 2 degraded + 2 restored accepted-round flow；
+- 由Root依production path自然準備replacement並觀測實際degraded count；
+- 8 accepted rounds、2 normal後fault及至少1 restored round；
 - Branch failure／replacement latency與controller events；
-- final held-out evaluation、CSV、plots與flow-acceptance record；
+- final held-out evaluation、`events.jsonl`／`run.json`與flow-acceptance record；CSV／plot留給後續離線分析；
 - quiet long-running monitor與bounded failure-log collection。
 
 Slice 2可保存node-local JSONL作integration evidence，但不得提前建立fault controller、process kill path或Slice 3
