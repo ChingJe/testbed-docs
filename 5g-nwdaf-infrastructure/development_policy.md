@@ -131,6 +131,10 @@ Common scenario validation 只限制有 authoritative contract 或可證實 prod
 其他預期值須由 selected input 推導。單次實驗的設定與驗收值不因此成為跨實驗的合法性限制。修正缺乏依據的限制時，
 仍須保留真正必要的語意、安全與失敗防護，不得繞過共用 pipeline。
 
+新增驗證前，必須追蹤若省略該驗證，輸入在既有責任邊界會得到什麼實際結果。若它仍會在正確邊界被正常拒絕，
+且此前不會造成錯誤的 production state 或有害副作用，僅為提早報錯不得在上游重複驗證。驗證所需的預期值
+必須取自其 authoritative source，不得為了提早拒絕而另建一份配置真相。
+
 ## 6. End-to-end Operational Lifecycle Gate
 
 設計不能只證明中間 artifact 可以產生或單一 happy path 可以啟動。Implementation-ready plan 必須從最早的
