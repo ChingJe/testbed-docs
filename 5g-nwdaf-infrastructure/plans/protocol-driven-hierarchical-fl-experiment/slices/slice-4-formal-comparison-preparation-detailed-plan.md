@@ -2,7 +2,7 @@
 
 日期：2026-09-13
 
-狀態：Draft／待確認；目前只細化第一輪共用 runner 擴充與短 epoch 簡測，不授權實作或 real runtime 操作
+狀態：Ready for User Review（第一輪）；Slice 4 後續輪次仍開放，正式實驗條件待決策
 
 上層計畫：[正式 Branch Replacement 比較實驗計畫](../formal-branch-replacement-comparison-plan.md)
 
@@ -21,10 +21,10 @@ training checkpoint、Root final-model collection、held-out evaluation、`event
 Baseline 的三個預期 active Branch identities 由 selected `TESTBED` 的各組 priority 與實際 Root outcomes 核對，
 不從不存在的 `fault.branchGroup` 推導，也不在 scenario 額外指定 participant。
 
-目前 `fl-branch-replacement-run`／`fl-branch-replacement-collect` 使用同一支
+改動前，`fl-branch-replacement-run`／`fl-branch-replacement-collect` 使用同一支
 `scripts/host/branch-replacement-run.py`，但 `BranchReplacementContract.build()` 必須取得 `fault`，
 runner 無條件等待故障 barrier 並停止 primary，`PhaseTracker`與`check_evidence()`也必須看到 stop、
-failure、replacement 與相應 protocol resources。因此現有 normal scenario 雖可訓練，不能直接使用這套
+failure、replacement 與相應 protocol resources。因此現有 normal scenario 雖可訓練，改動前不能直接使用這套
 run-level evidence／collection 流程。這是現有路徑的擴充，不新增第二支 runner、selector 或 config source。
 
 ## 2. 既有流程的最小調整
@@ -79,3 +79,21 @@ uncommitted 供 user review，commit 與 push 另行批准。Slice 4 本身保�
 需求與報告門檻，各自在決策後更新本計畫的下一輪範圍、驗證及 real evidence，再開始該輪實作。
 若需改變 component contract、新增 config source／service／state，或改變既有 safety／acceptance，先回到
 上層計畫取得決策；不因本 Slice 可逐輪擴充而自動獲准。
+
+## 5. 第一輪實作與驗證紀錄
+
+2026-09-13 已在 `5G_NWDAF_Infrastructure` 擴充現有 runner：共用 `fl-experiment-run`／
+`fl-experiment-collect` 接受無故障或故障替換 scenario；既有 `fl-branch-replacement-*` 保持替換專用。
+共用實作與 owning suite 改用 `fl-experiment-run.py`、`fl_experiment.py`、`fl-experiment.py` 等通用名稱；
+只有實際描述 fault scenario 或替換專用入口的項目保留 Branch replacement 名稱，不複製第二套 runner。
+Baseline 從 selected `TESTBED` priority 解析三個 active Branch，不注入 fault，仍檢查每輪 Root evaluation、
+final model、held-out evaluation、protocol resource 與 exact cleanup。原有 replacement 行為不改。
+
+既有 owning suite 的聚焦測試通過；`config-validate`、`dataset-validate` 與 sandbox 外的
+`experiment-validate` 通過，後者僅警告 Host 無可用 swap。以 MNIST normal scenario 執行的一次 GPU
+簡測保存在 `runs/protocol-hierarchical/mnist/mnist-normal-smoke-20260913/`：Root 到達 `COMPLETE`，
+兩個 accepted outcomes 都為三個 Branch 正常貢獻並各有 validation；final model、held-out evaluation、
+`events.jsonl`／`run.json` 及 reset verification 均成功。Host 上七個 GPU participants、十一個
+PyMTLF containers 與十四個 Guest services 的 runtime evidence 已保存。簡測後四台 VM 的 provider
+狀態均為 `poweroff`，Host process inventory 沒有 VirtualBox VM process。這些結果只證明短 baseline flow，
+不代表正式比較或模型品質；本次未重新執行 treatment real run，該邊界留給後續 pilot。
