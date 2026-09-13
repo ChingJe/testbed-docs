@@ -2,7 +2,7 @@
 
 日期：2026-09-13
 
-狀態：Review Confirmed（第二輪資料工具已提交）；Slice 4 仍開放，正式訓練條件待凍結
+狀態：第二輪資料工具 Review Confirmed／已提交；正式訓練條件靜態盤點待使用者確認，Slice 4 仍開放
 
 上層計畫：[正式 Branch Replacement 比較實驗計畫](../formal-branch-replacement-comparison-plan.md)
 
@@ -216,8 +216,9 @@ Leaf 類別配額符合 Section 6.2。這是資料工具證據，不是正式 sc
 現有 Root recorder 會載入完整 validation 並以樣本數迭代評估；final evaluator 亦遍歷所載資料，
 但仍須在正式 run 核對其記錄的實際 sample count。本輪沒有啟動 provider、VM、container 或 GPU。
 
-另發現 PyMTLF final evaluator 內部計算 loss，但 CLI JSON 尚未輸出它；testbed 本輪不更改
-component contract。若正式報告仍需 final full-test loss，須在正式執行前另行決策與處理。
+當時另發現 PyMTLF final evaluator 內部計算 loss，但 CLI JSON 尚未輸出它；後續已決定本次
+final full-test 只報 accuracy／樣本數。現有 runner 將 evaluator 輸出保存到 `events.jsonl` 與
+`run.json`，因此不需為本比較修改 component contract。
 
 ### 6.6 第二輪 review 發現與修正
 
@@ -241,3 +242,36 @@ component contract。若正式報告仍需 final full-test loss，須在正式�
 執行正式 scenario。正式實驗仍按 Section 6.2 使用六個指定 Leaf；這是 selected scenario 與實際資料的
 核對項目，不是通用資料工具的固定名單或固定筆數限制。`configlib.py` 的 `ruff` 仍報既存的
 E402／F401，對照 `HEAD` 同樣存在，未納入本輪清理。Slice 4 與正式訓練條件仍保持 open。
+
+### 6.7 正式訓練條件的靜態盤點與建議
+
+本節只讀取已保存的 `runs/protocol-hierarchical/` evidence、現行 scenario、controller 與
+`testbed.protocol-hierarchical.yaml`；未改實作、未啟動 provider／VM／container／GPU。2026-09-12 UTC（本地 09-13）的
+`mnist-replacement-20260913-b` 與 `cifar10-replacement-20260913-a` 均使用每 Leaf 8,000 筆、
+32 local epochs、8 accepted rounds、200 筆 validation 與 250 ms controller poll，且已完成
+2 normal、2 degraded、4 restored rounds。兩個 runner 從 `startedAt` 到 `finishedAt` 分別約 23 與
+21 分鐘，不含預先的 VM startup／config preparation；
+正常／恢復輪的 accepted outcome 間隔約 69 秒。故障後首輪約 256 秒才偵測到失效，
+replacement 首次貢獻約在 stop 後 374 秒。另一次 100 samples／1 epoch normal smoke 的
+兩輪 accepted outcome 只相隔約 0.14 秒，不能拿它推估正式工作量或證明 fault barrier 可命中。
+
+| 靜態核對 | 結論與限制 |
+| --- | --- |
+| 時間 | 以舊 32-epoch 正常輪的約 69 秒粗略按 epoch 數換算，4／5 epochs 約為 9／11 秒一輪；再計入每次 runner 約數分鐘的準備／收尾與 treatment 的一次約 4 分鐘故障等待，四個 runner executions 應按約 1–2 小時量級預留，VM startup 與其他操作另計。這不是測得的正式執行時間；2,000 筆 validation、non-IID 分布、重試及當日負載均可能改變結果。 |
+| Fault barrier | Controller 在 `normalAcceptedRounds` 個 accepted outcomes 後，還要求 status 的 `completedRounds` 相同，且下一輪已進入 `ROUND_DISPATCH`／`ROUND_WAITING`；250 ms poll 才能觸發 stop。舊 32-epoch runs 都命中，4／5 epochs 的較短下一輪只支持「可能命中」的估計，不能宣稱已驗證。 |
+| Deadline | 選定 TESTBED 的 `roundTimeoutSeconds`、`preparationTimeoutSeconds` 均為 300；runner closure budget 會依 selected accepted rounds 計算。候選輪數沒有顯示固定 runner budget 不足，但正式 run 仍要觀測 timeout、rejected rounds 與 replacement。 |
+| 容量 | 舊 run 的 RTX 3080 為 10,240 MiB，GPU admission 時約 9,988 MiB free，高於 8,192 MiB floor，七個 GPU participants 成功啟動；正式拓樸不增加 participants。這只證明當時容量，不能代替執行當日的 GPU／Host admission。 |
+
+建議維持 MNIST `acceptedRounds: 24`、`localEpochs: 4`、第 12 個 accepted round 後故障，
+CIFAR-10 則為 40／5／第 20 個 accepted round 後故障；兩者均保留至少一次 restored accepted round
+的驗收。故障點約在訓練中段，後半仍有足夠目標輪次觀測恢復，但對新 epoch 值的 barrier
+可命中性與 non-IID learning curve 不能由舊 run 證明。這是供使用者凍結的建議，尚非已批准的
+正式設定；不另加獨立 GPU pilot，首個正式 treatment run 直接核對實際時序。
+
+建議執行順序為 MNIST baseline、MNIST treatment、CIFAR-10 baseline、CIFAR-10 treatment，
+每次使用不同 `RUN_NAME` 並完成既有 stop／exact reset 才切換 scenario。同資料集的一組配對
+沿用相同 `partition.seed: 42`、`leafLabels`、Leaf／validation 配額、batch size、learning rate、
+seed model ID／artifact key、component revisions、image 與 GPU placement；只讓 treatment 設定
+`fault`。正式 scenario 各自產生資料後，直接核對兩份 manifest 的 source indices 一致；
+初始模型依選定 seed source 與 reset 後狀態核對，不新增另一套 identity proof。
+尚待使用者確認候選 rounds／epochs／故障時點與順序；正式 run 名稱可在執行前選定。

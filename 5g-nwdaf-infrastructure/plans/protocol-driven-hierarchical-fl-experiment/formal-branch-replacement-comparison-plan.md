@@ -2,7 +2,7 @@
 
 日期：2026-09-13
 
-狀態：Draft／待確認；資料切分已核准進入 Slice 4 第二輪實作，正式訓練條件尚未凍結，不授權正式執行
+狀態：Draft／待確認；資料工具已提交，正式訓練條件已有靜態盤點但尚未凍結，不授權正式執行
 
 前置工作：[Multi-host Branch Replacement Experiment Plan](./multi-host-branch-replacement-experiment-plan.md)
 已完成雙資料集、四 VM、GPU、八個 accepted rounds 的流程驗證；其結果只證明流程可運作，
@@ -83,7 +83,7 @@ validation 均為每類 200 筆；此配額已核准供資料工具實作，正�
 ## 4. 時間軸與訓練工作量
 
 目前八輪流程只在第二個 accepted round 後故障，不足以觀察中段替換的前後曲線。第一版正式設定候選
-如下；這些數值仍須在執行時間盤點後凍結，同資料集的 baseline／treatment 必須一致，只有
+如下；靜態盤點見 Slice 4 Section 6.7，仍須經使用者確認才凍結。同資料集的 baseline／treatment 必須一致，只有
 treatment 注入故障。現行每 Leaf 32 local epochs 是先前流程驗證設定，不直接沿用為正式實驗值。
 
 | 資料集 | accepted rounds | 每 Leaf local epochs | treatment 故障時點 |
@@ -91,8 +91,10 @@ treatment 注入故障。現行每 Leaf 32 local epochs 是先前流程驗證設
 | MNIST | 24 | 4 | 第 12 個 accepted round 完成後 |
 | CIFAR-10 | 40 | 5 | 第 20 個 accepted round 完成後 |
 
-凍結前須確認 GPU／總執行時間、fault barrier 可命中性及 replacement 留有足夠後續輪次；不把較弱或
-較強的 learning-curve 效果當成修改同一次有效 run 條件的理由。
+既有 GPU 紀錄支持保留上述候選作第一版設定；它只能給執行時間量級，不能證明 4／5 epochs 的實際
+fault barrier 時序、新 validation 成本或執行當日容量。靜態盤點建議先按此候選凍結，正式 treatment
+run 直接核對 barrier 與 replacement；不另加 GPU pilot。不把較弱或較強的 learning-curve 效果
+當成修改同一次有效 run 條件的理由。
 
 故障後的 degraded accepted rounds 數量由 production timeout／recovery timing 決定，不預先強制固定；
 accepted、rejected、failure-detection、replacement-ready 與首次 replacement contribution 都分別記錄。
@@ -105,9 +107,9 @@ Treatment 至少要觀測一次 replacement 成功參與後續 accepted round；
 沿用目前 node-local structured JSONL、`events.jsonl`、`run.json`、Root 持久 final model 與可獨立重試的
 collection。每個 accepted round 的 Root validation loss／accuracy 與 `ROOT_ROUND_OUTCOME` 一對一對齊；
 比較圖以相同 accepted-round index 疊合 baseline／treatment，並在 treatment 標註故障、degraded 與
-restored 區間。主要另報 final full-test loss／accuracy、故障至偵測／ready／首次貢獻的時間、各階段
-accepted rounds 數量及每輪成功 Branch identities。PyMTLF final evaluator 雖計算 loss，但目前 CLI JSON
-只輸出 accuracy 與樣本數；正式報告使用 final full-test loss 前，須先確認輸出 contract 的處理方式。
+restored 區間。主要另報完整官方 test 的 final accuracy／樣本數、故障至偵測／ready／首次貢獻的時間、
+各階段 accepted rounds 數量及每輪成功 Branch identities。Final test 不要求 loss；目前 evaluator 輸出的
+accuracy、正確筆數與樣本數會保存到 `events.jsonl`／`run.json`，不需為本比較修改 PyMTLF。
 
 Non-IID 配置至少保存各 Area／Leaf 的類別分布，但本版模型表現只報整體 loss／accuracy，不要求
 per-class 評估或曲線。現有 `MODEL_EVALUATION` 提供逐輪整體 loss／accuracy，final evaluator CLI
@@ -183,8 +185,9 @@ dataset → render／validate → stage／activate → start → trigger → obs
 
 - 已核准的五類／Leaf 配額與兩資料集各 2,000 筆 train-derived validation 已用暫存切分核對；
   正式 scenario 的 source indices、Leaf／Area 分布及 evaluation 覆蓋仍須在執行時直接核對；
-- 24／12／4 與 40／20／5 候選設定的容量、時間與故障時點可行性，以及固定 seed；
-- 第一版四次執行的具體順序、run identity 與資料／初始模型一致性核對方式。
+- 使用者確認是否按靜態盤點建議凍結 MNIST 24／12／4、CIFAR-10 40／20／5，以及兩組配對的固定 seed；
+- 執行當日 GPU／Host 容量 admission、正式 scenario 的 fault barrier 可命中性與新 validation 實際耗時；
+- 第一版四次執行的 run identity；建議順序與資料／初始模型一致性核對方式見 Slice 4 Section 6.7。
 
 本輪不比較 Flat FL、FedAvg／FedProx、Branch 聚合頻率、GPU 效能成本或「故障但不替換」；
 不改 5g-viz、5GC user plane、component recovery semantics，也不把流程驗證紀錄當成正式比較資料。
