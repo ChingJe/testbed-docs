@@ -2,13 +2,14 @@
 
 日期：2026-09-13
 
-狀態：Planning（第二輪）；第一輪已通過 review 並提交，Slice 4 仍開放，正式實驗條件待凍結
+狀態：Review Confirmed（第二輪資料工具已提交）；Slice 4 仍開放，正式訓練條件待凍結
 
 上層計畫：[正式 Branch Replacement 比較實驗計畫](../formal-branch-replacement-comparison-plan.md)
 
 本 Slice 收納正式實驗開始前需要的 testbed 改動，隨資料、訓練與報告條件逐輪決策、盤點和擴充。
 第一輪已讓現有 experiment runner 支援無故障 baseline 與故障替換 treatment；後續 non-IID、完整 validation／test、
-正式輪數及分析需求在本文件記錄下一輪方向；資料數量已盤點並提出切分候選，但條件尚未凍結。
+正式輪數及分析需求在本文件記錄後續方向；資料數量已盤點，資料切分及評估來源已核准進入第二輪實作，
+正式訓練條件仍未凍結。
 每輪都保持同一 Slice 的進度與 review 邊界，不能因名義上屬於
 Slice 4 就繞過新 architecture 或 acceptance 決策。
 
@@ -76,8 +77,8 @@ evidence，以及明確列出的未驗證邊界。Focused verification 後執行
 uncommitted 供 user review，commit 與 push 另行批准。Slice 4 本身保持 open，不能把第一輪通過寫成整個
 正式實驗已準備完成。
 
-資料切分、non-IID 強度與完整 validation／test 的盤點及候選見下節；正式 rounds／epochs 仍須盤點
-可行性。條件凍結後更新本計畫的下一輪範圍、驗證及 real evidence，再開始該輪實作。第一版每條件
+資料切分、non-IID 強度與完整 validation／test 的盤點及第二輪實作邊界見下節；正式 rounds／epochs 仍須盤點
+可行性。訓練條件凍結後更新本計畫的後續範圍、驗證及 real evidence，再開始正式執行。第一版每條件
 只跑一次；per-class 指標暫不做。
 若需改變 component contract、新增 config source／service／state，或改變既有 safety／acceptance，先回到
 上層計畫取得決策；不因本 Slice 可逐輪擴充而自動獲准。
@@ -104,7 +105,7 @@ PyMTLF containers 與十四個 Guest services 的 runtime evidence 已保存。�
 
 目前選定 MNIST 與 CIFAR-10 各一組無故障 baseline／中段故障並替換 treatment，第一版共四個有效 runs。
 同資料集的兩條件使用相同六份 Leaf shards、固定 seed、初始模型與訓練參數；Area A replacement 仍連回原本
-兩個 Leaves。下列只盤點資料切分與 validation；尚未修改 generator 或執行正式訓練。
+兩個 Leaves。下列先記錄實作前的資料切分盤點；第二輪工具結果見 Section 6.5，尚未執行正式訓練。
 
 ### 6.1 本地官方資料的逐類數量
 
@@ -129,12 +130,12 @@ MNIST train 的最少類別仍有 5,421 筆，故每類取 4,800 筆給 Leaves�
 5,000 筆需求，在兩資料集的逐類容量內。CIFAR-10 會用盡 train 的每類 5,000 筆；MNIST 則有
 10,000 筆 train 樣本不使用。MNIST test 各類不等量，完整官方 test 不能用現有的等類別抽樣代替。
 
-### 6.2 建議的 label-skew 與 validation 切分
+### 6.2 第二輪的 label-skew 與 validation 切分
 
-建議先用同一個簡單配額候選處理兩資料集：每類從 official-train 固定抽取 200 筆 validation，
+第二輪以同一個簡單配額處理兩資料集：每類從 official-train 固定抽取 200 筆 validation，
 再抽取 4,800 筆分配給三個 Leaves，各取 1,600 筆且 source indices 互斥。如此每個 Leaf 只持有
 五個類別、共 8,000 筆；六個 Leaves 共 48,000 筆，validation 共 2,000 筆，每輪完整評估這
-2,000 筆。建議沿用目前 scenario 的 `partition.seed: 42`，固定每類先選 validation、再分配 training；
+2,000 筆。沿用目前 scenario 的 `partition.seed: 42`，固定每類先選 validation、再分配 training；
 baseline／treatment 必須重現相同 source indices。具體 Leaf 配額如下；表中每個列出的類別均為
 1,600 筆，未列出的類別為零。
 
@@ -153,22 +154,21 @@ non-IID 配置，與「故障加替換」配對比較共用，不能把此一次
 官方完整 test 各 10,000 筆只在模型完成後作 final held-out evaluation，不拿來逐輪驗證或挑選配置。
 模型結果先觀測整體 loss／accuracy，per-class 指標和 component 新紀錄暫不納入。
 
-建議由既有 scenario 的 `partition` 記錄各 Leaf 的類別清單，沿用 `samplesPerLeaf: 8000`，
+由既有 scenario 的 `partition.leafLabels` 記錄各 Leaf 的類別清單，沿用 `samplesPerLeaf: 8000`，
 由五個類別推導每類 1,600 筆；不另設一份人工配額檔，也不把本次類別分組固定在通用 generator。
-沒有類別清單的既有 balanced smoke scenario 應維持原本切分語意。本輪只記錄此表示方式，
-欄位名稱與相容行為留待下一輪實作計畫確認，不預做通用配額引擎。
+沒有類別清單的既有 balanced smoke scenario 維持原本切分語意，不預做通用配額引擎。
 
-### 6.3 現有流程差距與凍結前核對
+### 6.3 改動前流程差距與正式執行前核對
 
-目前 `build_split()` 將每個 Leaf 做成十類等量，並分別輸出 validation 與 held-out artifacts；
+第二輪改動前，`build_split()` 將每個 Leaf 做成十類等量，並分別輸出 validation 與 held-out artifacts；
 兩份各 200 筆卻都從 official-test 抽出。`validate_output()` 又要求每個 artifact 類別等量。
 完整 MNIST test 的各類樣本數不等，所以只增加 scenario 的計數既不能產生上述 non-IID shards，
-也不能正確保留全部 test 樣本。下一輪
-需在既有 dataset pipeline 內調整切分來源、配額表示／選取及相應語意檢查，不建立第二套人工資料來源。
-候選凍結時明確指定 paired runs 共用固定來源索引、seed 與初始模型；實作後以
-Leaf／Area 類別直方圖、training／validation 互斥 source indices、native loader、每輪 validation
-完整覆蓋及 final test 完整 10,000 筆作直接核對。具體 scenario 表示與切分行為仍需在下一輪實作
-計畫中確認；數量可行不等於目前程式已支援。
+也不能正確保留全部 test 樣本。本輪在既有 dataset pipeline 內調整切分來源、配額表示／選取及
+相應語意檢查，不建立第二套人工資料來源。
+Paired runs 共用固定來源索引、seed 與初始模型；實作後以
+Leaf／Area 各類筆數、training／validation 互斥 source indices、native loader、每輪 validation
+完整覆蓋及 final test 完整 10,000 筆作直接核對。具體 scenario 表示與切分行為見 Section 6.4；
+數量可行不取代實作及直接驗證。
 
 正式參數的第一版候選為 MNIST 24 accepted rounds／4 local epochs／第 12 個 accepted round 後故障，
 CIFAR-10 40 accepted rounds／5 local epochs／第 20 個 accepted round 後故障。這些不是已凍結的設定；
@@ -179,5 +179,65 @@ treatment 除 fault 外保持一致。第一版只有單一配對，結果只能
 native loader，以及固定 validation 的完整覆蓋；不另跑一組短輪數 GPU pilot 作流程彩排。首批正式 runs
 同時核對新 validation 路徑、baseline 無故障、treatment 中段故障／priority replacement、collection
 evidence 與 exact reset。失敗或不完整 run 保留並依凍結設定修正重跑，不計入有效配對；有效但效果
-不明顯的 run 仍保留，若要改參數須另立實驗版本。待上述配額／validation 候選完成 user review，
-seed、訓練參數及時間可行性確認後，才將下一輪實作及正式執行標為已批准。
+不明顯的 run 仍保留，若要改參數須另立實驗版本。資料工具可先依已核准配額實作；
+模型初始條件、訓練參數及時間可行性確認後，才將正式執行標為已批准。
+
+### 6.4 第二輪資料工具實作邊界
+
+沿用既有 scenario、`image_scenario_contract()`、`build_split()`、`validate_output()`、dataset
+generate／check、Root validation mount 與 final held-out evaluation 入口；不建立另一套配置或 runner。
+`partition.leafLabels` 是選填的 Leaf 名稱至類別清單 mapping；正式 scenario 依 Section 6.2 配置六個 Leaf，
+但資料工具依 mapping 產生 shards，不在共用驗證內另列固定 Leaf 名單。沒有 mapping 的既有 balanced smoke
+模式從 selected TESTBED 取得 Leaf 名稱。類別須合法且不重複，每個 Leaf 的 `samplesPerLeaf` 可平均分給所列類別。
+`partition.validationSource` 選填，缺省為 `official-test`，保留既有 smoke 的 validation／held-out
+抽樣語意；正式切分指定 `official-train`，
+先從 train 每類選 200 筆 validation，再分配互斥的 Leaf shards。產生器以實際載入的 official-test 筆數
+核對 scenario 的 `heldOutSamples`，並將整份 test 寫入 held-out；共用 scenario 驗證不另寫固定筆數。
+`validation.npz`、`held-out.npz`、Leaf shard 與 manifest 路徑不變。
+
+第二輪只調整現有 schema、generator、validator 與 owning dataset tests；以真實本地官方來源直接
+產生、檢查兩個資料集的切分，確認來源索引互斥、Leaf／Area 各類筆數、native loader、固定 validation
+的 2,000 筆及完整 test 的 10,000 筆。現有 smoke 行為需保持。評估入口先核對按所載樣本數完整迭代；
+若路徑和 count contract 已足夠，不改 renderer、runner 或 component。此輪不建立正式四條件 scenario、
+不啟動 VM／container 或長時間訓練；正式 rounds／epochs／fault 時點及其執行另行決策。
+
+### 6.5 第二輪實作與驗證紀錄
+
+初版在既有 `configlib.py`、`image_dataset.py` 與 `tests/image-dataset.py` 實作並測試上述切分。
+初版曾要求 `leafLabels` 精確匹配固定六個 Leaf；review 修正見 Section 6.6。未指定新欄位的 smoke scenario
+仍使用原本 balanced train shards 與 official-test validation／held-out 抽樣。新模式先從 official-train
+留出 validation，再依 scenario 類別清單分配互斥的 Leaf shards；held-out 原樣保留完整 official-test，
+不要求 MNIST test 各類等量。未新增圖表或直方圖產生工具；檢查只使用既有 manifest 的各類筆數。
+
+聚焦 dataset 測試及 scenario／runtime inventory 測試通過。使用本地已快取的兩份官方資料，各自在
+暫存目錄直接產生並由 native loader 檢查：MNIST 與 CIFAR-10 均為六份共 48,000 筆訓練資料、
+2,000 筆 official-train validation、10,000 筆完整 official-test held-out；來源索引不重疊，
+Leaf 類別配額符合 Section 6.2。這是資料工具證據，不是正式 scenario 的 render／stage 或訓練 evidence。
+現有 Root recorder 會載入完整 validation 並以樣本數迭代評估；final evaluator 亦遍歷所載資料，
+但仍須在正式 run 核對其記錄的實際 sample count。本輪沒有啟動 provider、VM、container 或 GPU。
+
+另發現 PyMTLF final evaluator 內部計算 loss，但 CLI JSON 尚未輸出它；testbed 本輪不更改
+component contract。若正式報告仍需 final full-test loss，須在正式執行前另行決策與處理。
+
+### 6.6 第二輪 review 發現與修正
+
+使用者 review 確認的發現及本輪 targeted follow-up 如下；owner 均為 Slice 4，implementation closing commit 為 `e626fa0`：
+
+- D1（已修正，review 已確認）：初版將資料產生器原有的固定六個 Leaf 名稱移到共用設定，要求
+  `leafLabels` 精確匹配，重複維護部署身分。新模式已改為依 scenario mapping 產生 shards，不檢查其
+  是否屬於 selected TESTBED；沒有 mapping 的 balanced smoke 從 selected TESTBED 取得 Leaf 名稱，
+  保留原切分語意。只保留防止檔案路徑或 manifest key 衝突的輸入條件。
+- D2（已修正，review 已確認）：初版在共用設定和輸出檢查加入固定 `10_000` 要求，並以拒絕較小數字
+  的測試固化它；這重複了產生器和實際 official-test 筆數的核對。已移除固定常數、重複檢查與該測試；
+  直接複製後重複檢查完整索引的條件也已移除。產生器仍比對實際來源筆數並寫入完整 test，
+  不另建完整複製的永久測試。
+- D3（已修正，review 已確認）：修正 D1 後，若 `leafLabels` mapping 的 YAML 書寫順序不同，同一
+  配額與 seed 仍可能分到不同 source indices，破壞配對條件。新模式以排序後的 Leaf 名稱決定分配順序；
+  現有 owning test 以相同 mapping 的不同書寫順序確認相同切分。
+
+修正後既有 balanced 與新 label-skew 資料測試、runtime inventory 測試、dataset／test 檔的 `ruff` 聚焦檢查及
+`git diff --check` 通過；使用本地 MNIST、CIFAR-10 官方資料的暫存切分均為六份共 48,000 筆訓練、
+2,000 筆 train-derived validation 與完整 10,000 筆 test held-out。沒有啟動 VM／container／GPU，也沒有
+執行正式 scenario。正式實驗仍按 Section 6.2 使用六個指定 Leaf；這是 selected scenario 與實際資料的
+核對項目，不是通用資料工具的固定名單或固定筆數限制。`configlib.py` 的 `ruff` 仍報既存的
+E402／F401，對照 `HEAD` 同樣存在，未納入本輪清理。Slice 4 與正式訓練條件仍保持 open。
