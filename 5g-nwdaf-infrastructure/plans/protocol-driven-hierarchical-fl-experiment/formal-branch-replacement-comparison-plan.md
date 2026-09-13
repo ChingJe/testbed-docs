@@ -2,7 +2,7 @@
 
 日期：2026-09-13
 
-狀態：Draft／待確認；資料工具已提交，正式訓練條件已有靜態盤點但尚未凍結，不授權正式執行
+狀態：正式 scenario 設定 Review Pending；正式比較仍為 Draft，尚未產生正式資料或核准執行
 
 前置工作：[Multi-host Branch Replacement Experiment Plan](./multi-host-branch-replacement-experiment-plan.md)
 已完成雙資料集、四 VM、GPU、八個 accepted rounds 的流程驗證；其結果只證明流程可運作，
@@ -10,7 +10,8 @@
 
 正式實驗前的 testbed 改動歸入 [Slice 4 詳細計畫](./slices/slice-4-formal-comparison-preparation-detailed-plan.md)，
 依已決定的實驗條件逐輪擴充。共用 runner 的雙模式支援與短 epoch 簡測已完成；第二輪只實作已確認的
-資料切分與評估來源，正式訓練條件仍須另行確認，不因資料工具可用而自動獲准執行正式實驗。
+資料切分與評估來源。正式 rounds／local epochs／故障時點已確認，四份 scenario 已依此建立；執行條件仍須核對，
+不因資料工具可用而自動獲准執行正式實驗。
 
 ## 1. 研究問題與可宣稱範圍
 
@@ -63,16 +64,16 @@ Non-IID 是兩種條件共同的實驗背景，不增加 IID／non-IID 兩套條
 60,000／10,000，CIFAR-10 為 50,000／10,000。CIFAR-10 在維持六個互斥 Leaf shards 的前提下，
 已沒有太多空間同時增加 Leaf 獨立樣本與保留 train-derived validation。第一版建議沿用每 Leaf
 8,000 筆，兩資料集均為六個等量 shards，不為了用滿來源資料而提高數量。盤點證實上述五類／Leaf
-配額在數量上可行；第二輪已用暫存切分直接驗證 generator，正式 scenario 仍待建立。不能把增加 local epochs、重複抽樣或
-資料增強描述為增加了獨立樣本。
+配額在數量上可行；第二輪已用暫存切分直接驗證 generator，正式 scenario 已建立但尚未產生持久資料。
+不能把增加 local epochs、重複抽樣或資料增強描述為增加了獨立樣本。
 
 Per-round validation 應完整遍歷一份固定、與 Leaf training shards 互斥的 validation set，而非沿用
 200 筆 smoke set，也不是每輪遍歷官方 test split。CIFAR-10 在六個 Leaves 共使用 48,000 筆
 official-train 樣本時，剩餘 2,000 筆作為固定 validation。MNIST 建議採同一配額：48,000 筆
 training、2,000 筆 train-derived validation，其餘 10,000 筆 official-train 不使用。兩資料集的
-validation 均為每類 200 筆；此配額已核准供資料工具實作，正式 scenario 資料尚未持久產生。最終模型另用
-**完整的官方 10,000 筆 test split**作一次主要 held-out 評估；正式訓練設定凍結前
-不得用這份 test 結果挑選配置。
+validation 均為每類 200 筆；此配額已寫入正式 scenario，資料尚未持久產生。最終模型另用
+**完整的官方 10,000 筆 test split**作一次主要 held-out 評估；本次訓練參數決策未使用 test 結果，
+後續也不得依這份 test 結果回頭調整同一版配置。
 切分沿用目前 scenario 的 `partition.seed: 42`：每類先固定選出 200 筆 validation，再把互斥的
 4,800 筆分配給三個 Leaves；同資料集的 baseline／treatment 須得到相同的 source indices。
 第二輪改動前的 generator 雖分別輸出 validation 與 held-out artifacts，卻把兩者都取自官方 test split、各只用
@@ -82,8 +83,8 @@ validation 均為每類 200 筆；此配額已核准供資料工具實作，正�
 
 ## 4. 時間軸與訓練工作量
 
-目前八輪流程只在第二個 accepted round 後故障，不足以觀察中段替換的前後曲線。第一版正式設定候選
-如下；靜態盤點見 Slice 4 Section 6.7，仍須經使用者確認才凍結。同資料集的 baseline／treatment 必須一致，只有
+目前八輪流程只在第二個 accepted round 後故障，不足以觀察中段替換的前後曲線。第一版正式設定中，
+下列 rounds／local epochs／故障時點已由使用者確認；靜態盤點見 Slice 4 Section 6.7。同資料集的 baseline／treatment 必須一致，只有
 treatment 注入故障。現行每 Leaf 32 local epochs 是先前流程驗證設定，不直接沿用為正式實驗值。
 
 | 資料集 | accepted rounds | 每 Leaf local epochs | treatment 故障時點 |
@@ -91,16 +92,17 @@ treatment 注入故障。現行每 Leaf 32 local epochs 是先前流程驗證設
 | MNIST | 24 | 4 | 第 12 個 accepted round 完成後 |
 | CIFAR-10 | 40 | 5 | 第 20 個 accepted round 完成後 |
 
-既有 GPU 紀錄支持保留上述候選作第一版設定；它只能給執行時間量級，不能證明 4／5 epochs 的實際
-fault barrier 時序、新 validation 成本或執行當日容量。靜態盤點建議先按此候選凍結，正式 treatment
+既有 GPU 紀錄只支持上述已確認設定的執行時間量級，不能證明 4／5 epochs 的實際
+fault barrier 時序、新 validation 成本或執行當日容量。正式 treatment
 run 直接核對 barrier 與 replacement；不另加 GPU pilot。不把較弱或較強的 learning-curve 效果
 當成修改同一次有效 run 條件的理由。
 
 故障後的 degraded accepted rounds 數量由 production timeout／recovery timing 決定，不預先強制固定；
 accepted、rejected、failure-detection、replacement-ready 與首次 replacement contribution 都分別記錄。
 Treatment 至少要觀測一次 replacement 成功參與後續 accepted round；若目標輪數結束仍未恢復，
-保留不完整結果，不能事後延長單一 run 來冒充原訂方案。若事前盤點顯示候選設定不可行，先修訂並
-凍結同資料集的配對設定；若正式結果的效果不明顯，有效 run 仍須保留並報告，後續新設定另立版本。
+保留不完整結果，不能事後延長單一 run 來冒充原訂方案。若後續直接證據顯示已確認設定不可行，
+須先修訂同資料集的配對設定並重新取得確認；若正式結果的效果不明顯，有效 run 仍須保留並報告，
+後續新設定另立版本。
 
 ## 5. 觀測、分析與資料保存
 
@@ -128,7 +130,7 @@ accepted-round 與 validation 對齊資料，才能進行配對比較。
 ## 6. 實作邊界與驗證順序
 
 此版仍是正式實驗主計畫草案；Slice 4 第一輪 runner 與第二輪資料工具變更已由詳細計畫限定，
-正式 scenario、訓練與報告條件仍待後續確認。
+正式 scenario 已建立供 review，執行／報告條件仍待後續確認；已確認的三項訓練數值不因此自動變更。
 預期 owner 是 `5G_NWDAF_Infrastructure/` 的 scenario validation、dataset preparation、現有 renderer／runner、
 evidence checker 與 tests；`testbed-docs/` 保存本計畫、後續實驗定義和 reviewed records。
 NWDAF／PyMTLF／NRF／ADRF 原則上沿用現有 revisions，不預設修改 component contract。
@@ -151,11 +153,12 @@ dataset → render／validate → stage／activate → start → trigger → obs
 1. Slice 4 第一輪已完成共用 runner 雙模式擴充及 short normal scenario 的短 epoch GPU 簡測；
    treatment 保留原有流程與直接回歸證據。這只是 runner 接線驗證，不作正式比較，也不藉此凍結資料與輪數。
 2. 已盤點來源類別數量並核准六份等量 label-skew shards、固定 validation 配額及 seed，
-   在同一 Slice 4 第二輪完成必要的 dataset／evaluation 調整；正式訓練設定另行凍結。執行前以來源索引、
+   在同一 Slice 4 第二輪完成必要的 dataset／evaluation 調整；rounds／local epochs／故障時點已於後續確認。
+   執行前以來源索引、
    Leaf／Area 各類筆數、互斥性、native loader 與 validation 全量覆蓋做針對性檢查，不另跑獨立
    流程彩排 pilot，也不預先產生另一份 Slice 文件。
-3. 確認容量與時間可行、凍結設定後，各條件先跑一次；第一批正式 runs 同時核對新的 validation
-   路徑、baseline 無故障、treatment 中段故障與 priority replacement、collection／evidence 完整性及
+3. 完成正式 scenario review、資料／config 產物核對並確認當日容量後，各條件先跑一次；第一批正式 runs
+   同時核對新的 validation 路徑、baseline 無故障、treatment 中段故障與 priority replacement、collection／evidence 完整性及
    exact reset。任何失敗或不完整 run 保留紀錄，修正後依原凍結設定重跑，不計入有效配對；有效但
    效果不明顯的 run 不因研究結果而剔除。
 4. 對等檢查各配對的初始條件、accepted-round 對齊、缺失資料、evaluation 覆蓋與故障時序，
@@ -185,11 +188,12 @@ dataset → render／validate → stage／activate → start → trigger → obs
 
 - 已核准的五類／Leaf 配額與兩資料集各 2,000 筆 train-derived validation 已用暫存切分核對；
   正式 scenario 的 source indices、Leaf／Area 分布及 evaluation 覆蓋仍須在執行時直接核對；
-- 使用者確認是否按靜態盤點建議凍結 MNIST 24／12／4、CIFAR-10 40／20／5，以及兩組配對的固定 seed；
+- MNIST 24 rounds／4 local epochs／第 12 輪後故障，以及 CIFAR-10 40／5／第 20 輪後故障已確認；
+  四份正式 scenario 沿用現有 batch size、learning rate 與各資料集 seed model，配對一致性仍須在產物與執行時核對；
 - 執行當日 GPU／Host 容量 admission、正式 scenario 的 fault barrier 可命中性與新 validation 實際耗時；
 - 第一版四次執行的 run identity；建議順序與資料／初始模型一致性核對方式見 Slice 4 Section 6.7。
 
 本輪不比較 Flat FL、FedAvg／FedProx、Branch 聚合頻率、GPU 效能成本或「故障但不替換」；
 不改 5g-viz、5GC user plane、component recovery semantics，也不把流程驗證紀錄當成正式比較資料。
-在上述正式實驗條件完成決策與 user review 前，本計畫保持 Draft，不進行正式 runs。Slice 4 第一輪
-runner 擴充及短 epoch 簡測已完成；第二輪資料工具實作也不使未決的正式訓練條件自動獲准。
+在其餘正式實驗條件完成決策與 user review 前，正式比較仍保持 Draft，不進行正式 runs。Slice 4 第一輪
+runner 擴充及短 epoch 簡測已完成；第二輪資料工具實作與本次參數確認都不單獨授權正式執行。

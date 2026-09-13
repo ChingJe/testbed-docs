@@ -2,14 +2,14 @@
 
 日期：2026-09-13
 
-狀態：第二輪資料工具 Review Confirmed／已提交；正式訓練條件靜態盤點待使用者確認，Slice 4 仍開放
+狀態：第二輪資料工具 Review Confirmed／已提交；正式 scenario 設定 Review Pending，Slice 4 仍開放
 
 上層計畫：[正式 Branch Replacement 比較實驗計畫](../formal-branch-replacement-comparison-plan.md)
 
 本 Slice 收納正式實驗開始前需要的 testbed 改動，隨資料、訓練與報告條件逐輪決策、盤點和擴充。
 第一輪已讓現有 experiment runner 支援無故障 baseline 與故障替換 treatment；後續 non-IID、完整 validation／test、
 正式輪數及分析需求在本文件記錄後續方向；資料數量已盤點，資料切分及評估來源已核准進入第二輪實作，
-正式訓練條件仍未凍結。
+正式 rounds／local epochs／故障時點已確認，四份 scenario 已建立；執行條件仍待核對。
 每輪都保持同一 Slice 的進度與 review 邊界，不能因名義上屬於
 Slice 4 就繞過新 architecture 或 acceptance 決策。
 
@@ -77,9 +77,9 @@ evidence，以及明確列出的未驗證邊界。Focused verification 後執行
 uncommitted 供 user review，commit 與 push 另行批准。Slice 4 本身保持 open，不能把第一輪通過寫成整個
 正式實驗已準備完成。
 
-資料切分、non-IID 強度與完整 validation／test 的盤點及第二輪實作邊界見下節；正式 rounds／epochs 仍須盤點
-可行性。訓練條件凍結後更新本計畫的後續範圍、驗證及 real evidence，再開始正式執行。第一版每條件
-只跑一次；per-class 指標暫不做。
+資料切分、non-IID 強度與完整 validation／test 的盤點及第二輪實作邊界見下節；rounds／epochs 已完成
+靜態盤點並獲確認，實際時序留待正式 run 核對。正式 scenario 通過 review、資料與 config 產物核對及
+執行條件確認後才開始正式執行。第一版每條件只跑一次；per-class 指標暫不做。
 若需改變 component contract、新增 config source／service／state，或改變既有 safety／acceptance，先回到
 上層計畫取得決策；不因本 Slice 可逐輪擴充而自動獲准。
 
@@ -170,17 +170,17 @@ Leaf／Area 各類筆數、training／validation 互斥 source indices、native 
 完整覆蓋及 final test 完整 10,000 筆作直接核對。具體 scenario 表示與切分行為見 Section 6.4；
 數量可行不取代實作及直接驗證。
 
-正式參數的第一版候選為 MNIST 24 accepted rounds／4 local epochs／第 12 個 accepted round 後故障，
-CIFAR-10 40 accepted rounds／5 local epochs／第 20 個 accepted round 後故障。這些不是已凍結的設定；
-須先確認 GPU／時間成本、fault barrier 可命中與 replacement 後仍有足夠輪次，且同資料集 baseline／
-treatment 除 fault 外保持一致。第一版只有單一配對，結果只能做描述性比較。
+第一版已確認 MNIST 24 accepted rounds／4 local epochs／第 12 個 accepted round 後故障，
+CIFAR-10 40 accepted rounds／5 local epochs／第 20 個 accepted round 後故障。執行當日仍須核對
+GPU／時間成本、fault barrier 可命中與 replacement 後仍有足夠輪次，且同資料集 baseline／
+treatment 除故障及其必要觀測欄位外保持一致。第一版只有單一配對，結果只能做描述性比較。
 
 正式執行前只對新增的 dataset／evaluation 邊界做針對性檢查：來源索引互斥、六份等量與類別分布、
 native loader，以及固定 validation 的完整覆蓋；不另跑一組短輪數 GPU pilot 作流程彩排。首批正式 runs
 同時核對新 validation 路徑、baseline 無故障、treatment 中段故障／priority replacement、collection
 evidence 與 exact reset。失敗或不完整 run 保留並依凍結設定修正重跑，不計入有效配對；有效但效果
 不明顯的 run 仍保留，若要改參數須另立實驗版本。資料工具可先依已核准配額實作；
-模型初始條件、訓練參數及時間可行性確認後，才將正式執行標為已批准。
+正式 scenario 的初始模型與訓練參數通過 review、執行當日容量核對後，才將正式執行標為已批准。
 
 ### 6.4 第二輪資料工具實作邊界
 
@@ -259,14 +259,14 @@ replacement 首次貢獻約在 stop 後 374 秒。另一次 100 samples／1 epoc
 | --- | --- |
 | 時間 | 以舊 32-epoch 正常輪的約 69 秒粗略按 epoch 數換算，4／5 epochs 約為 9／11 秒一輪；再計入每次 runner 約數分鐘的準備／收尾與 treatment 的一次約 4 分鐘故障等待，四個 runner executions 應按約 1–2 小時量級預留，VM startup 與其他操作另計。這不是測得的正式執行時間；2,000 筆 validation、non-IID 分布、重試及當日負載均可能改變結果。 |
 | Fault barrier | Controller 在 `normalAcceptedRounds` 個 accepted outcomes 後，還要求 status 的 `completedRounds` 相同，且下一輪已進入 `ROUND_DISPATCH`／`ROUND_WAITING`；250 ms poll 才能觸發 stop。舊 32-epoch runs 都命中，4／5 epochs 的較短下一輪只支持「可能命中」的估計，不能宣稱已驗證。 |
-| Deadline | 選定 TESTBED 的 `roundTimeoutSeconds`、`preparationTimeoutSeconds` 均為 300；runner closure budget 會依 selected accepted rounds 計算。候選輪數沒有顯示固定 runner budget 不足，但正式 run 仍要觀測 timeout、rejected rounds 與 replacement。 |
+| Deadline | 選定 TESTBED 的 `roundTimeoutSeconds`、`preparationTimeoutSeconds` 均為 300；runner closure budget 會依 selected accepted rounds 計算。已確認輪數沒有顯示固定 runner budget 不足，但正式 run 仍要觀測 timeout、rejected rounds 與 replacement。 |
 | 容量 | 舊 run 的 RTX 3080 為 10,240 MiB，GPU admission 時約 9,988 MiB free，高於 8,192 MiB floor，七個 GPU participants 成功啟動；正式拓樸不增加 participants。這只證明當時容量，不能代替執行當日的 GPU／Host admission。 |
 
-建議維持 MNIST `acceptedRounds: 24`、`localEpochs: 4`、第 12 個 accepted round 後故障，
+靜態盤點後，使用者確認 MNIST `acceptedRounds: 24`、`localEpochs: 4`、第 12 個 accepted round 後故障，
 CIFAR-10 則為 40／5／第 20 個 accepted round 後故障；兩者均保留至少一次 restored accepted round
 的驗收。故障點約在訓練中段，後半仍有足夠目標輪次觀測恢復，但對新 epoch 值的 barrier
-可命中性與 non-IID learning curve 不能由舊 run 證明。這是供使用者凍結的建議，尚非已批准的
-正式設定；不另加獨立 GPU pilot，首個正式 treatment run 直接核對實際時序。
+可命中性與 non-IID learning curve 不能由舊 run 證明。不另加獨立 GPU pilot，首個正式 treatment
+run 直接核對實際時序；若直接證據顯示設定不可行，須先修訂配對設計並重新確認。
 
 建議執行順序為 MNIST baseline、MNIST treatment、CIFAR-10 baseline、CIFAR-10 treatment，
 每次使用不同 `RUN_NAME` 並完成既有 stop／exact reset 才切換 scenario。同資料集的一組配對
@@ -274,4 +274,23 @@ CIFAR-10 則為 40／5／第 20 個 accepted round 後故障；兩者均保留�
 seed model ID／artifact key、component revisions、image 與 GPU placement；只讓 treatment 設定
 `fault`。正式 scenario 各自產生資料後，直接核對兩份 manifest 的 source indices 一致；
 初始模型依選定 seed source 與 reset 後狀態核對，不新增另一套 identity proof。
-尚待使用者確認候選 rounds／epochs／故障時點與順序；正式 run 名稱可在執行前選定。
+正式 run 名稱與建議順序可在執行前選定。
+
+### 6.8 正式 scenario 設定
+
+四份 scenario 放在 `experiments/protocol-hierarchical/formal-comparison/`，依資料集及 baseline／replacement
+分開；沿用現有 `TESTBED`、資料產生器、renderer、checker 與 `fl-experiment-run`。同資料集配對固定
+`partition.seed: 42`、`leafLabels`、8,000 筆／Leaf、2,000 筆 official-train validation、完整
+official-test held-out、batch size 16、learning rate 0.001 與既有 component-native seed model。
+MNIST 設為 24 accepted rounds／4 local epochs，replacement 在第 12 輪後故障；CIFAR-10 設為
+40／5，第 20 輪後故障。Baseline 不設定 `fault` 或 `observation`；replacement 使用現有
+`fault` 加上其 contract 要求的 `observation`，沿用 250 ms poll／30 s heartbeat。除各自的
+scenario identity 與 treatment 專屬控制欄位外，同資料集的 workload、partition、training 相同。
+
+`kind: formal-comparison` 僅描述實驗用途，不選擇拓樸或 runner。Protocol image path 的
+`image_scenario_contract()` 未限制 `kind` 值；`config-render.py` 將它複製到 generated config manifest，
+現有 `config-check.py` 在此 path 不比較 `kind`，也不把它寫入 image dataset manifest。
+先前把舊 UE／Flat path 的 `kind` enum 誤套到此 path，並把它列為 blocker，現已更正；不需改 validator。
+目前只完成 YAML 建立與靜態 contract／配對核對，尚未執行 dataset generate、config render、VM 或訓練。
+正式執行前直接核對配對資料的 source indices、初始模型、runtime revision 與當日容量；scenario
+建立本身不授權正式訓練。
