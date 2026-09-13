@@ -4,7 +4,8 @@
 
 最近更新：2026-09-13
 
-狀態：Completed；required evidence、mandatory review、user review 與 verified record 均已完成
+狀態：Completed；原定 required evidence、mandatory review、user review 與 verified record 已完成，
+後續共用 scenario validation 追補修正亦已通過 review
 
 上層計畫：
 
@@ -278,10 +279,12 @@ observation:
 active candidate作為stop target，不能在scenario手寫primary／replacement NF Instance ID。Replacement candidate仍由
 Root依priority選擇，controller不得從scenario推導或傳送selection結果。
 
-`acceptedRounds`必須為8，`normalAcceptedRounds`必須為2，`restoredAcceptedRounds`必須為1；scenario不保存
+本 Slice 的兩份 replacement scenarios 應維持 `acceptedRounds: 8`、`normalAcceptedRounds: 2`、
+`restoredAcceptedRounds: 1`；scenario不保存
 `degradedAcceptedRounds`，該數量由primary stop、Root outcomes與replacement first contribution推導。欄位缺少、
-不合法、replacement workload不是每Leaf 8,000 samples／local epochs 32，或round budget無法容納2 normal加1 restored時，
-config validation應fail closed。Internal polling維持250 ms；實際fault window由固定training workload提供，不能靠更密集
+不合法，或round budget無法容納normal、至少一個degraded與restored accepted rounds時，
+共用 config validation 應 fail closed；本 Slice 的精確 workload 與輪數則由選定 scenario 與本計畫的驗收核對，
+不得變成所有後續 image scenarios 的合法性限制。Internal polling維持250 ms；實際fault window由固定training workload提供，不能靠更密集
 polling假設跨Host／Guest exact stop能即時完成。Terminal只每30秒輸出heartbeat，兩者不是同一頻率。
 
 Leaf epoch使用下列單一來源與生成規則：
@@ -652,7 +655,7 @@ cleanup evidence時，Slice保持verification incomplete。
 | S3-02 | Scenario只擁有dataset、training、fault與observation behavior，不保存device或participant identity；所有image scenarios明確提供Leaf epoch唯一人工來源`training.localEpochs` | four image scenarios與schema tests |
 | S3-03 | `DEVICE=gpu`解析為Root與six Leaves CUDA、four Branches CPU | TESTBED、manifest、native config、Compose、real status |
 | S3-04 | GPU acceptance使用one RTX 3080、8,192 MiB pre-start floor與seven-participant actual evidence | preflight與`events.jsonl`／`run.json` |
-| S3-05 | Branch `reportAfter`只由TESTBED提供；TESTBED Leaf candidate不得定義`reportAfter`。Normal scenarios明確提供2 accepted rounds／`localEpochs: 1`，replacement scenarios固定8 accepted rounds／`localEpochs: 32`；renderer依Leaf role與scenario產生完整native `report_after` | role-specific schema rejection、normal／replacement render與native-config tests |
+| S3-05 | Branch `reportAfter`只由TESTBED提供；TESTBED Leaf candidate不得定義`reportAfter`。本 Slice 的normal scenarios提供2 accepted rounds／`localEpochs: 1`，replacement scenarios提供8 accepted rounds／`localEpochs: 32`；renderer依Leaf role與選定scenario產生完整native `report_after`，共用validator不把這些驗收值當成跨情境限制 | role-specific schema rejection、normal／replacement render與native-config tests；選定scenario與本Slice驗收核對 |
 | S3-06 | MNIST與CIFAR-10各只有一個正式replacement flow run | run coverage checker與record wording |
 | S3-07 | Replacement沿用direct production endpoint與configured deadlines，無gate／proxy／extra port／detached state | config review、runner tests與actual process／port inventory |
 | S3-08 | Controller不控制replacement preparation timing；degraded count由stop、Root outcomes與first contribution推導 | `events.jsonl`與`run.json` |
@@ -779,7 +782,7 @@ Final verification結果：
 Mandatory initial review及每個remediation的targeted follow-up review均未留下admitted current-slice finding。使用者於
 2026-09-13確認review結果；正式摘要已保存於
 [Protocol-driven Branch Replacement Validation Record](../../../records/hierarchical-federated-learning/protocol-driven-branch-replacement-validation-2026-09-13.md)，
-因此本Slice標為`Completed`。Implementation與documentation commits仍等待獨立commit proposal批准。
+因此本Slice當時標為`Completed`；後續共用驗證 finding 的追補狀態見下節。
 
 ### Slice acceptance
 
@@ -801,4 +804,24 @@ Mandatory initial review及每個remediation的targeted follow-up review均未�
   同一`RUN_NAME`沿用原`requestId`／`planId`重試；collection成功前Root experiment-record volume不得reset，且
   collection-only不得提交training request或產生新identity。
 - Evidence先保存，再完成process stop、ADRF／NRF／volume reset與seed restoration；四台VM可在兩run之間保留。
-- Required real evidence、mandatory review及使用者確認均已完成，並已建立verified record；本Slice標為`Completed`。
+- 原定 required real evidence、mandatory review及使用者確認均已完成，並已建立verified record；
+  當時標為`Completed`，後續共用驗證 finding 的追補狀態見下一節。
+
+### 後續 review 追補：共用情境驗證的範圍
+
+2026-09-13 在準備後續正式比較實驗時，確認 `image_scenario_contract()` 將本 Slice 的 normal／replacement
+輪數、樣本數、local epochs 及 observation 頻率寫成所有 image scenarios 的准入限制；既有
+`tests/runtime-inventory.py` 又把替代設定一律當成非法。這些精確值是本 Slice 已完成的兩次實驗設定與驗收，
+不是跨實驗的 component 或 deployment 不變條件。此 finding 位於本 Slice 建立的共用 scenario validation，
+與目前 development policy 的 common-validation 與 permanent-test 規則衝突，因此重新開啟本 Slice 的 review。
+
+追補修正只調整現有 validator、直接依賴它的既有測試，以及依選定 scenario 顯示輪數的 runner 訊息。
+保留必要的欄位型別、正值、fault phase 可完成性、device ownership、Leaf epoch 單一來源與既有
+provider／lifecycle 防護；不改這四份原 scenario、本 Slice 的 8／2／1 與 8,000／32 驗收、
+已保存的 real-run evidence 或 verified record。用既有測試證明合法的替代設定可經同一共用驗證，
+且原四份 scenario 的 render／native config 結果不變；不為追補結果建立新的 meta-test 檔案。
+
+健康 baseline 的 runner 支援、non-IID 切分、train-derived validation、完整官方 test 與正式比較輪數
+仍屬後續實驗，不納入本次 Slice 3 追補。追補修正已完成 focused verification、targeted review 與 final
+conformance，`make test` 通過，使用者於 2026-09-13 確認 review 結果；因此本 Slice 恢復為 `Completed`。
+歷史 real-run evidence 仍只證明原定 flow acceptance；追補未重新執行 real training run。

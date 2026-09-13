@@ -4,7 +4,8 @@
 
 最近更新：2026-09-13
 
-狀態：Completed；三個 Slices、required evidence、mandatory review、user review 與 verified record 均已完成
+狀態：Completed；三個 Slices 的 required evidence、mandatory review、user review 與 verified record 均已完成，
+Slice 3 後續共用驗證 finding 的追補修正亦已通過 review
 
 索引：
 
@@ -667,7 +668,7 @@ Slice 1 cleanup
 | --- | --- | --- |
 | 1. Legacy／hash cleanup | Completed | implementation、focused／repository synthetic verification、mandatory initial review、使用者review與commit approval已完成 |
 | 2. Four-VM topology | Completed | canonical implementation、雙dataset short normal runs、stop／restart／reset、mandatory initial review、使用者review與commit approval已完成 |
-| 3. Dual-dataset replacement flow | Completed | MNIST與CIFAR-10各完成一個GPU 8-round natural-recovery run；兩者皆為2 normal、2 degraded、4 restored，structured evidence、held-out evaluation、exact cleanup、mandatory review與使用者review均已通過 |
+| 3. Dual-dataset replacement flow | Completed | MNIST與CIFAR-10各完成一個GPU 8-round natural-recovery run；兩者皆為2 normal、2 degraded、4 restored，structured evidence、held-out evaluation、exact cleanup、mandatory review與使用者review均已通過；後續共用驗證追補亦已完成，見 Slice 3 詳細計畫 |
 
 Slice 3的正式evidence位於ignored run directories：MNIST使用
 `mnist-replacement-20260913-b`，CIFAR-10使用`cifar10-replacement-20260913-a`。兩個run皆使用PyMTLF
@@ -675,5 +676,6 @@ Slice 3的正式evidence位於ignored run directories：MNIST使用
 `requestId`／`planId`成功重試collection-only，直接證明後處理失敗不需重新訓練。Flow-acceptance結果已整理至
 [Protocol-driven Branch Replacement Validation Record](../../records/hierarchical-federated-learning/protocol-driven-branch-replacement-validation-2026-09-13.md)。
 
-三個slices均已完成required evidence與user review，且雙資料集flow-acceptance結果已整理到`records/`，因此本計畫標為
-`Completed`。Implementation與documentation commits仍依獨立commit approval gate處理；completion狀態不授權自動commit或push。
+三個slices的required evidence與user review均已完成，雙資料集flow-acceptance結果已整理到`records/`；
+後續共用驗證 finding 的修正、focused verification、targeted review 與使用者review亦已關閉，因此本計畫標為
+`Completed`。歷史run與record保持其原本證據範圍，不充當追補修正的驗證；追補未重新執行real training run。
