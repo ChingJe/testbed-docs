@@ -2,14 +2,16 @@
 
 日期：2026-09-13
 
-狀態：第二輪資料工具 Review Confirmed／已提交；正式 scenario 設定 Review Pending，Slice 4 仍開放
+狀態：資料工具與正式 scenario 已提交；MNIST／CIFAR-10 四組正式執行完成、結果待 User Review，Slice 4 仍開放
 
 上層計畫：[正式 Branch Replacement 比較實驗計畫](../formal-branch-replacement-comparison-plan.md)
 
 本 Slice 收納正式實驗開始前需要的 testbed 改動，隨資料、訓練與報告條件逐輪決策、盤點和擴充。
 第一輪已讓現有 experiment runner 支援無故障 baseline 與故障替換 treatment；後續 non-IID、完整 validation／test、
 正式輪數及分析需求在本文件記錄後續方向；資料數量已盤點，資料切分及評估來源已核准進入第二輪實作，
-正式 rounds／local epochs／故障時點已確認，四份 scenario 已建立；執行條件仍待核對。
+正式 rounds／local epochs／故障時點已確認，四份 scenario 與資料／config 已建立；首組 MNIST baseline
+經使用者單獨批准並執行；MNIST treatment 首次執行失敗、修正後重跑成功，直接 evidence 見上層計畫
+Sections 10–11；CIFAR-10 baseline／treatment 已依序執行，結果見上層計畫 Section 12。
 每輪都保持同一 Slice 的進度與 review 邊界，不能因名義上屬於
 Slice 4 就繞過新 architecture 或 acceptance 決策。
 
@@ -94,10 +96,11 @@ final model、held-out evaluation、protocol resource 與 exact cleanup。原有
 
 既有 owning suite 的聚焦測試通過；`config-validate`、`dataset-validate` 與 sandbox 外的
 `experiment-validate` 通過，後者僅警告 Host 無可用 swap。以 MNIST normal scenario 執行的一次 GPU
-簡測保存在 `runs/protocol-hierarchical/mnist/mnist-normal-smoke-20260913/`：Root 到達 `COMPLETE`，
+簡測當時保存在 `runs/protocol-hierarchical/mnist/mnist-normal-smoke-20260913/`；該舊 run 目錄
+已依使用者確認清理，以下保留已 review 的執行摘要：Root 到達 `COMPLETE`，
 兩個 accepted outcomes 都為三個 Branch 正常貢獻並各有 validation；final model、held-out evaluation、
 `events.jsonl`／`run.json` 及 reset verification 均成功。Host 上七個 GPU participants、十一個
-PyMTLF containers 與十四個 Guest services 的 runtime evidence 已保存。簡測後四台 VM 的 provider
+PyMTLF containers 與十四個 Guest services 的 runtime evidence 當時已記錄。簡測後四台 VM 的 provider
 狀態均為 `poweroff`，Host process inventory 沒有 VirtualBox VM process。這些結果只證明短 baseline flow，
 不代表正式比較或模型品質；本次未重新執行 treatment real run，該邊界留給後續正式 treatment run。
 
@@ -105,7 +108,8 @@ PyMTLF containers 與十四個 Guest services 的 runtime evidence 已保存。�
 
 目前選定 MNIST 與 CIFAR-10 各一組無故障 baseline／中段故障並替換 treatment，第一版共四個有效 runs。
 同資料集的兩條件使用相同六份 Leaf shards、固定 seed、初始模型與訓練參數；Area A replacement 仍連回原本
-兩個 Leaves。下列先記錄實作前的資料切分盤點；第二輪工具結果見 Section 6.5，尚未執行正式訓練。
+兩個 Leaves。下列先記錄實作前的資料切分盤點；第二輪工具結果見 Section 6.5，兩資料集的
+正式訓練結果見上層計畫 Sections 9–12。
 
 ### 6.1 本地官方資料的逐類數量
 
@@ -245,7 +249,7 @@ E402／F401，對照 `HEAD` 同樣存在，未納入本輪清理。Slice 4 與�
 
 ### 6.7 正式訓練條件的靜態盤點與建議
 
-本節只讀取已保存的 `runs/protocol-hierarchical/` evidence、現行 scenario、controller 與
+本節當時只讀取 `runs/protocol-hierarchical/` evidence、現行 scenario、controller 與
 `testbed.protocol-hierarchical.yaml`；未改實作、未啟動 provider／VM／container／GPU。2026-09-12 UTC（本地 09-13）的
 `mnist-replacement-20260913-b` 與 `cifar10-replacement-20260913-a` 均使用每 Leaf 8,000 筆、
 32 local epochs、8 accepted rounds、200 筆 validation 與 250 ms controller poll，且已完成
@@ -254,6 +258,7 @@ E402／F401，對照 `HEAD` 同樣存在，未納入本輪清理。Slice 4 與�
 正常／恢復輪的 accepted outcome 間隔約 69 秒。故障後首輪約 256 秒才偵測到失效，
 replacement 首次貢獻約在 stop 後 374 秒。另一次 100 samples／1 epoch normal smoke 的
 兩輪 accepted outcome 只相隔約 0.14 秒，不能拿它推估正式工作量或證明 fault barrier 可命中。
+上述舊流程 run 目錄已依使用者確認清理，本節保留當時盤點與其限制；本次正式比較以新 run evidence 為準。
 
 | 靜態核對 | 結論與限制 |
 | --- | --- |
@@ -291,6 +296,67 @@ scenario identity 與 treatment 專屬控制欄位外，同資料集的 workload
 `image_scenario_contract()` 未限制 `kind` 值；`config-render.py` 將它複製到 generated config manifest，
 現有 `config-check.py` 在此 path 不比較 `kind`，也不把它寫入 image dataset manifest。
 先前把舊 UE／Flat path 的 `kind` enum 誤套到此 path，並把它列為 blocker，現已更正；不需改 validator。
-目前只完成 YAML 建立與靜態 contract／配對核對，尚未執行 dataset generate、config render、VM 或訓練。
-正式執行前直接核對配對資料的 source indices、初始模型、runtime revision 與當日容量；scenario
-建立本身不授權正式訓練。
+本節記錄 scenario 建立時的靜態核對；後續已完成四組 dataset generate／config render，並經使用者
+單獨批准執行首組 MNIST baseline。其 source indices、初始模型、runtime revision 與當日容量已在
+執行前核對；scenario 建立本身當時不授權其餘三組訓練。
+
+### 6.9 Treatment runner 的故障時序 review 與修正邊界
+
+R1（程式修正及實際 treatment 驗證完成，待 User Review）：首次正式 MNIST treatment 的失敗 evidence 見上層計畫 Section 10。
+第 12 個 accepted round 後 runner 啟動 fail-stop，但在它完成前，Root 又接受一輪原 primary 的貢獻；
+runner 隨後把較晚的 `BRANCH_PROCESS_STOPPED` 寫入 `events.jsonl`，再讀到較早的 Root event，
+觸發 chronological guard 而中止。這是當時 supported treatment path 的 failure，不是模型品質結果；
+原訂故障時點、accepted-round 目標及至少一次 restored contribution 的驗收不放寬。
+
+修正沿用現有 runner 與 lifecycle：runtime startup 仍完成全部署、active config、Guest service、
+container 及 provider guard 核對。故障 barrier 命中後，先在 approved Host context 解析選定的
+Area A primary，對其 Guest 使用一次 SSH 呼叫核對 active config、service 與 PID，立即送
+`SIGSTOP` 並核對同一 PID；不在此關鍵路徑重新巡查其他 Guests，也不先查 Docker container。
+Go 已暫停後，再核對並暫停對應 PyMTLF、為 Guest 設 runtime mask、hard-kill 兩邊並驗證防重啟；
+任何目標不符或部分失敗仍 fail closed，沿用既有 recovery／stop responsibility。這只縮短
+fault-effective critical path，不變更 VM、component、scenario、訓練超參數或資料來源。
+
+既有 `BRANCH_PROCESS_STOPPED` event 仍代表已確認兩邊 hard-stop，但其 `recordedAt` 作為 Host 收到
+Guest `SIGSTOP` 成功回覆的 effective fault time；這是可觀測的確認時點，不宣稱是 Guest kernel 送出訊號的
+精確時刻。payload 另保存兩邊 hard-stop 完成後的 Host 時間。
+runner 在同步停機期間先緩存 Root observation，與 controller stop event 依原始時間排序後再寫入
+既有 `events.jsonl`，不得倒填、放寬 chronological guard，或把多出的一輪 normal outcome 認成有效。
+PhaseTracker 以 effective time 分類；若 primary 在該時間後仍成功貢獻，或第 13 輪在該時間前
+已正常 accepted，仍判該 run 失敗。舊 run 的 stop event 缺少 hard-stop 完成時間時維持既有讀取語意。
+
+只在現有 owning runner／evidence tests 覆蓋「先核對 exact Guest target 並快速 freeze、後續
+hard-stop」、「停機期間 Root event 與 stop event 按時間順序處理」以及多出的 normal round 必須拒絕；
+provider 相關測試只使用 mock，不在 sandbox 啟動 real Vagrant／VirtualBox。聚焦測試及
+mandatory review 後，依計畫在 approved Host context 以新 run identity 重新執行正式 MNIST
+treatment，核對 `SIGSTOP` 是否趕在下一輪原 primary 貢獻前，以及故障／恢復 evidence、collection 與
+exact reset；下段記錄此 real-run gap 的驗證結果。
+
+本次 targeted review 已檢查 runner／evidence／owning test diff：故障前的完整 runtime preflight 未變，
+故障時只對 selected Area A Guest 做一次 SSH 核對與 freeze；Docker 查詢移到其後，兩邊 hard-stop 與
+既有 cleanup 責任不變。停機期間的 Root events 與 stop event 會按來源時間寫入，PhaseTracker 仍拒絕
+多出的 normal accepted round。既有 owning suite `python3 tests/fl-experiment.py` 通過；兩段修改過的
+provider shell 與 Guest remote body 通過 `bash -n` 語法檢查，均未啟動 real provider。這些證據
+當時尚不能證明實際 SSH 耗時與第 13 輪前能否成功暫停；後續直接 evidence 如下。
+
+在 approved Host context 用未提交的 testbed runner 修正及新 run name
+`mnist-formal-replacement-20260913-b` 重跑。先依 selected reset plan 清除上次失敗 run 的實驗狀態並通過
+verify；執行當時保留舊 run 目錄，該失敗目錄其後已依使用者確認清理。重跑的 Host `SIGSTOP`
+確認時間比第 12 個 accepted outcome 晚約 2.23 秒，
+兩邊 hard-stop 約在其後 8.28 秒完成；第 13 個 accepted round 沒有舊 primary 貢獻，
+Root 自然形成 12 normal、2 degraded、10 restored，replacement 從第 15 個 accepted round 開始貢獻。
+runner `status=successful`、24 outcomes 與 25 次各 2,000 筆 Root validation 對齊、完整 10,000 筆
+官方 test evaluation、final model collection 及 exact reset verify 均通過，無 failures。詳細執行結果與
+可宣稱限制見上層計畫 Section 11；這次實跑關閉 R1 的時序與 end-to-end verification gap，
+但 user review 前不移入 verified records，Slice 4 與正式比較仍保持 open。
+
+### 6.10 CIFAR-10 正式配對執行
+
+使用者批准連續執行剩餘兩組後，先對 baseline 與 treatment 各自完成 config／dataset 與 approved
+Host-context preflight，再依序跑 `cifar10-formal-baseline-20260914-a`、
+`cifar10-formal-replacement-20260914-a`。第一組完整結束、final model 與官方 test 結果保存、exact
+reset verify 通過後才切換第二組。兩者皆完成 40 accepted rounds、41 次固定 2,000 筆 Root
+validation、完整 10,000 筆官方 test、final model collection 及 exact reset；沒有 rejected round
+或 runner failure。Treatment 在第 20 輪後成功停止 Area A primary，形成 20 normal、2 degraded、
+18 restored；第 23 輪起 replacement 成功貢獻。配對的來源切分、訓練、component／image revision
+及 GPU identity 一致。詳細結果與描述性比較見上層計畫 Section 12；四組原始資料待 User Review，
+本 Slice 與正式比較仍保持 open，不移入 verified records。
