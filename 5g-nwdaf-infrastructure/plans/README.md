@@ -15,6 +15,7 @@
 
 - [Protocol-driven Hierarchical FL experiment](protocol-driven-hierarchical-fl-experiment/README.md)
   - [Multi-host Branch Replacement Experiment Plan](protocol-driven-hierarchical-fl-experiment/multi-host-branch-replacement-experiment-plan.md)
+  - [正式 Branch Replacement 比較實驗計畫草案](protocol-driven-hierarchical-fl-experiment/formal-branch-replacement-comparison-plan.md)
 
 前置 workstream（供 migration provenance，不表示目前 feature branch 必須維持舊 experiment compatibility）：
 
