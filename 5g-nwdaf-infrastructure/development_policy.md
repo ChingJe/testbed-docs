@@ -66,7 +66,7 @@ unit。
 3. VM、Guest process、Host container、network、storage 與 state owners；
 4. external、component-native 與 private contracts；
 5. start、status、logs、stop、reset、restart、recovery 與 failure paths；
-6. focused tests、full checks 與 required real-environment evidence；
+6. 與變更風險相稱的驗證方式及 required real-environment evidence；
 7. explicitly deferred behavior。
 
 一個 named phase 可以包含多個 slices。每個 slice 應先完成 focused verification、mandatory initial review 與
@@ -126,6 +126,10 @@ runtime-specific orchestration artifact 是 runtime output，不是另一份人�
 - 不得以第二套 checker shortcut 跳過 common validation；
 - topology-specific branch 可以存在，但所有由 shared source、contract 或 lifecycle 產生的 common validation 必須
   始終執行，不能依 topology 名稱或 branch 形態選擇性略過。
+
+Common scenario validation 只限制有 authoritative contract 或可證實 production failure 作為依據的共通不變條件；
+其他預期值須由 selected input 推導。單次實驗的設定與驗收值不因此成為跨實驗的合法性限制。修正缺乏依據的限制時，
+仍須保留真正必要的語意、安全與失敗防護，不得繞過共用 pipeline。
 
 ## 6. End-to-end Operational Lifecycle Gate
 
@@ -200,6 +204,8 @@ isolation，或悄悄縮小 acceptance criterion。
 
 Controlled comparison必須識別、固定或明確記錄所有可能影響結果、但不是本次independent variable的因素。不能因某個
 factor未列在既有experiment template就忽略；第一輪只跑通流程時，也不得把混有其他差異的結果歸因於單一設計變因。
+特定實驗的設定與acceptance由approved experiment definition指定，從selected input與run evidence核對。
+Pilot可以調整仍符合共通contract的參數，但必須記錄實際設定；不得因此放棄配對與可重建性。
 
 ## 9. Change Safety And Decision Gates
 
@@ -298,29 +304,25 @@ Finding admission後，先判斷修正是否保留approved architecture、owners
 verification level。若保留，直接進入本節remediation loop；若任一項必須改變，使用Section 9的decision gate，不得為了
 繼續實作而降低finding嚴重度或改寫原acceptance。
 
-### 11.2 Evidence Form And Test-first Remediation
+### 11.2 Evidence Selection And Permanent-test Admission
 
-Production behavior defect若能deterministic reproduction，應先建立或識別會因正確原因失敗的behavioral test，再做
-最小production修正。Test必須直接exercise authoritative owner、entrypoint、lifecycle state與contract-defined outcome；
-只證明helper被呼叫、literal token存在、structure剛好相同或相鄰operation成功，不構成behavioral regression evidence。
+修正finding前，先界定受影響的supported behavior、authoritative owner與實際失效結果，再選擇能直接區分失效和正確
+行為的最小證據。對可重現且值得長期防止的production behavior defect，優先識別既有的failing behavioral test；
+現有suite不足時，才建立必要的測試。非持久的policy-conformance或一次性修正可由直接source／diff與受控重現證明，
+不得為了符合test-first形式而新增permanent meta-test。
 
-Artifact identity、work-tracking leakage、一次性cleanup assertion、documentation status或其他policy-conformance defect，
-可以用直接source／diff contradiction作為admission evidence，不得為了遵守test-first而建立第二層meta-test。尤其不得
-建立只驗證某檔案、名稱、token、欄位、hash、implementation helper或cleanup結果存在／不存在的permanent test。若此類
-finding同時暴露durable production regression risk，才將最小behavior-oriented case併入既有owning suite。
-
-Permanent repository test只有在能陳述一個durable regression proposition時才成立：給定supported owner、entrypoint與
-state，特定操作必須產生contract-defined result或failure。Test的identity、pass／fail cause與維護理由不得依賴目前
-work item、review history或偶然implementation representation；plan結束後仍須能獨立解釋它保護的behavior。只有distinct
-owner、runner或contract boundary無法由既有suite合理承載時，才新增獨立test artifact，並在review中證明該必要性。
+Permanent repository test必須保護獨立於本次work item與偶然implementation representation的durable contract，直接
+exercise受驗owner、entrypoint及其可觀測結果。若合法的設定或等價實作變更會讓common test失敗，或test只反映
+implementation representation而無法指出production behavior的錯誤，它就不能作為permanent regression evidence。
+先複用既有owning suite；只有不同的owner或execution boundary確實無法由它承載時，才新增獨立test artifact。
+實驗專屬的精確值須對照approved definition與selected run核對，不得由common test推斷為跨情境不變條件。
 
 ### 11.3 Remediation Loop And Scope
 
 每個admitted in-scope finding依下列順序處理：
 
 1. 記錄confirmed evidence、受影響owner與預期修正；
-2. 對production behavior defect建立或識別failing behavioral test；不適合測試的policy-conformance defect保留直接
-   source／diff evidence；
+2. 依Section 11.2選擇直接證據；需要permanent behavioral test時，先確認它會因正確原因失敗；
 3. 只修改關閉finding及其direct behavioral dependency所需的最小範圍；
 4. 執行focused verification；
 5. 立即執行Section 12.3定義的targeted follow-up review；
@@ -333,19 +335,11 @@ Section 10，不能藉remediation名義新增未經准入的hash或hash-specific
 
 ### 11.4 Verification Boundary
 
-新topology／lifecycle的tests必須從實際flow、state owners、failure paths與plan commitments推導完整coverage。下列是
-常見verification dimensions，不是可用來省略未列出boundary的封閉清單：
-
-- production baseline regression；
-- complete selected deployment render 與 common／topology-specific validation；
-- invalid、missing 與 empty manifest／inventory；
-- wrong selected config 與 active identity mismatch；
-- unexpected Guest unit／Host container／volume；
-- partial activation、start failure、rollback 與 partial stop；
-- exact reset scope 與 seed restoration；
-- topology switching；
-- capacity rejection；
-- active plan 要求的 real infrastructure／container／accelerator integration evidence。
+Verification scope由本次變更實際影響的supported flow、owner、failure path與approved acceptance推導，使用足以支持
+各項主張的最小直接證據；不得把所有可想像的edge case或既有test inventory當成每次變更的必測清單。
+已適用的安全不變條件與active plan要求的real-environment evidence仍須保護，不能以縮小測試範圍為由弱化。
+Focused verification通過後，除required final verification外，只有相關production change、失敗或具體未解疑點才擴大
+或重跑驗證。
 
 Passing repository tests不證明未覆蓋的production lifecycle沒有問題。任何synthetic、mock、static或局部測試，都只能
 支持它實際執行到的owner與boundary；不得據此宣稱未被執行的external system、runtime environment或end-to-end flow已
@@ -357,7 +351,7 @@ Passing repository tests不證明未覆蓋的production lifecycle沒有問題。
 ### 12.1 Initial Review
 
 Implementation與focused verification後，必須在不中斷的下一步完成一次initial review，不等待使用者額外要求；它應在
-final full／integration verification與implementation commit checkpoint之前進行。Initial review至少檢查：
+required final verification與implementation commit checkpoint之前進行。Initial review至少檢查：
 
 - complete intended slice diff，包括production、tests、config、generated examples與documentation；
 - active plan、baseline stage map與working conformance map；
@@ -372,31 +366,20 @@ finding admission與remediation，不能只因suite通過就保留。
 
 ### 12.2 Plan-conformance Gate
 
-Active plan中任何承諾production behavior、deliverable、acceptance／completion criterion或required command的敘述都是
-normative item，除非明確標為background、non-goal、optional或approved deferral。Conformance map對每個item記錄：
+Active plan中已批准的production behavior、deliverable、acceptance／completion criterion與required command是
+normative commitments；尚在探索或明確defer的敘述不因此成為實作驗收義務。Conformance map可合併指向同一結果的
+敘述，但必須讓每項可驗收主張追溯至production path、適當的直接證據與結果，並揭露approved deferral或open gap；
+不要求每句敘述各有一個deterministic test。
 
-- production path；
-- direct deterministic test；
-- verification command／result；
-- approved deferral／plan change；
-- open gap。
-
-Initial review必須同時檢查implementation-to-plan、plan-to-implementation與baseline-to-plan。Test只有在直接exercise
-criterion指定的production owner、entrypoint、lifecycle state與outcome時才是direct evidence。Mock取代受驗boundary、
-只測相鄰phase／operation、只證明call發生但未驗證downstream effect，或把多個tests推論組合成未被實際執行的end-to-end
-guarantee，都只能算indirect evidence。
-
-Passing suite不能替代criterion-specific evidence。Required item缺少production path、只有indirect evidence、未執行
-required command或被未經批准地defer時保持open，並阻止ready／complete claim。
+Initial review必須檢查implementation與plan的雙向一致性，以及baseline是否被無意改變。證據是否direct取決於它有無
+實際exercise主張指定的owner、boundary、state與outcome；局部或替代性驗證不得推論成未執行的end-to-end保證。
+Passing suite不能替代主張本身的證據。Required commitment缺少直接證據、未執行required command或被未經批准地
+defer時保持open，並阻止ready／complete claim。
 
 ### 12.3 Targeted Follow-up Review
 
-每次in-scope remediation與focused verification後，立即執行targeted follow-up review，只檢查：
-
-- remediation diff；
-- original finding的direct dependencies；
-- existing或newly added owning tests；
-- remediation能直接影響的production behavior與failure path。
+每次in-scope remediation與focused verification後，立即執行targeted follow-up review，範圍限於修正及其直接依賴、
+所用證據、以及可能受影響的production behavior與failure path。
 
 Targeted follow-up通過即關閉該finding。不得為了證明repository沒有其他任何問題而反覆執行open-ended full review。只有
 使用者明確要求重新full review，或remediation提供具體evidence顯示存在更廣泛且critical的current-slice regression時，
@@ -404,15 +387,12 @@ Targeted follow-up通過即關閉該finding。不得為了證明repository沒有
 
 ### 12.4 Final Fresh-read Conformance Gate
 
-所有admitted findings完成remediation與targeted follow-up review後，但在final full／integration verification及
-ready／complete claim之前，必須：
-
-1. 從disk重新完整讀取目前development policy與active plan；
-2. 從目前文字重建final conformance map，包括所有normative statements、verification matrix、review checklist、
-   completion criteria、required commands與approved deferrals；
-3. 將每個item和final production diff、exact test path及verification result重新核對；
-4. 將缺少、過期或只有indirect evidence的item保持open；
-5. 執行required final full／integration verification，再更新最終狀態。
+所有admitted findings完成remediation與targeted follow-up review後，但在required final verification及
+ready／complete claim之前，必須從disk重新完整讀取目前development policy與active plan，依目前已批准的
+commitments重建claim-level conformance map。將每項主張和final production diff及適當的直接證據重新核對；缺少、
+過期或只有indirect evidence的主張保持open。確認本policy與active plan要求的final full／integration verification
+已在final production state完成，然後更新狀態。已完成且未受後續變更影響的結果不因重讀而重跑；相關production change、失敗
+或新證據缺口則須重新驗證。
 
 先前摘要、記憶中的requirements、舊conformance map或之前通過的test result都不能取代本gate。Production behavior已完成但
 required direct evidence仍open時，狀態只能是`Implementation Complete / Verification Incomplete`或相應較早狀態。
@@ -474,19 +454,18 @@ push 需要另外明確批准。
 1. 重讀 root `AGENTS.md`、本 policy 與 active plan；若發生 context compaction，完整重讀三者。
 2. 確認 active slice、repository owners、source contract、acceptance evidence 與 deferred work。
 3. 若擴充既有 flow，完成 baseline stage disposition map。
-4. 將所有 normative plan items 建立 working conformance map。
+4. 將已批准的可驗收主張建立 working conformance map。
 5. 追蹤 current production path、failure path、state 與 direct dependencies。
 6. 確認使用現有 authoritative source／pipeline；新 config source、entrypoint 或 architecture 先經 decision gate。
 7. 若工作涉及hash-like mechanism，先完成Section 10的special gate；未取得准入不得實作或建立permanent test。
-8. 對可測的production behavior建立characterization／failing tests，再完成最小完整slice；非行為型
-   policy-conformance問題使用直接evidence，不建立meta-test。
+8. 依Section 11.2選擇最小直接證據，必要時在既有owning suite建立behavioral test，再完成最小完整slice。
 9. 執行 focused verification。
-10. 在final full verification前完成一次Section 12.1的initial review，依Section 11.1 admission所有findings。
+10. 在required final verification前完成一次Section 12.1的initial review，依Section 11.1 admission所有findings。
 11. 對admitted in-scope findings執行remediation、focused verification與targeted follow-up review，直到關閉或遇到
     decision gate；不為每次修正重新執行open-ended full review。
 12. 依需要更新同一份phase／workstream review ledger，不建立per-remediation完整review文件。
 13. 重新完整讀取本policy與active plan，依Section 12.4重建final conformance map。
-14. 執行required final full／integration verification，將indirect或unavailable evidence保持open。
+14. 完成required final full／integration verification，將indirect或unavailable evidence保持open。
 15. 完成documentation language-consistency pass。
 16. 保持changes unstaged／uncommitted，提出user-review handoff並停止。
 17. Review confirmation後提出commit proposal，再等待explicit commit approval。
