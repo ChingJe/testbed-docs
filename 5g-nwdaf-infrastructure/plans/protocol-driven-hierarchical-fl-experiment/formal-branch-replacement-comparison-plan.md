@@ -2,7 +2,7 @@
 
 日期：2026-09-13
 
-狀態：MNIST 與 CIFAR-10 各一組 baseline／treatment 已執行，結果待 User Review；正式比較分析與報告仍為 Draft
+狀態：原四組正式實驗與新增 CIFAR-10 全類別不等量配對均已執行，結果待 User Review；正式比較分析與報告仍為 Draft
 
 前置工作：[Multi-host Branch Replacement Experiment Plan](./multi-host-branch-replacement-experiment-plan.md)
 已完成雙資料集、四 VM、GPU、八個 accepted rounds 的流程驗證；其結果只證明流程可運作，
@@ -122,6 +122,14 @@ per-class 評估或曲線。現有 `MODEL_EVALUATION` 提供逐輪整體 loss／
 按需存入 `diagnostics/`，不持續串流。Training 與 collection 保持獨立 checkpoint；後處理失敗可用同一
 run identity 重試，不因作圖或評估 bug 重新訓練。正式分析輸出可在全部 runs 完成後由保存資料離線產生，
 不綁在訓練 runner 的成功路徑上。
+
+下一輪先製作獨立的離線 CSV 整理與繪圖工具，細節見 Slice 4 Section 7。Operator 明確指定一組
+baseline／treatment run 目錄與輸出目錄；工具讀取原有 `run.json`／`events.jsonl`，以 accepted-round
+順序對齊 Root validation，輸出逐輪比較 CSV、最終結果與恢復時間摘要 CSV，以及同圖呈現兩組
+accuracy／loss 並標記 treatment 故障、degraded、restored 區間的曲線圖。原始 run evidence 保持唯讀；
+不為了作圖重新訓練、蒐集 log、計算 per-class 指標，或把原本五類／Leaf 與新增全類別不等量
+CIFAR-10 配對自動混成同一條曲線。正式報告仍須先人工確認配對條件與可宣稱範圍，圖表本身
+不是統計顯著性或 replacement 單獨效益的證明。
 
 Baseline 與 treatment 使用同一 run-level evidence／checkpoint／collection contract；baseline 不產生虛構的
 fault、degraded 或 replacement events，treatment 才要求相應的故障與恢復證據。兩者都須保留完整的
@@ -374,8 +382,8 @@ runner 的既有 contract。不在共用程式或永久測試固定本次 Leaf �
 先建立共用此切分的 CIFAR-10 無故障與 Branch replacement 兩份診斷 scenario：
 40 accepted rounds、5 local epochs、既有 batch size／learning rate、TESTBED 預設
 `proximal_mu: 0.01`，treatment 仍在第 20 個 accepted round 後停止 Area A primary。
-兩份 scenario 除名稱、fault 及必要 observation 外保持一致。此次只批准計畫、
-資料工具、scenario、資料／config 產物及聚焦驗證；尚未批准新的長時間訓練。
+兩份 scenario 除名稱、fault 及必要 observation 外保持一致。此階段先批准計畫、
+資料工具、scenario、資料／config 產物及聚焦驗證；長時間訓練其後另獲批准，結果見 Section 16。
 原四組正式 run 與 μ=0.1 診斷資料保持不變。
 
 驗證先用既有 owning dataset test 的小型來源，直接證明逐類配額、來源互斥與
@@ -424,5 +432,38 @@ config 的 dataset／config／Compose checks 通過。舊 MNIST 與 CIFAR-10 配
 整理前後均逐檔相同、dataset／config checks 通過；兩個 replacement 目錄的檔案
 已改與對應 baseline 共用 hardlink，但原路徑、config 與 run 紀錄未改。
 已清除新配對先前按 scenario 名稱產生、且與共用目錄逐檔相同的兩份未執行資料；
-不再佔三份實體空間。本節是資料儲存及設定準備的結果，尚未執行新配對訓練，
-仍待 User Review。
+不再佔三份實體空間。本節記錄資料儲存及設定準備；其後的新配對訓練見 Section 16，
+結果仍待 User Review。
+
+## 16. CIFAR-10 全類別不等量配對執行結果（待 User Review）
+
+2026-09-14 依序使用 `config/local/cifar10-all-class-skew-baseline`、
+`config/local/cifar10-all-class-skew-replacement`，執行
+`cifar10-skew-baseline-20260914-a` 與 `cifar10-skew-replacement-20260914-a`。
+兩組均使用同一 `datasetId: cifar10-all-class-skew`、seed 42、每 Leaf 8,000 筆、
+2,000 筆固定 train-derived validation、40 accepted rounds 與 5 local epochs；
+seed model、component revisions、PyMTLF image ID 及 GPU identity 相同。
+執行前資料與 config checks、approved Host-context preflight 均通過；GPU free 9,988 MiB
+高於 8,192 MiB floor，free swap 0 MiB 為監測警告。兩組使用 testbed revision `740e9c7`，
+執行時相關 repositories 均為 clean。
+
+兩次 runner 均正常退出；各自的 `run.json` 為 `status=successful`、`finalized=true`、
+無 failures。每組有 40 個 Root accepted outcomes、41 次 Root validation（含初始一次），
+每次均評估相同的 2,000 筆；final model 與完整官方 10,000 筆 test evaluation 均已保存。
+Baseline 40 輪全為 normal，沒有 fault／replacement 事件；treatment 在第 20 輪後
+hard-stop Area A primary，得到 20 normal、2 degraded、18 restored。第 21、22 輪只有
+Area B／C 貢獻，第 23 輪 replacement 首次貢獻。以 effective fault time 計，
+failure-detected、replacement-ready、首次 accepted contribution 分別約為 298.0、
+298.9、317.3 秒；這是本次觀測值，不是固定恢復時間保證。
+
+兩組初始至第 20 輪的 validation accuracy／loss 逐筆相同；第 20 輪 accuracy 均為
+54.10%。第 21／22 輪 baseline 為 54.30%／55.10%，treatment 為 51.30%／51.75%；
+第 23 輪分別為 55.50%／55.55%，第 40 輪為 59.70%／59.85%。完整官方 test 的 final
+accuracy 為 baseline 5,806／10,000（58.06%）、treatment 5,812／10,000（58.12%），
+相差 0.06 個百分點。這組配對描述故障期間的短暫下降與後續恢復；單次結果不能
+證明 replacement 改善模型品質或具有統計顯著性，也不取代原四組正式實驗。
+
+兩次執行均完成 process stop、Guest restart-policy restoration 與 selected exact reset
+verify；原始 `events.jsonl`、`run.json` 與 final model 保留在
+`runs/protocol-hierarchical/cifar10/` 下各自的 run 目錄。結果待 User Review，不移入
+verified records；正式分析圖表與報告尚未完成。

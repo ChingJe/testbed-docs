@@ -2,7 +2,8 @@
 
 日期：2026-09-13
 
-狀態：資料工具與正式 scenario 已提交；MNIST／CIFAR-10 四組正式執行完成、結果待 User Review，Slice 4 仍開放
+狀態：資料工具與正式 scenario 已提交；MNIST／CIFAR-10 四組正式執行完成、結果待 User Review；
+離線分析工具待實作，Slice 4 仍開放
 
 上層計畫：[正式 Branch Replacement 比較實驗計畫](../formal-branch-replacement-comparison-plan.md)
 
@@ -360,3 +361,37 @@ validation、完整 10,000 筆官方 test、final model collection 及 exact res
 18 restored；第 23 輪起 replacement 成功貢獻。配對的來源切分、訓練、component／image revision
 及 GPU identity 一致。詳細結果與描述性比較見上層計畫 Section 12；四組原始資料待 User Review，
 本 Slice 與正式比較仍保持 open，不移入 verified records。
+
+## 7. 第三輪：離線 CSV 整理與繪圖（計畫，未實作）
+
+正式配對與新增 CIFAR-10 全類別不等量配對均已保存 `run.json`、`events.jsonl` 與 final model；
+上層計畫 Section 5 已要求在訓練完成後離線對齊逐輪曲線。本輪只擴充 testbed 的 Host-side
+分析工具，不改 runner、evidence schema、component、scenario、VM 或訓練結果。現有
+`run.json.phases.rounds` 已記錄 accepted round 的階段與成功 Branch identities，
+`events.jsonl` 的 Root `MODEL_EVALUATION` 已記錄 initial／每個 accepted round 的 validation
+accuracy、loss 與樣本數；`run.json.heldOutEvaluation` 與 `phases.latencies` 已保存 final test
+及故障恢復摘要。直接使用這些已保存欄位，不另從一般 log 重建事件或重新判定 phase。
+
+Operator 明確提供 baseline run 目錄、treatment run 目錄及另一個輸出目錄；工具不掃描 run catalog
+自動挑選配對，也不寫回原始 run 目錄。第一版只處理已成功完成並保存必要 evidence 的一對 runs；
+缺少可對齊的 accepted round 或 Root validation 時明確報錯，不補值、不插值。圖與 CSV 使用
+1-based accepted-round 序號，初始 validation 單列為 round 0；百分比差值定義為 treatment
+減 baseline 的百分點。原始 `roundInd` 為 0-based，不直接當成圖上的 accepted-round 序號。
+
+每組配對輸出下列最小產物，名稱不包含特定資料集或 work-item identity：
+
+- `rounds.csv`：initial 與逐輪兩組 validation accuracy／loss、accuracy 差值、treatment phase，
+  以及各輪成功 Branch identities；不把 final test 當成下一個 training round。
+- `summary.csv`：每組配對一列，包含兩個 run 名稱、資料集、兩組 final 官方 test
+  accuracy／正確數／樣本數，以及 treatment 的 normal／degraded／restored 輪數和
+  fault-to-detection／ready／first-contribution 時間。
+- `comparison.svg`：同一張圖的 accuracy、loss 兩個面板，疊合 baseline／treatment，標示
+  treatment 的 fault 後 degraded 區段及首次 restored round；圖上使用 validation 指標，
+  final test 僅列於摘要，不畫成逐輪曲線。SVG 可直接用於後續報告，第一版不新增繪圖依賴。
+
+工具是資料整理與展示入口，不取代既有 run evidence checker 或正式報告的配對條件審查。
+驗證只用現有保存的 MNIST 正式配對、CIFAR-10 原正式配對與新增全類別不等量配對，
+核對各自輸出的輪數、已知故障／恢復區間、CSV 數值與 final test 摘要；用一個聚焦的
+資料對齊測試保護欄位映射與 0-based／1-based 序號，不建立實驗名稱或固定輪數的永久測試。
+本輪不產生 per-class 圖、直方圖、統計推論或跨資料集排名，也不執行 provider、VM、container
+或 GPU 操作。實作與產圖均須另行確認；本次只記錄計畫並停在 open state。
