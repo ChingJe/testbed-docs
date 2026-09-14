@@ -2,7 +2,7 @@
 
 日期：2026-09-13
 
-狀態：原四組正式實驗與新增 CIFAR-10 全類別不等量配對均已執行，結果已由使用者檢視；正式比較分析與報告仍為 Draft
+狀態：原四組正式實驗與新增 CIFAR-10 全類別不等量配對均已執行，結果已由使用者檢視；正式比較分析與報告仍為 Draft；資料集精簡實作已通過 User Review
 
 前置工作：[Multi-host Branch Replacement Experiment Plan](./multi-host-branch-replacement-experiment-plan.md)
 已完成雙資料集、四 VM、GPU、八個 accepted rounds 的流程驗證；其結果只證明流程可運作，
@@ -433,7 +433,8 @@ config 的 dataset／config／Compose checks 通過。舊 MNIST 與 CIFAR-10 配
 已改與對應 baseline 共用 hardlink，但原路徑、config 與 run 紀錄未改。
 已清除新配對先前按 scenario 名稱產生、且與共用目錄逐檔相同的兩份未執行資料；
 不再佔三份實體空間。本節記錄資料儲存及設定準備；其後的新配對訓練見 Section 16，
-執行結果已由使用者檢視。
+執行結果已由使用者檢視。本節記錄當時保留歷史資料路徑的整理方式；後續使用者同意
+重新部署時重建資料，新的清理決定見 Section 17，不回寫既有 run evidence。
 
 ## 16. CIFAR-10 全類別不等量配對執行結果
 
@@ -467,3 +468,58 @@ accuracy 為 baseline 5,806／10,000（58.06%）、treatment 5,812／10,000（58
 verify；原始 `events.jsonl`、`run.json` 與 final model 保留在
 `runs/protocol-hierarchical/cifar10/` 下各自的 run 目錄。結果已由使用者檢視，尚未移入
 verified records；正式比較分析與報告仍為 Draft。
+
+## 17. 生成資料精簡與下次實驗重建（實作已通過 User Review）
+
+整理前 Host 的 `.generated/image-datasets/` 有十個切分目錄，其中正式 MNIST 與 CIFAR-10 的
+baseline／replacement 已以 hardlink 共用實體檔案，CIFAR-10 μ=0.1 診斷目錄則與原正式
+baseline 逐檔相同。使用者同意不再為了讓舊 generated config 直接可用而保留每個歷史資料路徑；
+下次要跑實驗時，先依現行 scenario 重新建立 config，再產生或確認資料並部署。這項決定
+取代 Section 15 對舊資料目錄路徑持續可用的要求，但不改寫當時執行的 scenario snapshot、
+`run.json`、`events.jsonl`、final model 或分析產物。
+
+正式比較及已執行診斷只保留三種切分：
+
+| 共用資料目錄 | 使用它的 scenario | 整理前來源 |
+| --- | --- | --- |
+| `mnist-formal` | MNIST 正式 baseline／replacement | `protocol-hierarchical-formal-mnist-baseline` |
+| `cifar10-formal` | CIFAR-10 正式 baseline／replacement、μ=0.1 診斷 | `protocol-hierarchical-formal-cifar10-baseline` |
+| `cifar10-all-class-skew` | CIFAR-10 全類別不等量 baseline／replacement | 原目錄不變 |
+
+在上述五份尚未指定共用資料目錄的 scenario 的 `partition` 加入對應 `datasetId`；
+既有全類別不等量配對已共用 `cifar10-all-class-skew`，不需改動。沿用目前
+`image_dataset_name()`、dataset generate／check、config render／check 與 Compose bind mount；
+不新增資料來源、generator、selector 或 runner。將兩份正式 baseline 的現有生成目錄移至
+表中的中性名稱，確認各 scenario 能共用並通過既有資料檢查後，清除下列七個舊生成目錄：
+
+- 正式 replacement 的 `protocol-hierarchical-formal-mnist-replacement`、
+  `protocol-hierarchical-formal-cifar10-replacement`；
+- μ 診斷的 `protocol-hierarchical-cifar10-proximal-mu-01`；
+- 先前流程驗證的 `protocol-hierarchical-mnist`、`protocol-hierarchical-cifar10`、
+  `protocol-hierarchical-branch-replacement-mnist`、
+  `protocol-hierarchical-branch-replacement-cifar10`。
+
+清理前先逐一確認上述目錄確實存在、沒有正在使用其檔案的實驗程序或容器，並核對
+將保留的三種切分及原始 run 結果；若仍有使用者，停止清理並回報，不自動停止實驗。
+清理範圍只限這七個目錄及兩個明列的移動來源，不碰 `.cache/image-datasets/` 官方來源快取、
+其他 `.generated/` 內容、`runs/`、seed model、Guest／VM state 或 scenario 以外的 tracked source。
+舊 generated config 保留為歷史產物，但其舊資料路徑在清理後不保證可直接執行；
+下次從現行 scenario 以新的 `NAME` 執行 `config-create`，避免覆蓋歷史 config，再執行
+`dataset-generate`、`dataset-validate` 與 `config-validate`，依既有 Host-context 與
+selected-runtime 防護重新部署或啟動。
+若重跑較早的 smoke scenario，也按同一入口重新產生其當次所需切分，不預先保留這些資料。
+
+聚焦驗證只核對五份 scenario 指向預定三個目錄、共用資料通過 native loader／dataset check、
+新產生 config 的 manifest／Compose 路徑一致，以及清理後三個目錄和未變動的 run evidence。
+不為目錄數量新增永久測試，不重跑訓練或 VM。此項只整理可重建的 Host 生成資料與未來選擇來源，
+不把新 config 冒充先前 run 的實際配置。
+
+已在五份 scenario 設定共用 `datasetId`，將兩份正式 baseline 切分移至 `mnist-formal` 與
+`cifar10-formal`，並保留既有 `cifar10-all-class-skew`。清理前確認四台 VM 均為 `poweroff`、
+沒有執行中的 testbed container 或相關實驗程序；其他執行中 container 的 mount 未指向此資料目錄。
+正式 baseline／replacement 及 CIFAR-10 μ=0.1 診斷資料先逐檔比對一致，五份 scenario 使用新路徑的
+dataset／config checks 均通過，既有全類別不等量資料與 config checks 也通過。確認後僅刪除上列
+七個舊生成目錄；目前 `.generated/image-datasets/` 只剩表中的三個切分。原有七組 run 的
+`run.json`／`events.jsonl`、官方來源快取及舊 generated config 均未改動；後者仍保留歷史路徑，
+未來部署須依現行 scenario 重新生成，不能當成當時 run 的配置已被追溯更新。未啟動 VM 或訓練，
+正式比較分析仍為 Draft。
