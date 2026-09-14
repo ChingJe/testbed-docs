@@ -284,8 +284,9 @@ seed model ID／artifact key、component revisions、image 與 GPU placement；�
 
 ### 6.8 正式 scenario 設定
 
-四份 scenario 放在 `experiments/protocol-hierarchical/formal-comparison/`，依資料集及 baseline／replacement
-分開；沿用現有 `TESTBED`、資料產生器、renderer、checker 與 `fl-experiment-run`。同資料集配對固定
+四份 scenario 建立時放在 `experiments/protocol-hierarchical/formal-comparison/`，後續依 Section 8
+整理到資料集目錄，以檔名區分 baseline／replacement；沿用現有 `TESTBED`、資料產生器、renderer、checker
+與 `fl-experiment-run`。同資料集配對固定
 `partition.seed: 42`、`leafLabels`、8,000 筆／Leaf、2,000 筆 official-train validation、完整
 official-test held-out、batch size 16、learning rate 0.001 與既有 component-native seed model。
 MNIST 設為 24 accepted rounds／4 local epochs，replacement 在第 12 輪後故障；CIFAR-10 設為
@@ -420,3 +421,41 @@ CSV 和原始 run evidence 不變，三組圖在同一輸出路徑重新產生�
 字級與圖例，不在圖內放大標題或背景格線；兩組曲線以顏色、實線／虛線和不同資料點符號區分，
 灰階檢視時仍能辨認。事件線語意、原始數值與輸出檔名不變；資料集與完整實驗條件由後續圖說
 交代，不將展示樣式當成實驗結果。更新後三組圖已通過 User Review。
+
+## 8. Scenario 路徑整理（已通過 User Review）
+
+使用者確認將 `experiments/protocol-hierarchical/` 下的 scenario 統一按資料集分類，並以檔名表示
+條件。`mnist/` 保存 `smoke.yaml`、`replacement-smoke.yaml`、`formal-baseline.yaml`、
+`formal-replacement.yaml`；`cifar10/` 除同名四份外，另保存 `all-class-skew-baseline.yaml`、
+`all-class-skew-replacement.yaml`、`proximal-mu-0.1.yaml`。這次只搬移原有十一份定義，不改其
+`name`、`kind`、資料切分、訓練參數或故障條件；現行 README、Make 提示與 repository tests 改用新路徑。
+
+既有 `runs/` 內的 `run.json` 是執行當時的 evidence，不回寫舊 `scenario.definition`。本機八份
+`config/local/` manifest 原先指向舊路徑；不直接手改 generated artifact。現有 reset 會先做 config
+check，因此不能搬移後才依賴缺少舊 source 的 config 執行 reset。使用者已確認接續處理這八份
+本機設定，不重建 VM、不執行訓練，也不改資料集或歷史 run evidence。
+
+遷移前先讓目前 selected 的舊定義暫時可解析，透過既有 guard 核對 selected／active identity、
+process 狀態及 exact reset verify；若狀態不一致或仍有實驗程序執行，停止，不覆蓋任何設定。
+再用原 renderer 依每份設定原有 name、GPU policy 與 WebConsole 選項產生候選 config，和原本
+generated tree 比對；預期只變動 manifest 的 scenario definition，若有其他差異則先回報，不直接
+替換。通過後才更新 Host 本機設定，並透過既有 stage／activate 與 rollback boundary，把目前
+selected config 在四台現有 VM 上切換成新 identity，核對全部 Guest 與 Host 一致；服務維持停止。
+不自動執行會清除實驗資料的 reset。最後移除暫時恢復的舊 source，只保留資料集優先的十一份
+scenario。既有資料／config checks 是靜態及 Host 證據；Guest activation 另需 approved Host context
+的直接證據。不因先前訓練完成而自動關閉本次遷移的 review。
+
+2026-09-14 在 approved Host context 核對四台 VM 均 running、十一個 ML containers 均 exited，
+Guest 實驗服務無 active；Area A primary 保留前次故障後的 `failed` 狀態但沒有執行中程序。
+目前 selected 的 `cifar10-all-class-skew-replacement` 舊 Host／Guest identity 均為
+`2a28a8f141e6…`，暫時恢復其原 scenario 路徑後，舊 config check 與 exact reset verify 通過；
+NRF／ADRF 實驗資料、ADRF models 與十一個 ML volumes 均為空，未執行 reset apply。
+
+原 renderer 在暫存目錄產生八份候選 config；逐檔比較證實每份僅有 manifest 的
+`scenario.definition` 路徑變動，八份候選與安裝後的 config checks 均通過。切換 selected
+Host config 後，透過既有 stage／activate 與 rollback boundary 同步四台 VM，新的 Host／Guest
+identity 為 `8dfdf6f6a86c…`；後續 Guest service status、八份 dataset checks 與新 identity 下的
+exact reset verify 通過，服務仍未啟動，四台 VM 未重建。其餘七份本機 generated config 已換成
+相同方式產生的新路徑版本；十一份 scenario 原文逐檔與搬移前相同。既有 run evidence、資料集與
+實驗數值未改，本次只取得設定遷移的直接證據，不宣稱新的訓練 run 已通過。
+完成核對後已清除本次在 `/tmp` 建立的候選與舊 generated config 暫存備份；原始 run 資料未刪除。
