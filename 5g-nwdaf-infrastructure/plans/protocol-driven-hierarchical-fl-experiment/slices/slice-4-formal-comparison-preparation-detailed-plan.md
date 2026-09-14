@@ -3,7 +3,7 @@
 日期：2026-09-13
 
 狀態：資料工具與正式 scenario 已提交；MNIST／CIFAR-10 四組正式執行完成、結果待 User Review；
-離線分析工具待實作，Slice 4 仍開放
+離線分析工具與圖表已通過 User Review，Slice 4 仍開放
 
 上層計畫：[正式 Branch Replacement 比較實驗計畫](../formal-branch-replacement-comparison-plan.md)
 
@@ -362,7 +362,7 @@ validation、完整 10,000 筆官方 test、final model collection 及 exact res
 及 GPU identity 一致。詳細結果與描述性比較見上層計畫 Section 12；四組原始資料待 User Review，
 本 Slice 與正式比較仍保持 open，不移入 verified records。
 
-## 7. 第三輪：離線 CSV 整理與繪圖（計畫，未實作）
+## 7. 第三輪：離線 CSV 整理與繪圖（已通過 User Review）
 
 正式配對與新增 CIFAR-10 全類別不等量配對均已保存 `run.json`、`events.jsonl` 與 final model；
 上層計畫 Section 5 已要求在訓練完成後離線對齊逐輪曲線。本輪只擴充 testbed 的 Host-side
@@ -372,7 +372,9 @@ validation、完整 10,000 筆官方 test、final model collection 及 exact res
 accuracy、loss 與樣本數；`run.json.heldOutEvaluation` 與 `phases.latencies` 已保存 final test
 及故障恢復摘要。直接使用這些已保存欄位，不另從一般 log 重建事件或重新判定 phase。
 
-Operator 明確提供 baseline run 目錄、treatment run 目錄及另一個輸出目錄；工具不掃描 run catalog
+Operator 透過離線腳本或薄層 `make fl-analysis BASELINE_RUN=... TREATMENT_RUN=... OUTPUT_DIR=...`
+明確提供 baseline run 目錄、treatment run 目錄及另一個輸出目錄；此 Make 入口不要求 `TESTBED` 或
+`CONFIG_DIR`，也不呼叫 provider、runner 或訓練流程。工具不掃描 run catalog
 自動挑選配對，也不寫回原始 run 目錄。第一版只處理已成功完成並保存必要 evidence 的一對 runs；
 缺少可對齊的 accepted round 或 Root validation 時明確報錯，不補值、不插值。圖與 CSV 使用
 1-based accepted-round 序號，初始 validation 單列為 round 0；百分比差值定義為 treatment
@@ -386,12 +388,35 @@ Operator 明確提供 baseline run 目錄、treatment run 目錄及另一個輸�
   accuracy／正確數／樣本數，以及 treatment 的 normal／degraded／restored 輪數和
   fault-to-detection／ready／first-contribution 時間。
 - `comparison.svg`：同一張圖的 accuracy、loss 兩個面板，疊合 baseline／treatment，標示
-  treatment 的 fault 後 degraded 區段及首次 restored round；圖上使用 validation 指標，
-  final test 僅列於摘要，不畫成逐輪曲線。SVG 可直接用於後續報告，第一版不新增繪圖依賴。
+  primary Branch 停止與 replacement 首次貢獻的 round 邊界，兩條事件線之間是 degraded 區段，
+  不使用底色區塊；圖上使用 validation 指標，final test 僅列於摘要，不畫成逐輪曲線。
 
 工具是資料整理與展示入口，不取代既有 run evidence checker 或正式報告的配對條件審查。
 驗證只用現有保存的 MNIST 正式配對、CIFAR-10 原正式配對與新增全類別不等量配對，
 核對各自輸出的輪數、已知故障／恢復區間、CSV 數值與 final test 摘要；用一個聚焦的
 資料對齊測試保護欄位映射與 0-based／1-based 序號，不建立實驗名稱或固定輪數的永久測試。
 本輪不產生 per-class 圖、直方圖、統計推論或跨資料集排名，也不執行 provider、VM、container
-或 GPU 操作。實作與產圖均須另行確認；本次只記錄計畫並停在 open state。
+或 GPU 操作。實作與產圖已獲使用者確認；本輪完成 review 前保持 open state。
+
+目前以獨立 Host-side 腳本及薄層 `make fl-analysis` 入口產生上述三檔，未修改 runner、component
+或既有 run evidence。聚焦資料對齊測試通過；三組已保存的 MNIST 正式、CIFAR-10 原正式及
+CIFAR-10 全類別不等量配對均可從同一入口離線產出，分別得到 24、40、40 個 accepted rounds，
+treatment 階段數與原 `run.json` 相符，final test 摘要亦與保存資料相同。這僅是分析工具的
+直接驗證，不重審三組訓練的實驗條件或宣稱整體比較已完成；輸出仍待 User Review。
+
+使用者檢視初版圖後決定改由 Matplotlib 繪圖。Host 目前使用 Python 3.8，分析工具在 testbed
+專案的選用依賴中固定相容的 Matplotlib 3.7.5；薄層 Make 入口透過專案本地 `uv` 環境執行。
+CSV 欄位、兩條 validation 曲線、故障階段標記及 `comparison.svg` 檔名維持不變，僅替換繪圖實作與
+樣式，不影響 runner 或原始 run evidence。已確認 `runs/protocol-hierarchical/analysis/` 的三張
+舊圖為 exact targets，並以新圖覆蓋；各組 `rounds.csv`、`summary.csv` 均保持原檔且與重算結果
+逐檔相同。三組新圖可正常解析並完成視覺檢查；本輪仍保持 User Review open state。
+
+後續依使用者檢視意見移除 degraded 區塊底色；曲線圖例改為 `No-failure baseline` 與
+`Branch failure + replacement`，事件線標為 `Primary branch stopped` 與
+`Replacement first contributes`，避免 `Healthy`、`Replacement`、`Fault` 等簡寫造成條件或事件歧義。
+CSV 和原始 run evidence 不變，三組圖在同一輸出路徑重新產生後仍待 User Review。
+
+再依使用者要求調整成適合論文正文的圖面：採約雙欄寬度、兩個有 (a)／(b) 標記的面板、較小的
+字級與圖例，不在圖內放大標題或背景格線；兩組曲線以顏色、實線／虛線和不同資料點符號區分，
+灰階檢視時仍能辨認。事件線語意、原始數值與輸出檔名不變；資料集與完整實驗條件由後續圖說
+交代，不將展示樣式當成實驗結果。更新後三組圖已通過 User Review。
