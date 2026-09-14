@@ -2,7 +2,7 @@
 
 日期：2026-09-13
 
-狀態：原四組正式實驗與新增 CIFAR-10 全類別不等量配對均已執行，結果待 User Review；正式比較分析與報告仍為 Draft
+狀態：原四組正式實驗與新增 CIFAR-10 全類別不等量配對均已執行，結果已由使用者檢視；正式比較分析與報告仍為 Draft
 
 前置工作：[Multi-host Branch Replacement Experiment Plan](./multi-host-branch-replacement-experiment-plan.md)
 已完成雙資料集、四 VM、GPU、八個 accepted rounds 的流程驗證；其結果只證明流程可運作，
@@ -176,7 +176,7 @@ dataset → render／validate → stage／activate → start → trigger → obs
 ## 7. 驗收與 verification matrix
 
 正式比較整體尚未完成；下表是各條件的驗收邊界。MNIST 的直接 evidence 見 Sections 9、11，
-CIFAR-10 見 Section 12；四組結果仍待 User Review。Slice 4 第一輪 runner 擴充已有獨立的 review 與簡測紀錄。
+CIFAR-10 見 Section 12；四組執行結果已由使用者檢視，正式比較分析仍未完成。Slice 4 第一輪 runner 擴充已有獨立的 review 與簡測紀錄。
 
 | 驗收項目 | 靜態／受控驗證 | 正式執行 evidence |
 | --- | --- | --- |
@@ -193,7 +193,7 @@ CIFAR-10 見 Section 12；四組結果仍待 User Review。Slice 4 第一輪 run
 
 ## 8. 執行條件與非目標
 
-四組正式執行已完成；下列條件及證據仍待 User Review：
+四組正式執行已完成；下列條件及證據已整理供使用者檢視：
 
 - 已核准的五類／Leaf 配額與兩資料集各 2,000 筆 train-derived validation 已用持久產物核對；
   四組正式 run 的 evaluation 覆蓋已核對，配對來源索引與分布依各資料集的相同 split manifest 核對；
@@ -201,14 +201,14 @@ CIFAR-10 見 Section 12；四組結果仍待 User Review。Slice 4 第一輪 run
   四份正式 scenario 沿用現有 batch size、learning rate 與各資料集 seed model，兩資料集的配對
   partition、training、workload、component revisions、image 與 GPU identity 已核對；
 - 四次執行的 Host admission、fault barrier、逐輪 validation、final evaluation 與 exact reset evidence
-  均需在 User Review 中確認，不能只憑 runner 成功狀態宣告整體比較完成。
+  已隨執行結果供使用者檢視；不能只憑 runner 成功狀態宣告整體比較完成。
 
 本輪不比較 Flat FL、FedAvg／FedProx、Branch 聚合頻率、GPU 效能成本或「故障但不替換」；
 不改 5g-viz、5GC user plane、component recovery semantics，也不把流程驗證紀錄當成正式比較資料。
 正式比較仍保持 Draft。使用者已批准並完成四組正式執行；Slice 4 第一輪 runner 擴充及短 epoch
-簡測、第二輪資料工具實作與參數確認均不取代本次結果的 User Review 與後續分析。
+簡測、第二輪資料工具實作與參數確認均不取代本次結果的正式比較分析。
 
-## 9. 首組執行結果（待 User Review）
+## 9. 首組執行結果
 
 2026-09-13 使用 `feat/hierarchical-fl-protocol-extension` 的 `d2e8ba3`，選定
 `config/local/formal-mnist-baseline` 與 `RUN_NAME=mnist-formal-baseline-20260913-a` 執行第一組。
@@ -224,7 +224,7 @@ restored 或失敗輪。24 個逐輪 Root validation 與 outcomes 一對一對�
 Guest／容器服務已停止且 exact reset 驗證通過；四台 VM 保持 running。
 
 這是 baseline run 的直接結果；後續 treatment 重跑見 Section 11。單一配對只能做描述性比較。
-本結果在 user review 前不移入 verified records。
+本結果已由使用者檢視；正式比較分析與報告仍待完成，尚未移入 verified records。
 
 ## 10. MNIST treatment 首次執行失敗（原始 run 已清理）
 
@@ -247,7 +247,7 @@ Guest／容器服務已停止且 exact reset 驗證通過；四台 VM 保持 run
 修正現有 runner 的 critical path 與事件順序，維持原訂 24 rounds／4 local epochs／第 12 輪後故障；
 修正通過聚焦測試與 targeted review 後，才執行 Section 11 的重跑。此失敗 run 仍不能作為有效 treatment。
 
-## 11. MNIST treatment 重跑結果（待 User Review）
+## 11. MNIST treatment 重跑結果
 
 使用者確認 runner 修正後，以原訂 24 accepted rounds／4 local epochs／第 12 輪後故障設定，
 使用 `config/local/formal-mnist-replacement` 與新的 `RUN_NAME=mnist-formal-replacement-20260913-b`
@@ -273,10 +273,10 @@ replacement 從第 15 個 accepted round 開始貢獻。以 effective fault time
 runner 完成 selected process stop、Guest restart policy restoration 與 exact reset verify，四台 VM
 未被 destroy。相對於 Section 9 baseline 的 88.84%，final test accuracy 高 0.15 個百分點；
 單一配對只能描述這次結果，不能據此宣稱 replacement 提升模型品質或有統計顯著性。
-這次重跑提供 Slice 4 R1 的 real-environment evidence，但結果在 user review 前不移入 verified records；
+這次重跑提供 Slice 4 R1 的 real-environment evidence，結果已由使用者檢視，但尚未移入 verified records；
 其後已執行的 CIFAR-10 配對見 Section 12，正式比較仍保持 Draft。
 
-## 12. CIFAR-10 配對執行結果（待 User Review）
+## 12. CIFAR-10 配對執行結果
 
 2026-09-14 使用相同的 `feat/hierarchical-fl-protocol-extension` revision `d2e8ba3`，依序執行
 `cifar10-formal-baseline-20260914-a` 與 `cifar10-formal-replacement-20260914-a`。兩組各自的
@@ -302,10 +302,10 @@ replacement-ready、首次 accepted contribution 分別約為 298.0、298.8、31
 第 23 輪，treatment validation accuracy 為 42.55%、baseline 為 38.25%；第 40 輪分別為
 40.35%／40.15%。完整官方 test 的 final accuracy 分別為 baseline 3,862／10,000（38.62%）、
 treatment 3,874／10,000（38.74%），相差 0.12 個百分點。單一配對只能描述這次故障與恢復軌跡，
-不能宣稱 replacement 提升了 CIFAR-10 模型品質或有統計顯著性。四組正式執行的原始 run 保留供
-User Review；後續圖表與報告仍未完成，因此正式比較保持 open。
+不能宣稱 replacement 提升了 CIFAR-10 模型品質或有統計顯著性。四組正式執行的原始 run 已供
+使用者檢視；正式比較分析與報告仍為 Draft，因此正式比較保持 open。
 
-## 13. CIFAR-10 μ=0.1 診斷實驗（結果待 User Review）
+## 13. CIFAR-10 μ=0.1 診斷實驗
 
 四組正式 run 完成後，以保存的 CIFAR-10 final models 在同一份每類 200 筆的固定 validation 上作
 離線逐類評估。無故障 baseline 的 0–4 類平均 accuracy 為 66.4%、5–9 類為 13.9%；替換組
@@ -325,7 +325,7 @@ validation 的逐輪整體與最終逐類結果，和原本 `proximal_mu: 0.01` 
 重複維護 topology、identity 與 placement。使用者已確認在現有 scenario 的 `training` 增加選填
 `proximalMu`，由現有 renderer／checker 對本次 selected scenario 的 Root 與 Branch group
 strategy 使用該值；未指定者仍沿用 `TESTBED` 既有值。這只擴充既有資料來源與 pipeline，
-不改 component contract、VM、dataset 或 runner。原四組正式比較仍保持待 User Review。
+不改 component contract、VM、dataset 或 runner。原四組執行結果已由使用者檢視，正式比較分析仍為 Draft。
 
 本次在 `5G_NWDAF_Infrastructure` 的既有 `configlib.py`、renderer、checker 與 runner contract
 加入選填覆寫，另建 CIFAR-10 診斷 scenario；未指定 μ 的舊 scenario 保持 0.01。Owning
@@ -348,7 +348,7 @@ selected exact reset verify 通過。兩次初始 validation 均為 9.95%，第 
 對照，不能將差異嚴格歸因於 μ；若要作控制變因的模型品質結論，須另行決定如何固定
 image artifact 並建立新配對，不把本次 run 混入原四條件的正式結果。
 
-## 14. CIFAR-10 全類別不等量切分（資料準備待 User Review）
+## 14. CIFAR-10 全類別不等量切分（資料準備已完成）
 
 Section 13 的逐類結果顯示原本只有五類／Leaf 的配置有明顯類別偏向；單次 μ=0.1
 診斷雖縮小類別落差，整體 validation accuracy 卻下降，且 image artifact 不同，
@@ -401,9 +401,9 @@ inventory test、兩份資料與 config checker、資料工具與測試檔的聚
 validation／held-out 的來源索引與 NPZ 檔案相同。新配對的兩份 dataset 逐檔相同，
 scenario 的 workload、partition 與 training 相同；新設定的各 Leaf 配額經
 native loader／manifest checker 核對。未啟動 VM、container 或訓練，也未改動
-原四組及 μ=0.1 診斷產物；本段仍待使用者 review，不移入 verified records。
+原四組及 μ=0.1 診斷產物；本段是資料準備紀錄，不移入 verified records。
 
-## 15. 配對資料共用與既有產物整理（待 User Review）
+## 15. 配對資料共用與既有產物整理
 
 已完成的 MNIST、CIFAR-10 正式 baseline／replacement 配對，各自的兩份 dataset
 目錄逐檔相同，但原 `scenario`、generated config 與 `run.json` 均記錄各自的舊路徑。
@@ -433,9 +433,9 @@ config 的 dataset／config／Compose checks 通過。舊 MNIST 與 CIFAR-10 配
 已改與對應 baseline 共用 hardlink，但原路徑、config 與 run 紀錄未改。
 已清除新配對先前按 scenario 名稱產生、且與共用目錄逐檔相同的兩份未執行資料；
 不再佔三份實體空間。本節記錄資料儲存及設定準備；其後的新配對訓練見 Section 16，
-結果仍待 User Review。
+執行結果已由使用者檢視。
 
-## 16. CIFAR-10 全類別不等量配對執行結果（待 User Review）
+## 16. CIFAR-10 全類別不等量配對執行結果
 
 2026-09-14 依序使用 `config/local/cifar10-all-class-skew-baseline`、
 `config/local/cifar10-all-class-skew-replacement`，執行
@@ -465,5 +465,5 @@ accuracy 為 baseline 5,806／10,000（58.06%）、treatment 5,812／10,000（58
 
 兩次執行均完成 process stop、Guest restart-policy restoration 與 selected exact reset
 verify；原始 `events.jsonl`、`run.json` 與 final model 保留在
-`runs/protocol-hierarchical/cifar10/` 下各自的 run 目錄。結果待 User Review，不移入
-verified records；正式分析圖表與報告尚未完成。
+`runs/protocol-hierarchical/cifar10/` 下各自的 run 目錄。結果已由使用者檢視，尚未移入
+verified records；正式比較分析與報告仍為 Draft。
