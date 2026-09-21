@@ -4,6 +4,7 @@
 
 目前入口：
 
+- [Hierarchical FL 論文實驗](./paper-experiments/README.md)
 - [Multi-host Branch Replacement Experiment Plan](./multi-host-branch-replacement-experiment-plan.md)
 - [正式 Branch Replacement 比較實驗計畫草案](./formal-branch-replacement-comparison-plan.md)
 - [Slice 1 Legacy Experiment And Hash Cleanup Detailed Plan](./slices/slice-1-legacy-and-hash-cleanup-detailed-plan.md)
