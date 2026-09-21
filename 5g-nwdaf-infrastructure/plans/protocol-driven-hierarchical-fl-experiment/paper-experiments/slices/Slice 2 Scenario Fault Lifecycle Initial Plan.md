@@ -2,7 +2,7 @@
 
 日期：2026-09-21
 
-狀態：Plan Review Confirmed／Implementation Pending；已確認共用故障設定、短跑參數及執行／事後分析分工，尚未實作或執行真實環境
+狀態：Review Confirmed；共用故障生命週期與四個 MNIST 短跑已完成實作及驗證，使用者已確認結果
 
 上層依據：[實作順序與 Slice 安排](../Testbed%20Implementation%20Sequence%20and%20Slices.md)與
 [Testbed 實驗就緒盤點](../Testbed%20Experiment%20Readiness%20Inventory.md)。
@@ -91,8 +91,8 @@ Branch PyMTLF／Go processes，E2b 隨後 kill 一個 Leaf 的 PyMTLF／Go proce
    profile 名稱、固定 degraded 輪數或修復成功寫成 runner invariant。短跑仍須包含 final model、held-out、
    原始紀錄、停止與 selected exact reset；成功的 E0 不能替 E1／E2 證明 fault path。
 
-目前沒有發現需要新增 VM、service、人工 config source 或改 PyMTLF contract 的直接依據。第 4–7 節是
-根據本節方向形成的具體方案；共用 fault 設定與線上／離線分工已由使用者確認，但尚未實作或通過 runtime 驗收。
+實作沒有新增 VM、service、人工 config source 或改 PyMTLF contract。第 4–7 節記錄已確認的具體方案；
+實作與 runtime 驗證結果見第 8 節。
 
 ## 4. 具體方案：單一 scenario 與 target truth
 
@@ -211,7 +211,27 @@ Root 發出修復要求也不等於已形成新訂閱或成功貢獻。Slice 2 �
    並取得 8 個 accepted rounds、final model／held-out／逐節點原檔及 cleanup。E2b 實際停機與新訂閱
    的先後、故障後貢獻及修復情形在收集後檢視並報告，不作 runner 成功條件。
 
-本輪只是計畫細化，沒有實作或真實環境驗收。共用 schema、事後才分析修復，以及短跑參數已由使用者
-確認；計畫已通過 review，下一步是依本計畫實作與驗證。若實作盤點發現需改 component contract、新增 config source／VM／service／dependency，或
-擴大 destructive scope、弱化驗收，先更新計畫並再請使用者決策。`preparationTimeoutSeconds`、正式五 paired
-seeds 與離線統計均留在各自的後續判斷／Slice 3，不在此輪預設解法。
+## 8. 實作與短跑驗證結果
+
+共用 scenario 格式與 target resolver、active A* inventory、逐 target 受保護停機／cleanup、來源時間事件合併、
+完成後收集與證據檢查均已接入原有 pipeline。五份既有 E1 scenario 已遷移，不保留舊 fault 格式。
+四個 MNIST scenario 共用 `mnist-fault-lifecycle-smoke` 切分、4 local epochs、8 accepted rounds；故障情境在
+2 輪後觸發。`roundTimeoutSeconds=60`；`preparationTimeoutSeconds=300` 未改。
+下表的 run directory 均相對於 `5G_NWDAF_Infrastructure/`。
+
+| 情境與 run directory | 執行結果 | 原始事件的事後觀察 |
+| --- | --- | --- |
+| E0：`runs/protocol-hierarchical/mnist/mnist-healthy-20260922-a/` | 8 輪、無停機，held-out accuracy 0.885；final model、逐節點 JSONL、stop／reset 完成 | 健康拓樸持續訓練。首次收集時因 testbed 自身 NRF 清單比對誤用包含未啟動 A* 的 reset scope 而停下；修正為 selected active-unit 清單後，以 collect-only 完成，未重跑訓練。 |
+| E1：`runs/protocol-hierarchical/mnist/mnist-replacement-20260922-a/` | 8 輪、A 停機一筆，held-out accuracy 0.890；收集與 reset 完成 | 首個故障輪由 B／C 接受；Root 訂閱 A* 並接受新拓樸，A* 從 round 4–7 貢獻。 |
+| E2a：`runs/protocol-hierarchical/mnist/mnist-reparent-20260922-a/` | 8 輪、A 停機一筆，held-out accuracy 0.890；收集與 reset 完成 | Root 訂閱 A1／A2、接受兩者直掛拓樸，兩者從 round 4–7 貢獻。 |
+| E2b：`runs/protocol-hierarchical/mnist/mnist-partial-reparent-20260922-a/` | 8 輪、依序停 A／A2 兩筆，held-out accuracy 0.890；收集與 reset 完成 | A2 在 Root 對它發出新 CREATE 前約 58.6 秒已停止；該 CREATE 失敗，最終拓樸只有 A1 直掛，A1 從 round 4–7 貢獻。 |
+
+四個 run 的 `run.json`、`events.jsonl`、final model、held-out、所有 selected Host process 原始 JSONL 與 guarded
+reset 均通過 `check_evidence()`。四份 scenario 的 render、config check、Compose check 均通過；既有
+`tests/fl-experiment.py`、Python 編譯與 diff check 通過。完整 `tests/runtime-inventory.py` 執行至舊 CIFAR-10
+replacement fixture 時，因該 fixture 的 generated split manifest 不存在而停止；四份本 slice MNIST selected
+config 已另行通過完整 checker 與真實執行。E0 相鄰 accepted rounds 約 8.7–8.8 秒；三個故障短跑從第 2 至
+第 3 輪約 60.0–60.1 秒，符合縮短後的故障等待預期。此缺口不代表 CIFAR-10 情境已驗收。
+
+以上是 Slice 2 短跑接線證據，不是正式比較實驗。`preparationTimeoutSeconds`、正式五 paired seeds 與離線統計
+仍留 Slice 3；本 slice 的實作與短跑結果已通過使用者審核。
