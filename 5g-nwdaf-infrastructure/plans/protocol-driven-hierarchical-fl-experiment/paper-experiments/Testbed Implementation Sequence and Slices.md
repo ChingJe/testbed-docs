@@ -2,7 +2,7 @@
 
 日期：2026-09-21
 
-狀態：Review Pending／Implementation Pending；本文只安排工作邊界，不授權實作或正式實驗執行
+狀態：Review Confirmed／Commit Pending；Slice 1 完整 run lifecycle 優化已實作並完成短程 E0 驗證，待提交；Slice 2／3 尚未開始；本文只安排工作邊界，不授權正式實驗執行
 
 依據：[Testbed 實驗就緒盤點](./Testbed%20Experiment%20Readiness%20Inventory.md)。本文把該盤點第 3 節的七項缺口合併為三個依序推進、各自交付 review 的實作 slice。Go NWDAF／PyMTLF 的協定及訓練行為仍由 component source 與 `nwdaf-docs` 擁有；本計畫只安排 testbed 的設定、部署、控制、證據與分析工作。既有單次 E0／E1 run 不計入新的五 seed 實驗。
 
@@ -29,8 +29,9 @@
 - 沿用四台 VM，依 selected scenario 啟動 process：E0／E2a／E2b 不啟動 A* 的 Guest／Host process，E1 啟動；情境啟動完成時確認一次未運行狀態，不新增各階段反覆證明 A* 不存在的驗證。
 - 更新共用 runner／evidence checker 對新版逐節點 JSON events、`loss`／`accuracy`、model artifact 及實際 direct children 的解讀；不固定三種 participant set 或 degraded rounds 數量，以文字 log 為診斷而非主要協定證據。
 - 延伸現有 collection checkpoint，在停止 process 後、reset 前保存每個實際節點的原始 `observations.jsonl`、controller events、scenario／版本資訊、final model 與評估結果；collection 失敗可在不重訓下重試，保留不完整 run。
+- 在同一 lifecycle 內減少逐步重建 VM SSH 連線與重複狀態查詢；可獨立的 VM 準備、Guest 啟停、停止後原始紀錄收集及 Host volume 操作採受控並行，保留訓練／故障時序、final model／評估／reset 的依賴、失敗先停機與補收語意，以及跨 VM config activation、實際 runtime identity 和 guarded reset 的失敗邊界。具體改動、保留的檢查與驗證方式見 Slice 1 計畫。
 
-交付與驗證：生成的 E0／E1／E2 topology 可由 selected component native config 解析；聚焦驗證新版事件與逐節點收集路徑；在 approved Host context 以一個短程無故障 run 核對部署版本、逐輪 evaluation、final model、collection、stop 與 selected reset。若要操作 real provider，必須維持既有 Host-context guard、process inventory、capacity 與 exact reset 防護。此 run 只驗證接線，不算五 seed 正式結果。
+交付與驗證：生成的 E0／E1／E2 topology 可由 selected component native config 解析；聚焦驗證新版事件與逐節點收集路徑；在 approved Host context 以一個短程無故障 run 核對部署版本、逐輪 evaluation、final model、collection、stop 與 selected reset。完整 run lifecycle 優化後須再用同一短程路徑確認 transport、並行失敗處理與原有 acceptance；既有成功 run 不代表修改後的 lifecycle 已通過。若要操作 real provider，必須維持既有 Host-context guard、process inventory、capacity 與 exact reset 防護。短程 run 只驗證接線，不算五 seed 正式結果。
 
 ## 3. Slice 2：E0–E2b 情境與故障生命週期
 
