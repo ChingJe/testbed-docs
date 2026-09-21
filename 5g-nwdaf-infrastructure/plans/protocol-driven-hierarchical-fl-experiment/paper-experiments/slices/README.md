@@ -5,4 +5,5 @@
 
 目前文件：
 
-- [Slice 1 初始討論文件](./Slice%201%20Component%20Integration%20and%20Evidence%20Compatibility%20Initial%20Plan.md)：新版 component、設定生成及證據收集的工作邊界與討論問題。
+- [Slice 1 計畫](./Slice%201%20Component%20Integration%20and%20Evidence%20Compatibility%20Initial%20Plan.md)：新版 component、設定生成、證據收集與 E0 短程驗證結果。
+- [Slice 2 計畫](./Slice%202%20Scenario%20Fault%20Lifecycle%20Initial%20Plan.md)：四情境故障生命週期的靜態盤點、已確認方案與待實作事項。

@@ -2,7 +2,7 @@
 
 日期：2026-09-21
 
-狀態：Review Confirmed／Commit Pending；component 整合與完整 run lifecycle 優化已實作並完成短程 E0 驗證，待提交
+狀態：Review Confirmed／Committed；component 整合與完整 run lifecycle 優化已實作並完成短程 E0 驗證
 
 上層依據：[實作順序與 Slice 安排](../Testbed%20Implementation%20Sequence%20and%20Slices.md)與
 [Testbed 實驗就緒盤點](../Testbed%20Experiment%20Readiness%20Inventory.md)。本 slice 處理盤點 3.1、3.2、3.4、3.5

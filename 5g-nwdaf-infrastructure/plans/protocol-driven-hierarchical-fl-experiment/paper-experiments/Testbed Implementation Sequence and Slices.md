@@ -2,7 +2,7 @@
 
 日期：2026-09-21
 
-狀態：Review Confirmed／Commit Pending；Slice 1 完整 run lifecycle 優化已實作並完成短程 E0 驗證，待提交；Slice 2／3 尚未開始；本文只安排工作邊界，不授權正式實驗執行
+狀態：Implementation；Slice 1 已提交，Slice 2 計畫已確認並提交、待實作，Slice 3 尚未開始；本文只安排工作邊界，不授權正式實驗執行
 
 依據：[Testbed 實驗就緒盤點](./Testbed%20Experiment%20Readiness%20Inventory.md)。本文把該盤點第 3 節的七項缺口合併為三個依序推進、各自交付 review 的實作 slice。Go NWDAF／PyMTLF 的協定及訓練行為仍由 component source 與 `nwdaf-docs` 擁有；本計畫只安排 testbed 的設定、部署、控制、證據與分析工作。既有單次 E0／E1 run 不計入新的五 seed 實驗。
 
@@ -13,7 +13,7 @@
 | 3.1 Component revisions | Slice 1 | 可重建的 selected revisions 與實際部署版本 |
 | 3.2 Topology renderer／scenario contract | Slice 1；Slice 2 使用 | 新版 native topology 可解析；四種情境從同一設定流程選取 |
 | 3.3 Fault lifecycle | Slice 2 | E0 無故障、E1／E2a 單一故障、E2b 多目標故障與完整 cleanup |
-| 3.4 Structured-event contract | Slice 1；Slice 2 驗收 | 共用事件解讀與 accepted-round／topology 證據，按實際 participant 判斷 |
+| 3.4 Structured-event contract | Slice 1；Slice 2 收集 | 保存 accepted-round／topology 原始事件，實際 participant 與修復結果事後判讀 |
 | 3.5 逐節點原始紀錄 | Slice 1；Slice 2 驗收 | 收集與重試能力；四情境的跨節點證據完整性 |
 | 3.6 五 paired seeds | Slice 3 | 每個 workload／seed 的資料、初始模型、run 對應與序列排程 |
 | 3.7 離線分析 | Slice 3 | 四情境、五 seed 的可重算彙整，不改 runtime acceptance |
@@ -35,13 +35,13 @@
 
 ## 3. Slice 2：E0–E2b 情境與故障生命週期
 
-目標是讓同一條 runner 路徑依 selected scenario 完成四種情境，並以真實四 VM 證據確認替換、直接 Leaf reparenting 與部分修復；不在此 slice 加入五 seed 批次排程。
+目標是讓同一條 runner 路徑依 selected scenario 完成四種情境，並保存真實四 VM 的替換、直接 Leaf reparenting 與部分修復證據供事後判讀；不在此 slice 加入五 seed 批次排程。
 
 - 讓 E0 不注入故障；E1 在指定 accepted-round barrier 後停止 A 並由 A* 接手；E2a 停止 A 後讓 A1／A2 直掛 Root；E2b 停止 A 且讓 A2 在 Root 新訂閱前不可用，只由 A1 嘗試直掛。
 - 沿用現有 fail-stop／cleanup 機制擴充多個明確 target，分別記錄 effective stop time、Guest／container identity 與操作結果；失敗或中斷時也須恢復所有受影響的 process state／restart policy，並保留可審查的 run evidence。
-- 依實際事件與訂閱關係核對 requested、realized、accepted topology、receiver-assigned subscription resource identity、`mlCorreId`、B／C 未受影響的 edges、逐輪參與者及首次故障後貢獻；E2b 的 A2 不可用與未建立新關係也須有直接證據。
+- 保存足以事後核對 requested、realized、accepted topology、receiver-assigned subscription resource identity、`mlCorreId`、B／C 未受影響的 edges、逐輪參與者及首次故障後貢獻的原始紀錄；E2b 的 A2 停機與新訂閱時間線也須可追溯。Runner 不因修復效果而拒收已完成的 run。
 
-交付與驗證：四個短程 MNIST 情境各在實驗室 testbed 執行一次，確認完整啟動、故障注入、accepted-round 延續、逐節點收集、final model、停止與 exact reset；若實際結果未恢復，保存 `not recovered`，不得改寫 acceptance 或假設必有固定 degraded rounds。短程測試不取代正式 MNIST／CIFAR-10 訓練。每個 run 之前仍須核對當日 Host／GPU／storage 容量與 selected runtime。
+交付與驗證：四個短程 MNIST 情境各在實驗室 testbed 執行一次，採 4 local epochs、8 accepted rounds，故障情境在完成 2 輪後注入；確認完整啟動、指定停機、訓練完成、逐節點收集、final model、停止與 exact reset。實際修復或 `not recovered` 僅在收集後判讀，不是 runner 的成功條件，也不假設固定 degraded rounds。短程測試不取代正式 MNIST／CIFAR-10 訓練。每個 run 之前仍須核對當日 Host／GPU／storage 容量與 selected runtime。
 
 ## 4. Slice 3：五 Seed 配對輸入與離線分析就緒
 
@@ -57,7 +57,7 @@
 ## 5. 必須先確認的決策與停止點
 
 1. **Slice 1／2 topology 決策已確認**：四情境複用四台 VM；A* 可預先安裝，但只在 E1 啟動，E0／E2a／E2b 不啟動。詳細計畫須讓現有 scenario、selected process inventory、registration、Compose、capacity 及 cleanup 對此一致；情境啟動完成時觀測一次未運行狀態，不增設到處重複的負面驗證。
-2. **Slice 2 policy 決策**：E2a／E2b 的 Root direct cohort 與 accepted-round 條件如何由 selected scenario 表達及報告。不能把原三 Branch 的 completion 比例不加說明套到不同 direct-child cohort，亦不能為了讓測試通過而弱化已確認的 acceptance。
+2. **Slice 2 Root policy 與 fault 邊界已確認**：四情境沿用 `TESTBED` 目前與 `nwdaf-resources` 一致的 Root policy；PyMTLF 以當輪實際 selected direct children 計算 completion。Scenario 的 `fault` 只指定停機時機及有序節點，不設修復達標輪數；runner 只守執行與收集契約，selected／successful／failed identities、實際 topology 及 `not recovered` 事後分析。E2b 多目標停機及 60 秒 round timeout 見 Slice 2 計畫。
 3. **Slice 3 seed／分析決策**：五個 seed 值、各 seed 控制的隨機來源、seed-specific model ID／生成方式、95% CI 方法與 post-failure AUC common window `K`，都須在實作相應來源或正式執行前確認。
 
 上述事項若尚未決定，該部分保持 open；不以短程接線成功宣稱整個 slice 或正式實驗完成。若實作盤點發現需新增 config source、service、VM、external dependency，或改變 component contract、部署 ownership、destructive scope／驗收門檻，先更新計畫並請使用者決策。
