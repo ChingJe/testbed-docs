@@ -2,7 +2,7 @@
 
 日期：2026-09-21
 
-狀態：Implementation；Slice 1 已提交，Slice 2 計畫已確認並提交、待實作，Slice 3 尚未開始；本文只安排工作邊界，不授權正式實驗執行
+狀態：Implementation；Slice 1／2 已提交，Slice 3 初始計畫已完成第二輪盤點、待確認接線建議與實作；本文只安排工作邊界，不授權正式實驗執行
 
 依據：[Testbed 實驗就緒盤點](./Testbed%20Experiment%20Readiness%20Inventory.md)。本文把該盤點第 3 節的七項缺口合併為三個依序推進、各自交付 review 的實作 slice。Go NWDAF／PyMTLF 的協定及訓練行為仍由 component source 與 `nwdaf-docs` 擁有；本計畫只安排 testbed 的設定、部署、控制、證據與分析工作。既有單次 E0／E1 run 不計入新的五 seed 實驗。
 
@@ -50,7 +50,7 @@
 - 在既有 scenario／dataset／model preparation 流程中支援確定的五 seed 設定；同 workload／seed 的 E0、E1、E2a、E2b 共用資料 source indices、初始模型、訓練隨機性語意與超參數，並保持四個獨立 run identities。
 - 為不同 seeds 提供不互相覆寫、可由同 seed 四情境共用的 dataset identity；建立 seed-specific initial model 的準備、選擇與 component-native import 路徑，不複製新的模型格式或平行 provenance 證明。
 - 以現有 run 入口按 selected workload／condition／seed 序列執行；保存明確對應及 checkpoint，使 collection／analysis 可重試、失敗 run 可識別且不會被當成有效配對。單 GPU 預設不並行訓練。
-- 從保存的原始資料離線計算逐輪五 seed mean／95% CI、同 seed E0 的 paired 差值、預定 window 的 accuracy AUC、連續兩個 accepted rounds 的 recovery、故障／修復時間線、成功與 `not recovered` 數、subscription operations、topology／participant 及 E2b coverage。
+- 從保存的原始資料離線計算逐輪五 seed mean／95% Student-t CI、同 seed E0 的 endpoint paired 差值及其 mean／CI、預定 window 的 accuracy AUC、連續兩個 accepted rounds 的 recovery、故障／修復時間線、成功與 `not recovered` 數、subscription operations、topology／participant 及 E2b coverage。
 
 交付與驗證：用不同 seeds 的小型資料準備結果核對差異、同 seed 四情境核對共用輸入，再用 Slice 2 留下的原始 run 資料核對事件解讀、缺失資料處理及原檔唯讀性；單 seed 短程資料不能驗證五 seed CI 的數值。第一個正式 run 前須凍結原始資料 layout、必收事件、run metadata 與統計定義。完成 review 後另行確認正式矩陣的執行批次，才依序跑兩個 workloads × 四情境 × 五 paired seeds；任何失敗或不完整 run 保留並單列，不靜默補值或剔除。
 
@@ -58,6 +58,6 @@
 
 1. **Slice 1／2 topology 決策已確認**：四情境複用四台 VM；A* 可預先安裝，但只在 E1 啟動，E0／E2a／E2b 不啟動。詳細計畫須讓現有 scenario、selected process inventory、registration、Compose、capacity 及 cleanup 對此一致；情境啟動完成時觀測一次未運行狀態，不增設到處重複的負面驗證。
 2. **Slice 2 Root policy 與 fault 邊界已確認**：四情境沿用 `TESTBED` 目前與 `nwdaf-resources` 一致的 Root policy；PyMTLF 以當輪實際 selected direct children 計算 completion。Scenario 的 `fault` 只指定停機時機及有序節點，不設修復達標輪數；runner 只守執行與收集契約，selected／successful／failed identities、實際 topology 及 `not recovered` 事後分析。E2b 多目標停機及 60 秒 round timeout 見 Slice 2 計畫。
-3. **Slice 3 seed／分析決策**：五個 seed 值、各 seed 控制的隨機來源、seed-specific model ID／生成方式、95% CI 方法與 post-failure AUC common window `K`，都須在實作相應來源或正式執行前確認。
+3. **Slice 3 seed／分析決策**：五個 seed 值與配對輸入方向已確認；五 seed 統計採雙側 95% Student-t CI，post-failure AUC 共用 `K=12` accepted rounds。各 seed 控制的隨機來源與 seed-specific model ID／生成方式仍須在實作前核對。細節見 Slice 3 計畫。
 
 上述事項若尚未決定，該部分保持 open；不以短程接線成功宣稱整個 slice 或正式實驗完成。若實作盤點發現需新增 config source、service、VM、external dependency，或改變 component contract、部署 ownership、destructive scope／驗收門檻，先更新計畫並請使用者決策。
