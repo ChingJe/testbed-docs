@@ -2,7 +2,7 @@
 
 日期：2026-09-21
 
-狀態：Review Confirmed／Implementation Pending；本文只安排工作邊界，不授權實作或正式實驗執行
+狀態：Review Pending／Implementation Pending；本文只安排工作邊界，不授權實作或正式實驗執行
 
 依據：[Testbed 實驗就緒盤點](./Testbed%20Experiment%20Readiness%20Inventory.md)。本文把該盤點第 3 節的七項缺口合併為三個依序推進、各自交付 review 的實作 slice。Go NWDAF／PyMTLF 的協定及訓練行為仍由 component source 與 `nwdaf-docs` 擁有；本計畫只安排 testbed 的設定、部署、控制、證據與分析工作。既有單次 E0／E1 run 不計入新的五 seed 實驗。
 
@@ -26,8 +26,9 @@
 
 - 將 Go NWDAF／PyMTLF 的 selected revisions 與 parent gitlinks、component lock 對齊；以相同版本建置 Guest binary、Host image，重新產生 selected config，核對實際 runtime identity。
 - 擴充現有 scenario／renderer／checker：以新版 `on_branch_failure` 取代過時的 generated `admission`；將故障目標與 Root 修復策略分開；讓 Root 在 E2 可存取實際 direct Leaf 的 artifact，同時保留既有 Branch／ADRF 路徑。
-- 更新共用 runner／evidence checker 對新版 structured events、`loss`／`accuracy`、model artifact 及實際 direct children 的解讀；不固定三種 participant set 或 degraded rounds 數量。
-- 延伸現有 collection checkpoint，保存每個節點的原始 `observations.jsonl`、controller events、scenario／版本資訊、final model 與評估結果；collection 失敗可在不重訓下重試，保留不完整 run。
+- 沿用四台 VM，依 selected scenario 啟動 process：E0／E2a／E2b 不啟動 A* 的 Guest／Host process，E1 啟動；情境啟動完成時確認一次未運行狀態，不新增各階段反覆證明 A* 不存在的驗證。
+- 更新共用 runner／evidence checker 對新版逐節點 JSON events、`loss`／`accuracy`、model artifact 及實際 direct children 的解讀；不固定三種 participant set 或 degraded rounds 數量，以文字 log 為診斷而非主要協定證據。
+- 延伸現有 collection checkpoint，在停止 process 後、reset 前保存每個實際節點的原始 `observations.jsonl`、controller events、scenario／版本資訊、final model 與評估結果；collection 失敗可在不重訓下重試，保留不完整 run。
 
 交付與驗證：生成的 E0／E1／E2 topology 可由 selected component native config 解析；聚焦驗證新版事件與逐節點收集路徑；在 approved Host context 以一個短程無故障 run 核對部署版本、逐輪 evaluation、final model、collection、stop 與 selected reset。若要操作 real provider，必須維持既有 Host-context guard、process inventory、capacity 與 exact reset 防護。此 run 只驗證接線，不算五 seed 正式結果。
 
@@ -54,7 +55,7 @@
 
 ## 5. 必須先確認的決策與停止點
 
-1. **Slice 1／2 topology 決策**：E0／E2 是否保留已部署但不被使用的 A* process。若要求 E2 中 A* 實體不存在，必須在詳細計畫納入 condition-specific inventory、registration、Compose、capacity 與 cleanup；不能由實作自行採用固定十一組 process 的假設。
+1. **Slice 1／2 topology 決策已確認**：四情境複用四台 VM；A* 可預先安裝，但只在 E1 啟動，E0／E2a／E2b 不啟動。詳細計畫須讓現有 scenario、selected process inventory、registration、Compose、capacity 及 cleanup 對此一致；情境啟動完成時觀測一次未運行狀態，不增設到處重複的負面驗證。
 2. **Slice 2 policy 決策**：E2a／E2b 的 Root direct cohort 與 accepted-round 條件如何由 selected scenario 表達及報告。不能把原三 Branch 的 completion 比例不加說明套到不同 direct-child cohort，亦不能為了讓測試通過而弱化已確認的 acceptance。
 3. **Slice 3 seed／分析決策**：五個 seed 值、各 seed 控制的隨機來源、seed-specific model ID／生成方式、95% CI 方法與 post-failure AUC common window `K`，都須在實作相應來源或正式執行前確認。
 

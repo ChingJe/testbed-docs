@@ -7,6 +7,7 @@
 
 - [Testbed 實驗就緒盤點](./Testbed%20Experiment%20Readiness%20Inventory.md)：對照目前 component 能力與 testbed source，整理正式實驗前仍需完成的整合、runner、證據與五 seed 支援。
 - [Testbed 實作順序與 Slice 安排](./Testbed%20Implementation%20Sequence%20and%20Slices.md)：將盤點的七項缺口整理為三個依序 review 的實作段落與決策關卡。
+- [Slice 計畫](./slices/README.md)：隨進度逐份建立各 slice 的討論與詳細計畫。
 
 ## 責任邊界
 
