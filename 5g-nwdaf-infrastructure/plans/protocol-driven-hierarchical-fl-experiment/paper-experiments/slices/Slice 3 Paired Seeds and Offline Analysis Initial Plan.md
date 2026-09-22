@@ -2,7 +2,7 @@
 
 日期：2026-09-22
 
-狀態：Review Confirmed；兩個不同 seed 的隔離短跑與最終檢查已完成，使用者已確認 review；正式矩陣待另行授權
+狀態：Review Confirmed；正式矩陣與初步證據核對結果已由使用者確認，後續論文材料仍可繼續補充
 
 上層依據：[實作順序與 Slice 安排](../Testbed%20Implementation%20Sequence%20and%20Slices.md)與
 [Testbed 實驗就緒盤點](../Testbed%20Experiment%20Readiness%20Inventory.md)。
@@ -25,9 +25,9 @@ guarded reset 流程，準備兩個 workload × 四個 condition × 五個 paire
 
 ## 2. 現有流程盤點與 baseline disposition
 
-本輪只讀取目前 `5G_NWDAF_Infrastructure` source、PyMTLF native source，以及 Slice 2 四個已保存的 MNIST 短跑
-`run.json`／部分 `events.jsonl`；沒有執行 provider、重新產生資料、啟動訓練或統計五 seed 結果。下表記錄現況與
-所需適配；已確認的實作方向見第 3 節，尚未核對的技術契約仍保持 open。
+本節記錄實作前的盤點：當時只讀取 `5G_NWDAF_Infrastructure` source、PyMTLF native source，以及 Slice 2
+四個已保存的 MNIST 短跑 `run.json`／部分 `events.jsonl`；沒有執行 provider、重新產生資料、啟動訓練或
+統計五 seed 結果。下表保留當時的現況與所需適配；已確認的實作方向見第 3 節，後續結果見第 8、11 節。
 
 | 邊界 | 直接證據與目前行為 | disposition／Slice 3 所需 |
 | --- | --- | --- |
@@ -36,7 +36,7 @@ guarded reset 流程，準備兩個 workload × 四個 condition × 五個 paire
 | Leaf 訓練隨機性 | `config-render.py` 將 `partition.seed` 寫入每個 Leaf 的 `federated_learning.client.training.random_seed`；PyMTLF `FederatedTrainer` 以該值設定 NumPy／PyTorch 與 DataLoader shuffle generator。 | **複用**：同 seed 四情境的配置種子相同；不同 seed 配置值不同。這是隨機來源的控制契約，不把 GPU 執行結果承諾為逐 byte 相同。 |
 | 初始模型來源與匯入 | 現有 `ML/PyMTLF/seed_models/image_classification/<workload>/` 各只有一份 `config.json`、`model.py`、`model.npy`；`initialization_seed` 是 metadata，匯入直接讀 `model.npy`，沒有五 seed 生成器。Dockerfile 將來源打進 image；renderer、`config-check.py`、`ml-compose-check.py` 與 `manifest.seedRestoration` 都以固定 workload 路徑為準；Root entrypoint 使用 PyMTLF native import 並核對 native `artifact_key`。`configlib.image_scenario_contract()` 目前固定 MNIST／CIFAR-10 的 seed model ID 為 1001／1002。 | **適配**：用 PyMTLF 現有 `Model` 架構，按選中 seed 真正生成 `model.npy`，再沿用 native bundle／import 及其既有 artifact identity；將 seed-specific source、生成設定、checker、Root container 可讀路徑和 reset 後重新匯入一起接通。只改 metadata、只換 dataset 或只改 seed ID 都不足。是否維持每 workload 的既有 model ID、以不同權重／artifact key 區分 runs，須在實作方案中確認；目前 native catalog 只要求同一配置內的 model IDs 唯一。 |
 | Build、deployment 與啟停 | `experiment-start.sh` 先 generate／reuse dataset，再呼叫 `services-start.sh` stage selected config 到 Guests、啟動 Guest services 及 Host Compose；`fl-experiment-run.py` 執行既有 preflight、runtime start、ready observation、訓練及 final collection。現有 image 內建固定 seed source，現有 reset 清理 runtime state，未清除 Host 的生成資料。 | **複用＋模型來源適配**：四台 VM、process placement、provider guard、image revision／capacity admission、跨 Guest config activation、stop／guarded reset 不改語意。每 seed 的模型必須在 Root import 前可見，且 selected config、checker、entrypoint 與實際來源一致；若用 Host-generated source 掛載，無須為每個 seed 重建 image，但須確認 Root-only 唯讀 mount、來源可用性與 reset 後匯入。 |
-| 單次 run 與故障生命週期 | `fl-experiment-run.py` 每次執行一個 selected config，在 `runs/protocol-hierarchical/<workload>/<runName>/` 建新目錄及 UUID request；`run.json.scenario` 已保存 selected workload、partition seed、dataset ID、model key、訓練及 fault snapshot。檔案鎖避免同時跑兩個實驗；成功路徑收集 final model、逐節點 JSONL、held-out，停止 process 後 guarded reset。失敗資料保留；`--collect-only` 可以針對同一 selected config／image 補收。 | **複用＋執行層適配**：四十次仍走同一 runner，逐次執行且每次有獨立 `runName`。增加只負責逐個呼叫現有設定與單次 runner 入口的薄工具；失敗即停，補收及處理失敗須在切到下一 selected config／model source 前完成，不能把補收當成重訓或把失敗 run 視為有效配對。不建立第二套訓練 runner。 |
+| 單次 run 與故障生命週期 | `fl-experiment-run.py` 每次執行一個 selected config，在 `runs/protocol-hierarchical/<workload>/<runName>/` 建新目錄及 UUID request；`run.json.scenario` 已保存 selected workload、partition seed、dataset ID、model key、訓練及 fault snapshot。檔案鎖避免同時跑兩個實驗；成功路徑收集 final model、逐節點 JSONL、held-out，停止 process 後 guarded reset。失敗資料保留；`--collect-only` 可以針對同一 selected config／image 補收。 | **複用＋執行層適配**：四十次仍走同一 runner，逐次執行且每次有獨立 `runName`。增加只負責逐個呼叫現有設定、資料生成與單次 runner 入口的薄工具；失敗即停，補收及處理失敗須在切到下一 selected config／model source 前完成，不能把補收當成重訓或把失敗 run 視為有效配對。不建立第二套訓練 runner。 |
 | 原始紀錄與離線分析 | Slice 2 四個 MNIST 短跑均為 `successful`／`finalized`，保留 `run.json`、`events.jsonl`、各節點 `observations/*.jsonl`、final model 與 held-out 結果。Root `MODEL_EVALUATION` 使用 `accuracy`／`loss`、`ROOT_INITIAL` 與 `ROOT_GLOBAL`；底層 `roundInd` 從 0 起算，論文 accepted round 須按 `run.json.phases.rounds` 的接受順序從 1 起算，保留原 `roundInd` 以供對照。`run.json.phases` 只有 `beforeFault`／`afterFault`，不判修復成敗。現有 `fl-analysis.py` 只吃 baseline／treatment 一對，仍讀舊 `validationAccuracy`／`validationLoss` 與 normal／degraded／restored 分類。 | **適配既有分析入口**：由 saved raw evidence 按 workload／seed／condition 配對，讀新欄位與拓樸／operation events，計算多 seed 統計；不重寫原始 `run.json` 或讓 runner 以 recovery 判斷成功。四個短跑只用來檢查解析路徑與缺失處理，不驗證五 seed 統計數值。 |
 
 這個 end-to-end 路徑仍需在實作設計中補上 seed source 的 exact lifetime／cleanup、selected scenario snapshot 的讀取方式、
@@ -63,7 +63,7 @@ destructive scope／驗收門檻變更，先回填方案並請使用者決策。
    因此建議先沿用每 workload 的既有 model ID、由不同 source／native artifact key 識別 seed，
    不為十個 seeds 額外分配 model IDs；實作前再核對這個跨 run 重用是否符合整條 model lifecycle。
 3. **以薄工具逐次執行**：增加一個簡單工具，依 workload → seed → E0／E1／E2a／E2b 選取組合，
-   對每個組合逐個呼叫既有 `config-create` 與 `fl-experiment-run` 入口；每次都使用獨立 `runName`。
+   對每個組合逐個呼叫既有 `config-create`、`dataset-generate` 與 `fl-experiment-run` 入口；每次都使用獨立 `runName`。
    工具不複製設定生成、啟停、訓練、故障、收集或 guarded reset 邏輯，也不自行判定修復達標。
    前一 run 完成既有 collection／reset 才進下一個；任何入口失敗即停止序列並保留已產生的 evidence，
    由操作者使用同 config 的既有 `collect-only` 與安全 cleanup 路徑處理，再明確決定重試或從未完成組合接續。
@@ -107,7 +107,7 @@ condition label 與工具接續介面的具體契約仍須在實作前核對，�
   例如 `mnist-formal-s1`；由現有 `config-create` 選 seed 並保存實際 scenario snapshot。Host 按 seed 準備初始
   權重，Root 唯讀掛載後使用 PyMTLF native import；示例名稱不構成通用 schema 規則，model ID 跨 run
   重用仍須核對完整 lifecycle。
-- **逐次執行已確認方向**：依 workload → seed → E0／E1／E2a／E2b，由薄工具逐個呼叫現有設定與單次
+- **逐次執行已確認方向**：依 workload → seed → E0／E1／E2a／E2b，由薄工具逐個呼叫現有設定、資料生成與單次
   runner 入口；前一 run 完成收集與 guarded reset 後才切換。失敗即停，保留 run 並單列；操作者處理後
   再從未完成組合接續，不新增另一套 runner。
 - **結果呈現方向**：逐輪呈現五 seed 平均 accuracy／loss 與變異範圍，並列最終表現、相對同 seed E0 的
@@ -118,7 +118,7 @@ condition label 與工具接續介面的具體契約仍須在實作前核對，�
   不把 round 1 起算的全程 AUC 或整段剩餘 rounds 擅自替代此定義。先前提出的 `K=8` 缺乏實驗理由，
   已撤回。目前選用的 MNIST E0／E1 source 是 24 輪、第 12 輪後故障，故障後有 12 輪；
   CIFAR-10 all-class-skew E0／E1 source 是 40 輪、第 20 輪後故障，故障後有 20 輪。
-  E2a／E2b 目前只有 8 輪短跑情境，正式情境尚須沿用各 workload 的輪數與故障點建置。
+  實作前 E2a／E2b 只有 8 輪短跑情境，正式情境須沿用各 workload 的輪數與故障點建置；完成情形見第 11 節。
   **已確認**：兩個 workload 共用 `K=12`，分別計算 MNIST 第 13–24 輪與 CIFAR-10 第 21–32 輪；
   E0 以對應的名義故障邊界對齊。CIFAR-10 第 33–40 輪仍呈現在完整曲線與 endpoint，但不進入主要 AUC。
   分析程式不得按每次 run 的實際長度臨時改變視窗。
@@ -127,7 +127,7 @@ condition label 與工具接續介面的具體契約仍須在實作前核對，�
   Recovery 依上層定義，參照 E0 對應 accepted round 的同一方法所得 CI，且連續維持兩輪。
   Endpoint paired effect 先在每個 seed 計算情境與 E0 的差值，再對五筆差值計算平均與同一方法的 CI；
   不把跨情境未配對的平均值差當成 paired effect。
-- **Run 紀錄分類已確認**：目前 runner 固定寫入
+- **Run 紀錄分類已確認**：實作前 runner 固定寫入
   `runs/protocol-hierarchical/<workload>/<runName>/`，同一 workload 的短跑、失敗紀錄與正式實驗會平鋪混雜。
   正式矩陣的原始 run 應能按實驗系列、workload、seed、condition 定位，且仍以 `runName` 為單次 run 目錄；
   新 run 使用 `runs/protocol-hierarchical/e0-e2b/<workload>/seed-<n>/<condition>/<runName>/`。
@@ -142,7 +142,7 @@ condition label 與工具接續介面的具體契約仍須在實作前核對，�
 2. **方向已確認，實作前核對**：模型生成由 testbed Host preparation 擁有，Root-only 唯讀掛載選中來源；
    尚須核對既有 model ID 跨已 reset runs 的重用、native artifact key 的選取方式及 reset 後重新匯入；
    若需改 PyMTLF component contract，須另經 component policy 與使用者決策。
-3. **方向已確認，實作前核對**：第一版增加只逐個呼叫現有 `config-create`／`fl-experiment-run` 的薄工具，
+3. **方向已確認，實作前核對**：第一版增加只逐個呼叫現有 `config-create`／`dataset-generate`／`fl-experiment-run` 的薄工具，
    失敗即停並由操作者處理後接續；第 7 節建議 condition 從 selected scenario 進入 run evidence，實作時須核對
    組合選取、失敗後補收與同 config 接續。不新增第二套 runner 或自動恢復機制。
 4. **正式執行前**：CI 算法及 endpoint paired 差值的 CI 已固定為雙側 95% Student-t，
@@ -153,7 +153,7 @@ condition label 與工具接續介面的具體契約仍須在實作前核對，�
    不另建一份 run 索引或複製原始資料。
 
 使用者已授權依第 7 節方向進入實作；實作時須核對各接線點與 end-to-end baseline disposition，若既定邊界不成立則停止並回到決策。
-本階段不執行正式矩陣，也不以 Slice 2 的四次短跑代替正式比較結果。
+上述實作階段不執行正式矩陣，也不以 Slice 2 的四次短跑代替正式比較結果。正式執行另依第 10 節授權進行。
 
 ## 7. 第二輪接線盤點與建議
 
@@ -164,7 +164,7 @@ condition label 與工具接續介面的具體契約仍須在實作前核對，�
 | 有效 scenario | `config-render.py` 先載入 YAML 才 render，`manifest.scenario` 已複製 image scenario 的主要欄位；但 `resolve_config_scenario()` 目前只用 `definition` 重讀原始 YAML，因此後續 dataset、checker、runner 不會自然取得選中 seed。 | 在現有 `config-create` 加 seed 選擇，只對選中 image scenario 改 `partition.seed`、穩定的 per-seed `datasetId` 與模型來源／native key；把完整有效欄位存入 `manifest.scenario`。對 protocol-hierarchical 的後續 consumer，以該快照作為 selected scenario；`definition` 僅保留原始檔案的 provenance。其他 deployment kind 保持原解析方式；不另建四十份 YAML 或平行 config source。Seed `1–5` 是本批選擇，不寫成通用 scenario 合法值限制。 |
 | Condition 與正式 scenario | MNIST E2a／E2b 現有檔案是 8 輪、200 筆 validation／test 的短跑；CIFAR-10 沒有 E2a／E2b。MNIST 正式 E0／E1 為 24 輪、故障界線 12；選中的 CIFAR-10 all-class-skew E0／E1 為 40 輪、故障界線 20，現有 `kind` 為 `diagnostic`。 | 在各 workload 的四份基本情境明確保存實驗 series／condition，例如 `experiment.series: e0-e2b` 與 `experiment.condition: E2a`，由同一 scenario 快照傳到 `run.json`；不從檔名、`kind` 或 fault 型態猜 condition。正式 E2a／E2b 沿用所屬 workload 的正式 partition、training、故障界線，僅接上已驗證的直掛與停機語意；既有短跑保留原位。 |
 | 初始模型 | 現有 Root image 內只有各 workload 一份固定 seed source；entrypoint 原生匯入後核對 `artifact_key`。`config-check.py`、Compose checker、`seedRestoration` 與 Root 環境變數皆假定固定路徑。既有 reset 清空 PyMTLF runtime volume，不刪 Host 生成輸入。 | 由 `config-create` 所屬 Host preparation 以選中 seed 和現有 PyMTLF `Model` 架構真正生成權重，保留 per-workload／seed source 於 `.generated`；用 PyMTLF native bundle 取得 key。只在 Root container 唯讀掛載選中 source，讓 renderer、兩個 checker、`seedRestoration` 與 entrypoint 指向同一位置；每次 reset 後由 Root 再匯入。不新增 testbed-owned hash。先沿用既有 workload model ID，因每 run 的 runtime catalog 在 guarded reset 後清空；focused verification 必須實測兩個不同 seed 順序切換與重新匯入，不能只憑單一配置的 ID uniqueness 宣稱跨 run 成立。 |
-| 執行與補收 | 單次 runner 和 `collect-only` 都由 selected config 加 `runName` 算同一路徑；目前路徑固定平鋪在 workload 下，且 `check_evidence()` 要求末層名稱等於 `runName`。 | 若 selected scenario 屬於正式 `e0-e2b` 系列，兩個入口都使用 `runs/protocol-hierarchical/e0-e2b/<workload>/seed-<n>/<condition>/<runName>/`；其他 scenario 仍用舊路徑。薄工具只依操作者選定的 workload／seed／condition 順序呼叫現有 `config-create` 和單次 runner，為每次嘗試給獨立 `runName`。失敗立即停止；同一 selected config 下先補收或安全清理，後續由操作者明確選擇未完成組合重呼叫，不做自動跳過或 queue state。 |
+| 執行與補收 | 單次 runner 和 `collect-only` 都由 selected config 加 `runName` 算同一路徑；目前路徑固定平鋪在 workload 下，且 `check_evidence()` 要求末層名稱等於 `runName`。 | 若 selected scenario 屬於正式 `e0-e2b` 系列，兩個入口都使用 `runs/protocol-hierarchical/e0-e2b/<workload>/seed-<n>/<condition>/<runName>/`；其他 scenario 仍用舊路徑。薄工具只依操作者選定的 workload／seed／condition 順序呼叫現有 `config-create`、`dataset-generate` 和單次 runner，為每次嘗試給獨立 `runName`。失敗立即停止；同一 selected config 下先補收或安全清理，後續由操作者明確選擇未完成組合重呼叫，不做自動跳過或 queue state。 |
 | 分析輸入 | `events.jsonl` 的 Root `MODEL_EVALUATION` 真正欄位為 `payload.accuracy`／`loss`；`run.json.phases.rounds` 保存 accepted 順序，`ROUND_AGGREGATION` 保存直接參與者。現有 `fl-analysis.py` 還讀舊欄位與不存在於新 run 的 `normal`／`degraded`／`restored` phase，不能直接分析本批資料。E2b 的 per-leaf `classHistogram` 在生成資料的 `split-manifest.yaml`，不在已保存的 run 原始檔內。 | 在既有分析工具加入正式系列的多 run 模式，從 `run.json.scenario.experiment` 配對，依 accepted 順序對上 Root validation，不修改原始事件；舊兩 run 入口保持原狀。為讓 E2b class coverage 隨 run 可重算，run 建立時只保存選中 split manifest 的 per-leaf 樣本數／class histogram 摘要，不複製完整 source indices 或資料檔。正式系列的分析輸出放在同系列獨立 `analysis/`，不寫回任何 run 原始檔。 |
 
 離線統計的最小明確口徑：五個 E0 seeds 皆具備對應 round 時才建立該 workload 的 E0 逐輪 Student-t CI；缺失者列出，不能以少於五筆的 CI 冒充預定結果。Post-failure accuracy AUC 採 `K=12` 個單位寬 accepted rounds 的離散面積，即指定視窗內十二筆 validation accuracy 的和；同時保留逐 seed 原值，必要時可用面積除以 12 表示視窗平均，不混入故障前邊界點。Recovery 從首次修復後 accepted contribution 起，找首次連續兩個 accepted rounds 的 accuracy 均落在 E0 對應輪次 CI 內；找不到則記 `not recovered`，若 E0 CI 或必要事件缺失則記無法判定，不能補值。完整但未修復的 run 仍保留訓練與事件資料；中斷 run 另列且不得默默併入五 seed 統計。時間線以實際 UTC 事件與各目標 stop 時刻對齊，缺少的階段保持未觀測，不把 subscription ready 當作首次 accepted contribution。
@@ -177,7 +177,7 @@ condition label 與工具接續介面的具體契約仍須在實作前核對，�
 原生模型 artifact identity 及 condition；原始 scenario 路徑只作來源紀錄。Host 依選中 seed 與目前 PyMTLF 模型架構
 產生權重，Root 唯讀掛載對應來源；舊 scenario 與舊 run 位置不改。正式情境已補齊兩個 workload 的 E0、E1、
 E2a、E2b，單次 runner／`collect-only` 共用新分層 run 路徑，並保存節點 ID 與 Leaf 類別摘要。
-`fl-series-run` 只逐個呼叫既有設定生成與單次 runner，需明確選 workload、seed、condition 及 run 前綴；失敗即停。
+`fl-series-run` 只逐個呼叫既有設定生成、資料生成與單次 runner，需明確選 workload、seed、condition 及 run 前綴；失敗即停。
 `fl-analysis` 新增正式系列模式，由已保存原始紀錄計算五 seed Student-t CI、同 seed E0 配對差值、固定 K=12 AUC、
 修復判讀與事件細節；舊兩 run 模式保留。
 
@@ -188,11 +188,11 @@ Slice 2 的已保存 replacement events 核對首次修復貢獻解析；後者�
 初次 diff review 已完成。Review 中修正了三處同範圍資料解讀：同組合一筆失敗 run 後成功重試時只選成功結果，
 但仍單列失敗紀錄；subscription resource operation 只計發起端 `SENT`，並與 `NOTIFY` 分開；Branch 的
 Leaf coverage 由各節點原始 JSONL 依實際事件時間對齊 Root accepted round，不假定 replacement Branch 的
-`roundInd` 與 Root 相同。對應的既有分析測試已通過，尚無實機完整正式 run 驗證這些輸出。
+`roundInd` 與 Root 相同。對應的既有分析測試已通過；當時尚無實機完整正式 run，後續直接證據見第 11 節。
 
 兩個不同 seed 的短程 MNIST E0 已依第 9 節在 approved Host context 依序完成匯入、訓練、收集與 reset。
 正式 E0 定義為 24 輪，這兩次短跑不放入正式系列或論文統計；初次及針對性 review 已完成，
-使用者已確認 review。四十次正式實驗仍待另行授權，不將本 slice 標為 Completed。
+使用者已確認當時的實作 review。正式矩陣後續執行與結果摘要見第 11 節；本 slice 不標為 Completed。
 
 ## 9. Seed 切換實機短跑
 
@@ -218,3 +218,36 @@ Host 容量、GPU、有效設定、資料與 Compose；preflight 為 0 failures�
 artifact key 也不同；第二次 Root container log 顯示匯入的 key 與 seed 2 selected config 一致。
 兩次 raw runs 分別留在 `runs/protocol-hierarchical/mnist/` 下，不在 `e0-e2b/`；
 這些只證明 seed 切換與共同生命週期，不證明正式 24／40 輪訓練或 E1／E2 的新五 seed 結果。
+
+## 10. 正式執行授權與停止邊界
+
+使用者已在本 slice review 後授權逐次執行兩個 workload × 四個 condition × 五個 seed 的正式矩陣，
+不要求每組完成後等待確認。若出現可修復且不影響配對比較與實驗語意的問題，可在保留原始紀錄、
+核對修正效果並記錄實際設定後繼續；必要的 timeout 等執行參數可小幅調整，但同一 workload 的
+各 condition 須保持可比，不將不同設定的結果默默合併。若資料／模型配對、故障語意、結果有效性，
+或 provider／stop／reset 安全邊界無法確認，停止後續 runs 並回報；只有在資源 identity 與清理範圍可
+安全核對時，才停止本實驗的 processes、containers 與所選 VMs。失敗 run 不覆蓋、不算入五 seed 統計。
+
+## 11. 正式矩陣執行與結果摘要
+
+2026-09-22 依第 10 節授權逐次執行正式矩陣。`runs/protocol-hierarchical/e0-e2b/` 保留全部原始紀錄：
+MNIST 與 CIFAR-10 各有 E0、E1、E2a、E2b × seed 1–5，共 40 個 `successful` 且已完成收集與
+guarded reset 的 run。MNIST 每組 24 個 accepted rounds；CIFAR-10 每組 40 個。同一 workload／seed 的四個
+condition 使用相同 `datasetId` 與 PyMTLF native 初始模型 key；兩個 workload 各有五個不同的 seed 模型 key。
+各 workload 內的訓練超參數未因執行中問題而改動，也沒有調整 timeout。
+
+MNIST seed 3／E0 的兩次啟動失敗分別由缺少新 seed 的 dataset split manifest，以及新生成的 seed source
+目錄權限使 Root container 無法讀取所致。兩筆失敗原始紀錄保留在原位，並在離線分析中單列而不計入五 seed；
+成功重跑使用獨立 `runName`。最小修正是讓薄工具在 `config-create` 後呼叫既有 `dataset-generate`，以及讓
+Root container 的非 root UID 可讀 Host 生成的 seed source 目錄。修正沒有改資料切分、模型權重、故障定義、
+訓練超參數、單次 runner 或 guarded reset 語意；其後新 seed 的實際訓練驗證了接線。
+
+離線輸出位於 `runs/protocol-hierarchical/e0-e2b/analysis/full-20260922/`，由保存的 run 與事件檔產生
+`rounds.csv`、`summary.csv`、`details.json`、`curves.svg`。分析辨識 40 個完整 run 及上述 2 筆失敗嘗試；
+八個 workload／condition 群組各有五個完整 seed。額外核對了所有完整 run 的最後模型、held-out、
+原始事件與逐節點 JSONL 實際檔案、預定 accepted／故障前後輪數、停機目標、reset，以及 Root 最後一輪的
+直接聚合參與者；後者 40／40 符合 E0／E1／E2a／E2b 各自的拓樸語意。PyMTLF 訓練容器目前已停止，
+四台 VM 維持啟動供後續查看；Host free swap 為 0 MiB 的既有容量警告未導致本批失敗。
+
+以上是已由使用者確認的執行與證據摘要，不把離線 recovery 判讀當成 runner 的成功門檻；是否移入
+`records/` 仍須依該分類所需證據另行判斷。
