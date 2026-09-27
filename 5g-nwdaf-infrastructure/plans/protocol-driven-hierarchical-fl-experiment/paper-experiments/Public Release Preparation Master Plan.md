@@ -2,18 +2,19 @@
 
 日期：2026-09-27
 
-狀態：Slice 3 Remote Promotion Complete／Visibility Pending；Slice 2 的正式 component tracking、protocol-only cleanup 與
+狀態：Slice 3 Visibility Partially Complete／ADRF Pending；Slice 2 的正式 component tracking、protocol-only cleanup 與
 Slice 3 公開文件已建立 candidate commits。Gate B/C 發現的 GPU config checker 與 runner／FL-control stale
 interfaces 均已完成最小修正。Final exact candidate `92b3e90beec38e8f53bc79b787d9926ec341f099` 的
 clean-checkout verification 已通過，fresh-provision GPU MNIST smoke 也已完成 2 個 accepted rounds、final
-collection、held-out evaluation 與 scoped reset。Private remote 的 feature branch 與 `main` 已 fast-forward 到
-candidate，canonical remote clean clone 亦已通過；visibility change 尚未執行
+collection、held-out evaluation 與 scoped reset。Remote feature branch 與 `main` 已 fast-forward 到
+candidate，canonical remote clean clone 亦已通過。Testbed、NWDAF、PyMTLF 與 NRF 已公開；ADRF 尚未公開，因此完整匿名
+recursive clone 驗證尚未完成
 
 ## 1. 背景與目標
 
 本次 E0、E1、E2a、E2b 正式實驗已完成 2 個 workload × 4 個 condition × 5 個 paired seeds，共 40 個有效 run，
 並已保存實驗材料與環境摘要。`NWDAF`、`NRF`、`PyMTLF`、`ADRF` 的相關實作已在另一個 workspace 完成 merge
-與 push，但這些 repository 目前尚未公開。
+與 push。目前 NWDAF、NRF 與 PyMTLF 已公開，ADRF 尚待 repository owner 處理 visibility。
 
 本計畫的目標是在公開前完成下列工作：
 
@@ -204,7 +205,7 @@ URL、branch metadata、gitlinks、lock revisions 與 clean state 全部一致�
 
 ## 7. 後續發布關卡
 
-Source promotion 與 remote clean-clone verification 已完成。實際公開前只剩決定各 repository 的公開順序與最終
-visibility change 時點。
+Source promotion 與 remote clean-clone verification 已完成。Testbed、NWDAF、PyMTLF 與 NRF 已可公開存取；
+實際公開前只剩 ADRF owner 完成 visibility change，再執行一次完整的匿名 recursive clone 驗證。
 
 Hosting visibility 變更始終需要獨立明確批准；上述設計決策也不授權 commit、VM destruction、merge、push 或公開。
