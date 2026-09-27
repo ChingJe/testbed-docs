@@ -9,6 +9,7 @@
 - [Testbed 實作順序與 Slice 安排](./Testbed%20Implementation%20Sequence%20and%20Slices.md)：將盤點的七項缺口整理為三個依序 review 的實作段落與決策關卡。
 - [Slice 計畫](./slices/README.md)：隨進度逐份建立各 slice 的討論與詳細計畫。
 - [E0–E2b 正式實驗資料與環境整理](./E0-E2b%20Formal%20Experiment%20Materials%20Draft.md)：彙整本批 40 組有效 run 的實驗條件、環境、主要結果與原始證據位置，供論文撰稿與 review。
+- [Hierarchical FL 實驗環境公開發布準備主計畫](./Public%20Release%20Preparation%20Master%20Plan.md)：規劃 component tracking 切換、正式實驗保留、過時內容清理、公開文件與乾淨 checkout 驗證；相關 repository 在完成 review 前維持 private。
 
 ## 責任邊界
 
