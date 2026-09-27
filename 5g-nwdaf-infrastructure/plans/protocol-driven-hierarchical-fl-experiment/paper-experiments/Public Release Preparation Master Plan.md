@@ -2,11 +2,12 @@
 
 日期：2026-09-27
 
-狀態：Slice 3 Gate C Complete／Publication Pending；Slice 2 的正式 component tracking、protocol-only cleanup 與
+狀態：Slice 3 Remote Promotion Complete／Visibility Pending；Slice 2 的正式 component tracking、protocol-only cleanup 與
 Slice 3 公開文件已建立 candidate commits。Gate B/C 發現的 GPU config checker 與 runner／FL-control stale
 interfaces 均已完成最小修正。Final exact candidate `92b3e90beec38e8f53bc79b787d9926ec341f099` 的
 clean-checkout verification 已通過，fresh-provision GPU MNIST smoke 也已完成 2 個 accepted rounds、final
-collection、held-out evaluation 與 scoped reset。`main` promotion、push 與 visibility change 尚未執行
+collection、held-out evaluation 與 scoped reset。Private remote 的 feature branch 與 `main` 已 fast-forward 到
+candidate，canonical remote clean clone 亦已通過；visibility change 尚未執行
 
 ## 1. 背景與目標
 
@@ -168,7 +169,9 @@ VM smoke 又承認 runner 仍呼叫已縮減的 FL-control 舊介面；移除無
 runner 已記錄的 preparation／round／delay deadlines 計算 closure budget。Final source amend 為
 `92b3e90beec38e8f53bc79b787d9926ec341f099`；新 exact checkout 重跑受影響的 Gate B 通過，而
 fresh-provision GPU smoke 也完成 2 個 accepted rounds、final model／raw observations 收集、held-out evaluation、
-process stop 與 scoped reset。
+process stop 與 scoped reset。使用者核准 Gate D promotion／push 後，remote feature branch 與 `main` 均以
+fast-forward 更新到同一 candidate；從 canonical remote 的 `main` 重新 clean clone 可取得四個 exact submodules，
+URL、branch metadata、gitlinks、lock revisions 與 clean state 全部一致。
 
 ## 5. 保留、歸檔與移除的判定方式
 
@@ -201,9 +204,7 @@ process stop 與 scoped reset。
 
 ## 7. 後續發布關卡
 
-下列事項不改變已確認的 Slice 2 cleanup scope，但在實際公開前仍須處理：
-
-- 依 final remote ancestry 將 testbed fast-forward promotion 到 `main`；實際 merge／push 仍須另行批准；
-- 決定各 repository 的公開順序與最終 visibility change 時點。
+Source promotion 與 remote clean-clone verification 已完成。實際公開前只剩決定各 repository 的公開順序與最終
+visibility change 時點。
 
 Hosting visibility 變更始終需要獨立明確批准；上述設計決策也不授權 commit、VM destruction、merge、push 或公開。

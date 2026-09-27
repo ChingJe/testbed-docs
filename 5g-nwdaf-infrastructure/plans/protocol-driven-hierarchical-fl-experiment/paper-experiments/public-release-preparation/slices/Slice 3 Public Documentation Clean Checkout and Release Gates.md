@@ -2,10 +2,11 @@
 
 日期：2026-09-28
 
-狀態：Gate C Complete／Publication Pending；repository-local 公開文件、Gate A、final exact candidate
+狀態：Remote Promotion Complete／Visibility Pending；repository-local 公開文件、Gate A、final exact candidate
 `92b3e90beec38e8f53bc79b787d9926ec341f099` 的 Gate B clean-checkout verification，以及 Gate C
 fresh-provision GPU MNIST smoke 均已通過。GPU config checker 與 runner stale-interface findings 已修正並納入
-candidate；push、`main` promotion 與 visibility change 尚未執行
+candidate；private remote 的 feature branch 與 `main` 已 fast-forward 到 candidate，remote clean clone 已通過，
+visibility change 尚未執行
 
 上層依據：[公開發布準備主計畫](../../Public%20Release%20Preparation%20Master%20Plan.md)、
 [Slice 1 公開基線盤點](./Slice%201%20Public%20Baseline%20Tracking%20and%20Retention%20Inventory.md)與
@@ -33,9 +34,9 @@ release gates。完成後，公開使用者應能從 root README 找到環境需
 
 ### 2.1 Public candidate source 與 branch 狀態
 
-- `5G_NWDAF_Infrastructure` 仍位於 `feat/hierarchical-fl-protocol-extension`，Gate B/C findings 修正後的
-  committed HEAD 是 `92b3e90beec38e8f53bc79b787d9926ec341f099`；
-  `main` 是其 ancestor，feature branch 相對 `main` 多 23 個 commits，盤點當下沒有反向分歧。
+- `5G_NWDAF_Infrastructure` local checkout 仍位於 `feat/hierarchical-fl-protocol-extension`，Gate B/C findings
+  修正後的 committed HEAD 是 `92b3e90beec38e8f53bc79b787d9926ec341f099`；使用者核准後，private remote 的
+  feature branch 與 `main` 均已 fast-forward 到此 exact candidate，沒有 merge commit 或 force push。
 - Slice 2 的 tracking、cleanup、license 與 test changes 已和 Slice 3 repository-local 公開文件一併建立 testbed candidate
   commit；Gate A review 已由使用者確認。
 - current tree 只保留 `NFs/nwdaf`、`NFs/nrf`、`NFs/adrf`、`ML/PyMTLF` 四個 submodules，checkout 與
@@ -220,6 +221,10 @@ Branch promotion 與 push 必須另提完整 proposal。Private remote 上的 fi
 runtime evidence，只補 remote-boundary evidence。Hosting visibility 改為 public 仍是最後一個獨立批准；公開後再以未認證 clone
 做最小 accessibility check，不把 visibility change 視為 source verification。
 
+使用者已核准 source promotion 與 push。執行時先 fetch 並再次確認 remote `main` 與 feature branch 都是 candidate 的
+ancestors，再以 atomic、非 force push 將兩者 fast-forward 到 `92b3e90...`。後續 remote clean clone evidence 見第 6.4 節；
+hosting visibility 仍未授權。
+
 ## 6. Initial conformance map
 
 | 主張 | Direct owner／evidence | 目前狀態 |
@@ -232,7 +237,7 @@ runtime evidence，只補 remote-boundary evidence。Hosting visibility 改為 p
 | Candidate 可由 clean checkout 初始化 exact dependencies | post-commit clean clone、submodule／lock check | `92b3e90...` 通過 |
 | Candidate 可完成 build／config／dataset pre-runtime flow | working-tree suite 與 Slice 2 focused builds；clean checkout 重跑 | `92b3e90...` 通過 |
 | Fresh real testbed 可完成最小 distributed training lifecycle | approved Host context 的 fresh-provision GPU MNIST smoke | Gate C 通過；2 個 accepted rounds、collection、evaluation、stop 與 reset 完成 |
-| Public default branch 與 canonical remote 可取得 candidate | approved promotion／push 後 remote clean clone | 尚未授權 |
+| Public default branch 與 canonical remote 可取得 candidate | approved promotion／push 後 remote clean clone | Private remote `main` 已 promotion，authenticated clean clone 通過 |
 | Anonymous public access 可用 | visibility approval 後 unauthenticated clone | 尚未授權 |
 
 ### 6.1 Gate A implementation 與 review evidence
@@ -353,14 +358,31 @@ Smoke 只使用每個 Leaf 100 筆 training samples、1 local epoch 與 2 rounds
 evaluation path 可執行，不是模型品質 acceptance 或論文結果。前兩次失敗 run 只在 temporary checkout 保存診斷
 evidence，不納入 public source 或本次成功 smoke 紀錄。
 
+### 6.4 Gate D source promotion 與 remote-boundary evidence
+
+Push 前重新 fetch 後，remote `main` 仍為 `7d0a36c...`，remote feature branch 仍為 `44aa06a...`；兩者都是
+candidate `92b3e90...` 的 ancestors。核准後以同一次 atomic、非 force push 將
+`feat/hierarchical-fl-protocol-extension` 與 `main` fast-forward 到 candidate，沒有建立 merge commit 或改寫既有
+history。`testbed-docs` 的既有 approved commit 也另行推送到其 `main`。
+
+隨後從 canonical GitHub remote 的 `main` 建立新的 authenticated clean clone，確認：
+
+- parent HEAD 是 `92b3e90beec38e8f53bc79b787d9926ec341f099`，tracked tree 與 submodules clean；
+- `.gitmodules` 可取得 PyMTLF、ADRF、NRF、NWDAF 四個 canonical HTTPS repositories；
+- 四個 submodule checkouts 分別為 `f8e6313...`、`6e2d5a9...`、`0dd4024...`、`3f30ccc...`，與 gitlinks 及
+  `components.lock.yaml` 一致。
+
+這項 remote-boundary evidence 證明 private canonical remote 可取得 candidate 與 exact dependencies；它不證明 anonymous
+public access。Repository visibility 仍保持未變，須在獨立批准後公開，再執行 unauthenticated clone check。
+
 ## 7. 已確認決策與保留授權關卡
 
 使用者於 2026-09-28 確認採用下列建議：
 
 1. **Real smoke**：fresh-provision、GPU、兩 round MNIST smoke 納入首次公開 acceptance；現有 selected VMs 的
    exact destruction／rebuild 已另行取得批准並完成。
-2. **Testbed branch promotion**：最終採 `main` fast-forward promotion；此決策不等於目前授權 merge／push，且執行前仍須重新
-   確認 remote ancestry。
+2. **Testbed branch promotion**：`main` fast-forward promotion 與 push 已在重新確認 remote ancestry 後完成；沒有 merge
+   commit、force push 或 history rewrite。
 3. **One-off scanner**：Gate A/B 使用暫存、版本固定的 Gitleaks，不把 binary、cache、baseline 或 scanner config 提交進
    repository；工具取得與任何 network operation 仍依執行環境另走 approval。
 
@@ -371,11 +393,10 @@ Slice 3 只有在下列項目滿足後才可進入 final user review：
 1. root README 與 retained detailed docs 已依第 2.3 節完成，沒有指向已移除 owner、command、scenario 或 topology；
 2. 文件 command／path／link 和 current source 一致，source／generated／local artifact boundary 清楚；
 3. Gate A 完成且沒有未處理 current-slice finding；
-4. real smoke、branch promotion 與 scanner 三個決策已依第 7 節記錄；Gate A／B／C 已執行並關閉，Gate D 仍依
-   Git／network approval 與 evidence boundary
-   保持未完成，不以已確認設計取代尚未取得的批准或實際 evidence；
+4. real smoke、branch promotion 與 scanner 三個決策已依第 7 節記錄；Gate A／B／C 與 Gate D source promotion／
+   remote clean clone 已執行並關閉，hosting visibility 與 anonymous access evidence 仍保持未完成；
 5. Gate A handoff 時所有變更保持 unstaged／uncommitted，並向使用者提供兩個 repository 的 diff、verification 與 remaining
    release gates；user review 與 commit proposal 另行通過後才建立 candidate commits。
 
-Gate A／B／C 已關閉。在 default-branch promotion、push 與 visibility approval 完成前，整體公開發布計畫
-仍不得標示 `Completed`。
+Gate A／B／C 與 source promotion／remote clean clone 已關閉。在 visibility approval 與 anonymous accessibility check
+完成前，整體公開發布計畫仍不得標示 `Completed`。
