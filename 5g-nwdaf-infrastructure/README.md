@@ -26,6 +26,6 @@ site-specific decisions、experiment design 與執行 evidence。
 再放入對應分類。Active plan 完成後應將結果整理為 record；被新計畫取代的舊內容才移入
 `archive/`。
 
-開始修改新版 testbed 的程式、設定、lifecycle 或 implementation-oriented plan 前，先讀 workspace root
-`AGENTS.md`、[development_policy.md](development_policy.md) 與 active plan。對話經過 context compaction、
-summarization 或 handoff 後，必須從磁碟完整重讀這三者，不假設 root `AGENTS.md` 會自動重新套用。
+開始修改新版 testbed 的程式、設定、lifecycle 或 implementation-oriented plan 前，從 workspace root
+`AGENTS.md` 與 [development_policy.md](development_policy.md) 的任務路由表找到適用的規則模組，並讀取 active plan
+的相關段落。讀取、context 恢復與證據沿用的規則由 development policy 入口定義。
