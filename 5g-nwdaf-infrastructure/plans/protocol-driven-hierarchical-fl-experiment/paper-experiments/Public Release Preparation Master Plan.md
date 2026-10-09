@@ -86,7 +86,7 @@ recursive clone 驗證尚未完成
 - 公開 source 與重建方法，但不發布本次正式 raw runs、final models、failed runs、generated inputs、local configs 或交換 ZIP；
   本地實驗 evidence 在 source cleanup 期間保持原位。
 
-## 4. 三個實作階段
+## 4. 實作階段
 
 ### Slice 1：公開基線、tracking 與保留範圍盤點
 
@@ -173,6 +173,14 @@ fresh-provision GPU smoke 也完成 2 個 accepted rounds、final model／raw ob
 process stop 與 scoped reset。使用者核准 Gate D promotion／push 後，remote feature branch 與 `main` 均以
 fast-forward 更新到同一 candidate；從 canonical remote 的 `main` 重新 clean clone 可取得四個 exact submodules，
 URL、branch metadata、gitlinks、lock revisions 與 clean state 全部一致。
+
+### Slice 4：論文對應文件、分析指標移除與 release tag
+
+本階段在 Slice 3 驗證過的 candidate 之上，移除論文未採用的故障後 AUC 分析指標，新增對應論文的 repository-local 文件，
+並在通過驗證的 `main` revision 建立論文引用的 release tag。它不修改 component、scenario、runner 或 runtime lifecycle。
+
+[Slice 4 詳細計畫](./public-release-preparation/slices/Slice%204%20Paper%20Companion%20Documentation%20and%20Release%20Tag.md)
+記錄範圍、驗證、已確認決策與各 Git／tag 關卡。計畫內容已由使用者確認，實作尚未開始。
 
 ## 5. 保留、歸檔與移除的判定方式
 
