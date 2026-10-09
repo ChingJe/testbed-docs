@@ -2,8 +2,9 @@
 
 日期：2026-10-09
 
-狀態：Planning／Decisions Confirmed；範圍、3.1 的既有變更、3.2 四份文件的內容與驗證方式均已由使用者確認（第 8 節）。
-實作尚未開始，待使用者指示；commit、push 與 tag 各自仍是獨立關卡
+狀態：User Reviewed／Candidate Commits Created；3.1、3.2、3.3 已實作並通過 `make test`、文件連結檢查與 independent
+review（含 targeted follow-up），使用者已 review 並要求 commit（第 10 節）。Push、remote clean clone、建立與推送 tag、
+匿名 recursive clone 驗證尚未執行，各自仍需使用者指示
 
 上層依據：[公開發布準備主計畫](../../Public%20Release%20Preparation%20Master%20Plan.md)與
 [Slice 3 公開文件、Clean Checkout 與發布關卡](./Slice%203%20Public%20Documentation%20Clean%20Checkout%20and%20Release%20Gates.md)。
@@ -131,7 +132,9 @@
 
 - 本 testbed 只執行 NRF、NWDAF、ADRF 與 PyMTLF，不執行 AMF、SMF、UPF 等其他 5GC network function。
 - 上游 free5GC 提供 NRF，但不提供 NWDAF 與 ADRF（第 2 節的查詢結果，文件中註明查詢日期）。
-- NRF：使用 `free5gc/nrf` 的 fork；說明不在上游的兩筆 commit 各自改了什麼，以及 FL 參與者的 discovery 為何需要它們。
+- NRF：使用 `free5gc/nrf` 的 fork；說明不在上游的兩筆 commit 各自改了什麼。Review 查證後確認只有第一筆（`e5d6df3`，
+  NWDAF／ADRF profile 成員與 discovery filter）是 prototype 所需；第二筆（`0dd4024`）只影響 UDM internal group 的
+  discovery，屬於 UE 資料蒐集路徑，本 testbed 不執行 UDM，文件標示為 prototype 未使用。
 - NWDAF、ADRF、PyMTLF：各自提供的 Release 18 service 與在本 prototype 中的角色。
 - MongoDB 等非 Git 相依項目，連到既有 `docs/components.md` 與 `provisioning.lock.yaml`，不重複內容。
 
@@ -338,13 +341,13 @@ remote clean-clone 驗證後，本 Slice 才可標示 `Completed`。該次驗證
 
 | 主張 | Owner／evidence | 狀態 |
 | --- | --- | --- |
-| 分析輸出不再包含故障後 AUC | `fl_series_analysis.py` diff、focused test | 變更已在 working tree，使用者確認保留；focused test 通過 |
+| 分析輸出不再包含故障後 AUC | `fl_series_analysis.py` diff、focused test | 完成；focused test 通過，independent review 無 finding |
 | 保留的分析輸出不變 | 40 組正式 run 的新舊輸出比對 | 通過（第 10 節）；diff 若再變更須重做 |
-| Repository suite 通過 | `make test` | 已獲同意，尚未執行 |
-| 論文對應文件存在且與 source 一致 | `docs/world-forum-2026/`、連結與指令對照 | 內容已確認，尚未撰寫 |
-| 候選規格與實作的差異有 source 依據 | 附錄與 pinned component source 的逐項比對 | 唯讀比對已完成並回報（第 10 節）；尚未寫成文件，除一項抽查外未經複核 |
-| `testbed-docs` 對應紀錄已加註 | 3.3 所列文件 | 未開始 |
-| Tag 建立於已驗證的 `main` revision | commit、push、remote clean clone、tag | 未開始；各步驟待授權 |
+| Repository suite 通過 | `make test` | 通過（`REPOSITORY_TEST status=passed`，2026-10-09） |
+| 論文對應文件存在且與 source 一致 | `docs/world-forum-2026/`、root `README.md`、`docs/README.md`；連結與引用路徑檢查 | 完成；六個檔案的相對連結與引用路徑全部存在 |
+| 候選規格與實作的差異有 source 依據 | 附錄與 pinned component source 的逐項比對 | 完成；寫入的每一項由實作者對照 source，並經 independent review 逐項查核 |
+| `testbed-docs` 對應紀錄已加註 | 3.3 所列文件 | 完成 |
+| Tag 建立於已驗證的 `main` revision | commit、push、remote clean clone、tag | 候選 commit 已建立於 feature branch；push 之後的步驟待授權 |
 
 ## 10. 進度
 
@@ -365,4 +368,23 @@ remote clean-clone 驗證後，本 Slice 才可標示 `Completed`。該次驗證
 - 2026-10-09：確認既有建置文件的三項缺口並記入文件四的大綱；核對 40 組正式 run 記錄的 revision 與 pin 的差異，
   結果記於第 2 節。唯讀比對（附錄與實作）是在 pinned revision 上進行；由於 PyMTLF 與 NWDAF 在執行 revision 與 pin
   之間沒有 wire model 或行為的變更，其結論同樣適用於執行 revision。
-- 尚未執行：`make test`、independent review、3.2 與 3.3 的全部內容、任何 Git 操作。
+- 2026-10-09：使用者指示開始實作。
+  - `make test` 通過。執行前確認 suite 內的 provider 呼叫全部以 mock 取代，未執行任何 real provider operation。
+  - 新增 `docs/world-forum-2026/` 的 `README.md`、`specification-differences.md`、`free5gc-requirements.md`、
+    `reproduction-notes.md`；root `README.md` 新增 `Paper` 一節；`docs/README.md` 新增索引項目。差異文件只寫入實作者
+    已對照 source 的項目，唯讀比對中屬於推論的項目（PyMTLF 可能回 500、`statusCause` 可能帶自由文字）未寫入。
+  - 3.3 的兩份文件已加註。
+  - Independent review：程式變更無 finding，並確認 diff 未觸及 Vagrant、provisioning、rendering、lifecycle 或 runner
+    路徑。文件有六項 admitted finding，均為文字修正：(1) NRF 第二筆 commit 被寫成 prototype 所需，實際只影響 UDM
+    group discovery；(2)「CREATE 不回 403」過於絕對，true `retainedResultReq` 的 CREATE 仍回 403；(3)「無法解讀
+    extension」沒有 source 依據，PyMTLF 一律先解析並驗證成員；(4) 不接受 feature 的條件清單不完整；(5)
+    `recoveryRound` 只在判定為 recovered 時輸出；(6) 差異文件部分項目缺 source 位置與 identity 檢查，重現說明缺環境
+    摘要。六項修正後交回同一 reviewer 做 targeted follow-up，全部關閉；follow-up 另指出一處措辭（論文未指明 403），
+    已修正。
+  - 採納的非必要建議：落差表移除論文未單獨列出的 validation endpoint 配對差一列並併入軌跡圖一列；新增
+    protocol-success 判定一列；PATCH 成員補上 preparation flag；註明 NWDAF 的 Go module path。
+  - 未採納：`docs/README.md` 結尾段落與新索引項目之間的輕微語意張力；自由文字 `statusCause` 路徑因未經確認而不寫入。
+- 2026-10-09：使用者 review 四份文件的摘要後確認內容，並同意 commit 的切分方式。`5G_NWDAF_Infrastructure` 在
+  `feat/hierarchical-fl-protocol-extension` 上建立兩筆 commit：`18c9fa77daa5b46aa6775678ea3f4a50d8c2ae0f`（移除故障後 AUC）與
+  `fd3d95392564e6ae70a821bfb5b2e0a98da3ee0a`（論文對應文件與兩個 README 入口）。後者是目前的 tag 候選 revision。
+- 尚未執行：push、remote clean clone、建立與推送 tag、匿名 recursive clone 驗證。

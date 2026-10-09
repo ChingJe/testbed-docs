@@ -17,4 +17,4 @@ review。Slice 文件隨進度逐份建立，不預先建立尚未開始的後�
   scan 已確認，目前為 `Planning / Decisions Confirmed`。
 - [Slice 4：論文對應文件、分析指標移除與 Release Tag](./Slice%204%20Paper%20Companion%20Documentation%20and%20Release%20Tag.md)：
   規劃移除論文未採用的故障後 AUC 分析指標、新增論文對應文件（與候選規格的差異、相對上游 free5GC 的需求、操作導引），
-  以及在驗證過的 `main` revision 建立 `free5gc-world-forum-2026` tag；目前為 `Planning / Decisions Confirmed`，實作尚未開始。
+  以及在驗證過的 `main` revision 建立 `free5gc-world-forum-2026` tag；目前為 `User Reviewed / Candidate Commits Created`；push 與 tag 尚未執行。

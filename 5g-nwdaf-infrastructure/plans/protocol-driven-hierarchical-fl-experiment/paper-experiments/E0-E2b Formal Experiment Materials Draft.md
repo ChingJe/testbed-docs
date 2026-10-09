@@ -106,6 +106,9 @@ Fault controller 以 `SIGSTOP` 先使目標不可回報，再執行 hard stop；
 
 ## 4. 正式結果摘要
 
+後續註記（2026-10-09）：下表的 `AUC₁₂` 欄是 2026-09-22 的分析結果，保留原值。論文最後沒有採用這個指標，離線分析工具
+也已不再輸出它；見[公開發布準備 Slice 4](./public-release-preparation/slices/Slice%204%20Paper%20Companion%20Documentation%20and%20Release%20Tag.md)。
+
 下表為五 seed 的平均值。Validation endpoint 是最後 accepted round 在固定 2,000 筆上的結果；final test accuracy 是另一份官方 10,000 筆資料的評估。`AUC₁₂` 是名義故障邊界後連續 12 個 accepted-round validation accuracy（以 0–1 比例）的離散和，非 ROC AUC；E0 用相同輪次對齊。`paired Δ` 先計同 seed 條件值減 E0，再對五筆差值取平均，單位為百分點。完整的逐輪數值、雙側 95% Student-t CI、配對 CI 與 loss CI 在 `summary.csv`／`rounds.csv`。
 
 | Workload | 條件 | Final validation acc | Final validation loss | Final test acc | AUC₁₂ | Paired endpoint Δ vs E0 | Accuracy recovery |

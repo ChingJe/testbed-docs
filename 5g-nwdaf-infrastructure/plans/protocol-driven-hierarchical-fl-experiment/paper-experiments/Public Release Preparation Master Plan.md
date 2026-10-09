@@ -180,7 +180,7 @@ URL、branch metadata、gitlinks、lock revisions 與 clean state 全部一致�
 並在通過驗證的 `main` revision 建立論文引用的 release tag。它不修改 component、scenario、runner 或 runtime lifecycle。
 
 [Slice 4 詳細計畫](./public-release-preparation/slices/Slice%204%20Paper%20Companion%20Documentation%20and%20Release%20Tag.md)
-記錄範圍、驗證、已確認決策與各 Git／tag 關卡。計畫內容已由使用者確認，實作尚未開始。
+記錄範圍、驗證、已確認決策與各 Git／tag 關卡。實作、review 與 candidate commits 已完成；push 與 tag 尚未執行。
 
 ## 5. 保留、歸檔與移除的判定方式
 

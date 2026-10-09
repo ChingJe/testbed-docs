@@ -4,6 +4,12 @@
 
 狀態：Review Confirmed；正式矩陣與初步證據核對結果已由使用者確認，後續論文材料仍可繼續補充
 
+後續變更（2026-10-09）：本文件確認的故障後 AUC（共用視窗 `K=12`）已自離線分析工具移除。論文最後沒有採用這個指標：
+視窗在執行前固定為 12 輪（MNIST 第 13–24 輪、CIFAR-10 第 21–32 輪），論文沒有說明選擇理由，且 CIFAR-10 的視窗未涵蓋
+到終點；它原本摘要的降級輪次落差與修復後差距已由其他數值直接呈現。下文關於 `K=12` 的決策與計算口徑保留為當時的紀錄，
+不代表目前工具的輸出。變更範圍與驗證見
+[公開發布準備 Slice 4](../public-release-preparation/slices/Slice%204%20Paper%20Companion%20Documentation%20and%20Release%20Tag.md)。
+
 上層依據：[實作順序與 Slice 安排](../Testbed%20Implementation%20Sequence%20and%20Slices.md)與
 [Testbed 實驗就緒盤點](../Testbed%20Experiment%20Readiness%20Inventory.md)。
 [Slice 2 計畫](./Slice%202%20Scenario%20Fault%20Lifecycle%20Initial%20Plan.md)已記錄 E0、E1、E2a、E2b 在四台 VM 上各一次的
