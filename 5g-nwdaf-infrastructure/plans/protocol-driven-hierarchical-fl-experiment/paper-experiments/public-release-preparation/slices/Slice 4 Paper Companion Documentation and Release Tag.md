@@ -2,9 +2,8 @@
 
 日期：2026-10-09
 
-狀態：User Reviewed／Candidate Commits Created；3.1、3.2、3.3 已實作並通過 `make test`、文件連結檢查與 independent
-review（含 targeted follow-up），使用者已 review 並要求 commit（第 10 節）。Push、remote clean clone、建立與推送 tag、
-匿名 recursive clone 驗證尚未執行，各自仍需使用者指示
+狀態：Completed；3.1、3.2、3.3 已實作、review 並 commit，`main` 已推送，`free5gc-world-forum-2026` tag 已建立並推送，
+匿名 recursive clone 與 clean-clone `make test` 驗證通過（第 10 節）。Tag 之後的工作見第 5 節的延後項目
 
 上層依據：[公開發布準備主計畫](../../Public%20Release%20Preparation%20Master%20Plan.md)與
 [Slice 3 公開文件、Clean Checkout 與發布關卡](./Slice%203%20Public%20Documentation%20Clean%20Checkout%20and%20Release%20Gates.md)。
@@ -347,7 +346,7 @@ remote clean-clone 驗證後，本 Slice 才可標示 `Completed`。該次驗證
 | 論文對應文件存在且與 source 一致 | `docs/world-forum-2026/`、root `README.md`、`docs/README.md`；連結與引用路徑檢查 | 完成；六個檔案的相對連結與引用路徑全部存在 |
 | 候選規格與實作的差異有 source 依據 | 附錄與 pinned component source 的逐項比對 | 完成；寫入的每一項由實作者對照 source，並經 independent review 逐項查核 |
 | `testbed-docs` 對應紀錄已加註 | 3.3 所列文件 | 完成 |
-| Tag 建立於已驗證的 `main` revision | commit、push、remote clean clone、tag | 候選 commit 已建立於 feature branch；push 之後的步驟待授權 |
+| Tag 建立於已驗證的 `main` revision | commit、push、remote clean clone、tag | 完成；tag 指向 `fd3d953`，匿名 recursive clone 的 submodule 與 lock 一致 |
 
 ## 10. 進度
 
@@ -387,4 +386,18 @@ remote clean-clone 驗證後，本 Slice 才可標示 `Completed`。該次驗證
 - 2026-10-09：使用者 review 四份文件的摘要後確認內容，並同意 commit 的切分方式。`5G_NWDAF_Infrastructure` 在
   `feat/hierarchical-fl-protocol-extension` 上建立兩筆 commit：`18c9fa77daa5b46aa6775678ea3f4a50d8c2ae0f`（移除故障後 AUC）與
   `fd3d95392564e6ae70a821bfb5b2e0a98da3ee0a`（論文對應文件與兩個 README 入口）。後者是目前的 tag 候選 revision。
-- 尚未執行：push、remote clean clone、建立與推送 tag、匿名 recursive clone 驗證。
+- 2026-10-09：使用者指示執行 push、驗證與 tag。
+  - Push 前重新 fetch，確認 remote `main` 與 feature branch 都仍在 `92b3e90`，皆為 `fd3d953` 的 ancestor，remote
+    沒有任何 tag。以同一次 atomic、非 force push 將兩者 fast-forward 到 `fd3d95392564e6ae70a821bfb5b2e0a98da3ee0a`。
+  - 以停用 credential 與 SSH 的未認證 HTTPS 從 canonical remote 的 `main` 做 recursive clone：HEAD 為 `fd3d953`，
+    tracked tree clean，四個 submodule（NRF `0dd4024`、NWDAF `3f30ccc`、ADRF `6e2d5a9`、PyMTLF `f8e6313`）的 checkout、
+    gitlink 與 `components.lock.yaml` 一致。在該 clone 以 lockfile 建立 parent 與 PyMTLF 的 Python 環境後，`make test`
+    通過。依已確認的範圍，未重跑 component build、dataset 下載或 real-environment smoke。
+  - 在 `fd3d953` 建立 annotated tag `free5gc-world-forum-2026` 並推送；remote 的 tag object 為 `c4cea8d`，peel 後為 `fd3d95392564e6ae70a821bfb5b2e0a98da3ee0a`。
+  - 依 `docs/world-forum-2026/reproduction-notes.md` 記載的四行指令，以未認證方式 clone、checkout tag 並初始化
+    submodule：HEAD 與 tag 一致，四個 submodule 與 `components.lock.yaml` 一致，`docs/world-forum-2026/` 四個檔案存在。
+    這同時補上主計畫原本因 ADRF 未公開而缺少的匿名 recursive clone evidence。
+  - 暫存 clone 已刪除。全程未執行任何 real provider operation。
+  - `testbed-docs` 是內部紀錄，不建立 tag（使用者，2026-10-09）。
+- 本 Slice 的 acceptance 已全部滿足。第 5 節列出的延後項目（flat 流程、補齊附錄未實作的部分、CREATE 改回 403）尚未
+  開始，不屬於本 Slice。

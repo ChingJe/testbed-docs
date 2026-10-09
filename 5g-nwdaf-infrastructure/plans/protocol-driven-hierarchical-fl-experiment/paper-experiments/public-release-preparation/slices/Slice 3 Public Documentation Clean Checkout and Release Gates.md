@@ -8,6 +8,9 @@ fresh-provision GPU MNIST smoke 均已通過。GPU config checker 與 runner sta
 candidate；remote feature branch 與 `main` 已 fast-forward 到 candidate，remote clean clone 已通過。Testbed、
 NWDAF、PyMTLF 與 NRF 已公開；ADRF 尚未公開，完整匿名 recursive clone 驗證尚待執行
 
+後續（2026-10-09）：ADRF 已公開，完整匿名 recursive clone 驗證已在
+[Slice 4](./Slice%204%20Paper%20Companion%20Documentation%20and%20Release%20Tag.md) 完成。本文件其餘內容保留為當時的紀錄
+
 上層依據：[公開發布準備主計畫](../../Public%20Release%20Preparation%20Master%20Plan.md)、
 [Slice 1 公開基線盤點](./Slice%201%20Public%20Baseline%20Tracking%20and%20Retention%20Inventory.md)與
 [Slice 2 正式 Tracking 與最小清理](./Slice%202%20Formal%20Tracking%20and%20Minimal%20Cleanup.md)。

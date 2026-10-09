@@ -7,8 +7,12 @@ Slice 3 公開文件已建立 candidate commits。Gate B/C 發現的 GPU config 
 interfaces 均已完成最小修正。Final exact candidate `92b3e90beec38e8f53bc79b787d9926ec341f099` 的
 clean-checkout verification 已通過，fresh-provision GPU MNIST smoke 也已完成 2 個 accepted rounds、final
 collection、held-out evaluation 與 scoped reset。Remote feature branch 與 `main` 已 fast-forward 到
-candidate，canonical remote clean clone 亦已通過。Testbed、NWDAF、PyMTLF 與 NRF 已公開；ADRF 尚未公開，因此完整匿名
-recursive clone 驗證尚未完成
+candidate，canonical remote clean clone 亦已通過。Testbed、NWDAF、PyMTLF 與 NRF 已公開；當時 ADRF 尚未公開，完整匿名
+recursive clone 驗證因此延後。
+
+2026-10-09 更新：ADRF 已公開。Slice 4 在 candidate 之上新增兩筆 commit（移除論文未採用的分析指標、新增論文對應文件），
+`main` 已推送到 `fd3d95392564e6ae70a821bfb5b2e0a98da3ee0a`，並建立論文引用的 `free5gc-world-forum-2026` tag；匿名 recursive clone 與 clean-clone `make test` 驗證
+通過。本計畫的發布關卡至此全部完成
 
 ## 1. 背景與目標
 
@@ -180,7 +184,7 @@ URL、branch metadata、gitlinks、lock revisions 與 clean state 全部一致�
 並在通過驗證的 `main` revision 建立論文引用的 release tag。它不修改 component、scenario、runner 或 runtime lifecycle。
 
 [Slice 4 詳細計畫](./public-release-preparation/slices/Slice%204%20Paper%20Companion%20Documentation%20and%20Release%20Tag.md)
-記錄範圍、驗證、已確認決策與各 Git／tag 關卡。實作、review 與 candidate commits 已完成；push 與 tag 尚未執行。
+記錄範圍、驗證、已確認決策與各 Git／tag 關卡。本階段已完成：`main` 已推送，release tag 已建立，匿名 recursive clone 驗證通過。
 
 ## 5. 保留、歸檔與移除的判定方式
 
@@ -213,7 +217,7 @@ URL、branch metadata、gitlinks、lock revisions 與 clean state 全部一致�
 
 ## 7. 後續發布關卡
 
-Source promotion 與 remote clean-clone verification 已完成。Testbed、NWDAF、PyMTLF 與 NRF 已可公開存取；
-實際公開前只剩 ADRF owner 完成 visibility change，再執行一次完整的匿名 recursive clone 驗證。
+Source promotion 與 remote clean-clone verification 已完成。Testbed、NWDAF、PyMTLF、NRF 與 ADRF 皆可公開存取；
+完整的匿名 recursive clone 驗證已於 2026-10-09 隨 `free5gc-world-forum-2026` tag 完成（見 Slice 4）。沒有尚待執行的發布關卡。
 
 Hosting visibility 變更始終需要獨立明確批准；上述設計決策也不授權 commit、VM destruction、merge、push 或公開。
